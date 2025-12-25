@@ -4,7 +4,7 @@ CML is a foundational memory layer for recording reasons, permissions, and respo
 
 ## Scope
 
-The primary goal of Causal Memory Layer is to define **why** a state change happened, linking it to the authorization and intent that preceded it.
+The primary goal of Causal Memory Layer is to define **why a state change was permitted to happen**, linking it to the authorization and intent that preceded it.
 
 ### What is Causal Memory?
 *   **Immutable History of Intent**: Records the decision-making process and authorization chains.
@@ -32,3 +32,5 @@ CML is designed to be:
 *   **Infrastructure Agnostic**: Deployable on any stack.
 
 This repository serves as the anchor point for specifications, formal definitions, and invariants of the Causal Memory Layer.
+
+A system may be functionally correct while being causally invalid.
