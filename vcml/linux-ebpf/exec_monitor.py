@@ -74,6 +74,7 @@ def main():
         # We look up the PPID. If we have seen the PPID exec before, we link it.
         # Otherwise, it's a gap (null).
         parent_cause = pid_causes.get(event.ppid)
+        permitted_by = "parent_process_context" if parent_cause else "unobserved_parent"
 
         # Timestamp (ns)
         timestamp = time.time_ns()
@@ -83,6 +84,9 @@ def main():
             filename = event.filename.decode('utf-8')
         except:
             filename = event.filename.decode('latin1')
+        filename = filename.split('\x00', 1)[0]
+
+        comm = event.comm.decode('utf-8', 'replace').split('\x00', 1)[0]
 
         record = {
             "id": record_id,
@@ -90,11 +94,12 @@ def main():
             "actor": {
                 "pid": event.pid,
                 "ppid": event.ppid,
-                "uid": event.uid
+                "uid": event.uid,
+                "comm": comm
             },
             "action": "exec",
             "object": filename,
-            "permitted_by": "parent_process_context",
+            "permitted_by": permitted_by,
             "parent_cause": parent_cause
         }
 
