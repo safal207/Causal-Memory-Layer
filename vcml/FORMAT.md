@@ -80,3 +80,7 @@ A vCML causal record MUST be able to express:
 - No cryptography is required at this stage
 - No schema serialization is mandated (JSON, binary, etc.)
 - The emphasis is on **meaning**, not performance
+
+- `permitted_by` is a semantic reference (id or string), not a policy evaluation result.
+- `parent_cause` may be null for explicit root events
+  (e.g. system boot, init, or break-glass actions).

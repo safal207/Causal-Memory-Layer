@@ -16,7 +16,7 @@ vCML records **causal permission**, not execution results.
 
 Each recorded action answers the question:
 
-> Why was this action allowed to happen?
+> Why was this action **permitted** to happen?
 
 This includes:
 - who initiated the action,

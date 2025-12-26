@@ -45,7 +45,11 @@ Future boundaries may include:
 
 ## Structure
 
-linux-ebpf/ bpf/    # eBPF programs (kernel side) user/   # User-space collector / exporter
+```text
+linux-ebpf/
+  bpf/    # eBPF programs (kernel side)
+  user/   # User-space collector / exporter
+```
 
 At this stage:
 - no full eBPF programs are required,
@@ -62,6 +66,9 @@ This reference implementation must NOT:
 - act as a security control.
 
 Its role is **memory**, not control.
+
+Non-goal: this is not a runtime security enforcement mechanism;
+it is causal journaling.
 
 ---
 
