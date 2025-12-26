@@ -1,4 +1,4 @@
-Causal Memory Layer — Roadmap
+# Causal Memory Layer — Roadmap
 
 Этот roadmap описывает эволюцию CML как слоя реальности,
 от семантики → к операционной системе → к инфраструктуре → к железу.
@@ -8,196 +8,152 @@ Causal Memory Layer — Roadmap
 
 ---
 
-v0.1 — Foundation (✅ завершено)
+## v0.1 — Foundation (✅ завершено)
 
-Цель:
+**Цель:**
 Зафиксировать Causal Memory Layer как онтологический слой, а не модуль или фичу.
 
-Состояние:
+**Состояние:**
 
-Определён scope и non-goals
+- Определён scope и non-goals
+- Чётко отделены:
+  - CML (что существует как память)
+  - vCML (как это живёт в системе)
+  - транспорт / исполнение (out of scope)
 
-Чётко отделены:
-
-CML (что существует как память)
-
-vCML (как это живёт в системе)
-
-транспорт / исполнение (out of scope)
-
-
-Зафиксирован инвариант:
+**Зафиксирован инвариант:**
 
 > A system may be functionally correct while being causally invalid.
 
-
-
-
-Результат:
+**Результат:**
 CML существует как цитируемый фундамент.
 
 
 ---
 
-v0.2 — vCML Skeleton
+## v0.2 — vCML Skeleton
 
-Цель:
+**Цель:**
 Показать, как CML может жить в реальной системе, не теряя чистоты.
 
-Deliverables:
+**Deliverables:**
 
-vcml/README.md
+- `vcml/README.md`
+- `vcml/FORMAT.md`
+- `vcml/linux-ebpf/README.md`
+- пустые reference-структуры (`bpf/`, `user/`)
 
-vcml/FORMAT.md
-
-vcml/linux-ebpf/README.md
-
-пустые reference-структуры (bpf/, user/)
-
-
-Важно:
+**Важно:**
 Нет кода исполнения. Только форма и смысл.
 
 
 ---
 
-v0.3 — First Boundary (exec)
+## v0.3 — First Boundary (exec)
 
-Цель:
+**Цель:**
 Оживить vCML на одной границе смысла.
 
-Фокус:
+**Фокус:**
 exec / запуск процесса
 
-Deliverables:
+**Deliverables:**
 
-минимальный hook (eBPF или user-space)
-
-causal record stream (JSONL)
-
-demo:
-
-запуск с parent_cause
-
-запуск без parent_cause (каузально сомнительно)
-
-
+- минимальный hook (eBPF или user-space)
+- causal record stream (JSONL)
+- demo:
+  - запуск с `parent_cause`
+  - запуск без `parent_cause` (каузально сомнительно)
 
 
 ---
 
-v0.4 — Causal Tags in Action (CTAG)
+## v0.4 — Causal Tags in Action (CTAG)
 
-Цель:
+**Цель:**
 Доказать, что каузальные теги — не теория.
 
-Deliverables:
+**Deliverables:**
 
-vcml/CTAG.md
-
-DOM / CLASS / GEN / LHINT / SEAL
-
-bump GEN на EXEC / PRIV
-
-LHINT вычисляется и проверяется
-
-простой chain-validator (vcml audit)
-
+- `vcml/CTAG.md`
+- `DOM` / `CLASS` / `GEN` / `LHINT` / `SEAL`
+- bump `GEN` на `EXEC` / `PRIV`
+- `LHINT` вычисляется и проверяется
+- простой chain-validator (`vcml audit`)
 
 
 ---
 
-v0.5 — Multi-Boundary Memory
+## v0.5 — Multi-Boundary Memory
 
-Цель:
+**Цель:**
 Показать, что CML — память системы, а не процессов.
 
-Добавляем:
+**Добавляем:**
 
-filesystem (open/write)
+- filesystem (open/write)
+- network (connect/send)
 
-network (connect/send)
+**Deliverables:**
 
-
-Deliverables:
-
-цепочка: exec → secret access → data egress
-
-обнаружение:
-
-egress без допустимой причины
-
-SECRET → NET без causal chain
-
-
+- цепочка: exec → secret access → data egress
+- обнаружение:
+  - egress без допустимой причины
+  - `SECRET` → `NET` без causal chain
 
 
 ---
 
-v0.6 — Hypervisor Semantics
+## v0.6 — Hypervisor Semantics
 
-Цель:
+**Цель:**
 Расширить причинность выше одной ОС.
 
-Deliverables:
+**Deliverables:**
 
-hypervisor/README.md
-
-VM / tenant как causal domains
-
-cross-VM causal chain semantics
-
+- `hypervisor/README.md`
+- VM / tenant как causal domains
+- cross-VM causal chain semantics
 
 Без реализации. Только язык и правила.
 
 
 ---
 
-v0.7 — Hardware Mapping
+## v0.7 — Hardware Mapping
 
-Цель:
+**Цель:**
 Показать, что CML естественно ложится на железо.
 
-Deliverables:
+**Deliverables:**
 
-hardware/CTAG-8-16.md
-
-hardware/riscv-pointer-masking.md
-
-hardware/cheri-capability-causality.md
-
+- `hardware/CTAG-8-16.md`
+- `hardware/riscv-pointer-masking.md`
+- `hardware/cheri-capability-causality.md`
 
 Это уровень research / architecture, не продукта.
 
 
 ---
 
-Принцип темпа
+## Принцип темпа
 
 Каждая версия должна:
 
-быть маленькой
-
-быть проверяемой
-
-иметь одну истину
-
+- быть маленькой
+- быть проверяемой
+- иметь одну истину
 
 Если версия не усиливает смысл — она не выпускается.
 
 
-
 ---
 
-Не-цели (важно)
+## Не-цели (важно)
 
-Не строим security product
-
-Не делаем policy engine
-
-Не оптимизируем производительность
-
-Не “продаём” идею раньше времени
-
+- Не строим security product
+- Не делаем policy engine
+- Не оптимизируем производительность
+- Не “продаём” идею раньше времени
 
 CML — это слой, который должен пережить свои реализации.
