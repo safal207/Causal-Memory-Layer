@@ -34,7 +34,8 @@ TRACEPOINT_PROBE(sched, sched_process_exec) {
 
     u64 id = bpf_get_current_pid_tgid();
     data.pid = id >> 32;
-    data.uid = bpf_get_current_uid_gid();
+    u64 uid_gid = bpf_get_current_uid_gid();
+    data.uid = (u32)uid_gid;
 
     task = (struct task_struct *)bpf_get_current_task();
     data.ppid = task->real_parent->pid;
