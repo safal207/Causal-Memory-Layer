@@ -36,25 +36,41 @@ Reasons:
 - immediate visibility of causal chains,
 - minimal ambiguity.
 
-Future boundaries may include:
-- file access,
-- network connections,
-- inter-process communication.
+See [exec.md](exec.md) for details on the boundary semantics.
 
 ---
 
-## Structure
+## Implementation
 
-```text
-linux-ebpf/
-  bpf/    # eBPF programs (kernel side)
-  user/   # User-space collector / exporter
+The reference implementation is provided in `exec_monitor.py`.
+
+It uses the BCC (BPF Compiler Collection) framework to:
+1.  Attach to the `sched:sched_process_exec` tracepoint.
+2.  Capture execution events (PID, PPID, filename).
+3.  Maintain a user-space mapping of `PID -> CausalID`.
+4.  Emit JSONL records with `parent_cause`.
+
+### Usage
+
+Requirements:
+- Linux Kernel (with CONFIG_BPF_SYSCALL)
+- Root privileges (sudo)
+- `python3-bpfcc` or similar BCC package
+- Kernel headers matching the running kernel
+
+```bash
+sudo ./exec_monitor.py
 ```
 
-At this stage:
-- no full eBPF programs are required,
-- placeholders are acceptable,
-- focus is on conceptual clarity.
+### Output
+
+The tool outputs JSONL records.
+
+- If a process is started by a parent *observed* by the monitor, `parent_cause` will be linked.
+- If the parent was not observed (or existed before the monitor started), `parent_cause` will be `null`.
+
+This satisfies the vCML invariant:
+> A system may be functionally correct while being causally invalid (or incomplete).
 
 ---
 
@@ -69,15 +85,3 @@ Its role is **memory**, not control.
 
 Non-goal: this is not a runtime security enforcement mechanism;
 it is causal journaling.
-
----
-
-## Goal
-
-To demonstrate that system actions can be recorded as:
-
-> functionally successful
-> but causally questionable
-
-This is the foundation for deeper OS, hypervisor,
-and eventually hardware-level causal memory.

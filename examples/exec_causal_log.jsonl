@@ -1,0 +1,2 @@
+{"id": "550e8400-e29b-41d4-a716-446655440000", "timestamp": 1690000001000000000, "actor": {"pid": 2000, "ppid": 1000, "uid": 1000}, "action": "exec", "object": "/bin/bash", "permitted_by": "parent_process_context", "parent_cause": null}
+{"id": "550e8400-e29b-41d4-a716-446655440001", "timestamp": 1690000002000000000, "actor": {"pid": 2001, "ppid": 2000, "uid": 1000}, "action": "exec", "object": "/usr/bin/ls", "permitted_by": "parent_process_context", "parent_cause": "550e8400-e29b-41d4-a716-446655440000"}
