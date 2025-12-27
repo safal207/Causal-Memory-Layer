@@ -82,5 +82,6 @@ A vCML causal record MUST be able to express:
 - The emphasis is on **meaning**, not performance
 
 - `permitted_by` is a semantic reference (id or string), not a policy evaluation result.
+- If `parent_cause` is null due to a causal gap (not a root event), `permitted_by` SHOULD be "unobserved_parent".
 - `parent_cause` may be null for explicit root events
   (e.g. system boot, init, or break-glass actions).
