@@ -1,0 +1,25 @@
+version: v0.5.1
+
+root_event_prefix: "root_event:"
+
+secret:
+  classifications: ["SECRET"]
+  path_prefixes:
+    - "/secrets/"
+  extensions:
+    - ".key"
+    - ".pem"
+
+net_out:
+  actions: ["connect", "send"]
+  external_only: true   # semantic hint; not enforced
+
+rules:
+  - id: R1
+    enabled: true
+  - id: R2
+    enabled: true
+  - id: R3
+    enabled: true
+  - id: R4
+    enabled: true
