@@ -60,9 +60,6 @@ struct read_event_t {
 BPF_PERF_OUTPUT(open_events);
 BPF_PERF_OUTPUT(read_events);
 
-// Track open fd -> filename for read correlation
-BPF_HASH(fd_map, u64, struct open_event_t);
-
 TRACEPOINT_PROBE(syscalls, sys_enter_openat) {
     struct open_event_t data = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -97,6 +94,15 @@ TRACEPOINT_PROBE(syscalls, sys_enter_read) {
     return 0;
 }
 """
+
+
+_MAX_PID_CACHE = 10_000
+
+
+def _evict_if_full(d: dict) -> None:
+    """FIFO eviction: remove the oldest entry when the dict is full."""
+    if len(d) >= _MAX_PID_CACHE:
+        del d[next(iter(d))]
 
 
 def classify_path(path: str, secret_prefixes: list, secret_exts: list) -> str:
@@ -167,6 +173,8 @@ def main():
         }
 
         print(json.dumps(record), flush=True)
+        _evict_if_full(pid_causes)
+        _evict_if_full(pid_open_path)
         pid_causes[event.pid] = record_id
         pid_open_path[event.pid] = {"path": filename, "classification": classification,
                                     "cause_id": record_id}
@@ -200,6 +208,7 @@ def main():
         }
 
         print(json.dumps(record), flush=True)
+        _evict_if_full(pid_causes)
         pid_causes[event.pid] = record_id
 
     b["open_events"].open_perf_buffer(on_open)

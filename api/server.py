@@ -226,5 +226,9 @@ def api_decode_ctag(body: dict = Body(...)):
     raw = body.get("ctag")
     if raw is None:
         raise HTTPException(status_code=422, detail="Field 'ctag' required.")
-    val = int(str(raw), 16) if isinstance(raw, str) else int(raw)
+    if isinstance(raw, str):
+        s = raw.strip()
+        val = int(s, 16) if s.startswith(("0x", "0X")) else int(s)
+    else:
+        val = int(raw)
     return decode_ctag(val)

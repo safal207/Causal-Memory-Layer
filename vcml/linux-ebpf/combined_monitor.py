@@ -173,6 +173,9 @@ def _classify(path: str, prefixes: list, exts: list) -> str:
     return "NORMAL"
 
 
+_MAX_PID_CACHE = 10_000
+
+
 def _ip_str(daddr_le: int) -> str:
     try:
         return socket.inet_ntoa(struct.pack("<I", daddr_le))
@@ -242,6 +245,8 @@ def main():
             "parent_cause": pc,
         })
         with _lock:
+            if len(pid_causes) >= _MAX_PID_CACHE:
+                del pid_causes[next(iter(pid_causes))]
             pid_causes[ev.pid] = rid
 
     # -- open --
@@ -261,6 +266,8 @@ def main():
             "parent_cause": pc,
         })
         with _lock:
+            if len(pid_causes) >= _MAX_PID_CACHE:
+                del pid_causes[next(iter(pid_causes))]
             pid_causes[ev.pid] = rid
 
     # -- connect --
@@ -282,6 +289,8 @@ def main():
             "parent_cause": pc,
         })
         with _lock:
+            if len(pid_causes) >= _MAX_PID_CACHE:
+                del pid_causes[next(iter(pid_causes))]
             pid_causes[ev.pid] = rid
 
     # -- send --
@@ -301,6 +310,8 @@ def main():
             "parent_cause": pc,
         })
         with _lock:
+            if len(pid_causes) >= _MAX_PID_CACHE:
+                del pid_causes[next(iter(pid_causes))]
             pid_causes[ev.pid] = rid
 
     b["exec_events"].open_perf_buffer(on_exec)

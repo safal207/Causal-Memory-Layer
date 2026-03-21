@@ -157,7 +157,7 @@ sudo python3 vcml/linux-ebpf/exec_monitor.py > exec.jsonl
 sudo python3 vcml/linux-ebpf/combined_monitor.py --output causal.jsonl
 
 # Then audit the captured log
-cml audit causal.jsonl --format markdown --output report.md
+cml report causal.jsonl --output report.md
 ```
 
 ---

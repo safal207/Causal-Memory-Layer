@@ -123,6 +123,15 @@ def _ip_int(addr: str) -> int:
     return struct.unpack("!I", socket.inet_aton(addr))[0]
 
 
+_MAX_PID_CACHE = 10_000
+
+
+def _evict_if_full(d: dict) -> None:
+    """FIFO eviction: remove the oldest entry when the dict is full."""
+    if len(d) >= _MAX_PID_CACHE:
+        del d[next(iter(d))]
+
+
 def _is_private(ip_int: int) -> bool:
     for base, prefix in _PRIVATE_RANGES:
         mask = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF
@@ -179,6 +188,7 @@ def main():
         }
 
         print(json.dumps(record), flush=True)
+        _evict_if_full(pid_causes)
         pid_causes[event.pid] = record_id
 
     def on_send(cpu, data, size):
@@ -200,6 +210,7 @@ def main():
         }
 
         print(json.dumps(record), flush=True)
+        _evict_if_full(pid_causes)
         pid_causes[event.pid] = record_id
 
     b["connect_events"].open_perf_buffer(on_connect)

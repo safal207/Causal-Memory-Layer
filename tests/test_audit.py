@@ -118,25 +118,44 @@ class TestR3_SecretNetChain:
 
 
 class TestR4_AmbiguousRoot:
-    def test_unobserved_parent_fires_r4(self):
-        # R4 fires when the gap IS marked "unobserved_parent" — could be an unlabeled root.
+    def test_near_miss_root_label_fires_r4(self):
+        # "root_event" (missing colon) looks like a malformed root_event: label.
         records = [
-            _rec("a", "exec", "/bin/myapp", "unobserved_parent", parent_cause=None),
+            _rec("a", "exec", "/bin/myapp", "root_event", parent_cause=None),
         ]
         result = AuditEngine().run(records)
         r4 = [f for f in result.findings if f.code == "CML-AUDIT-R4-AMBIGUOUS_ROOT"]
         assert len(r4) == 1
         assert r4[0].severity == Severity.WARN
 
+    def test_near_miss_fires_r4_not_r2(self):
+        # Near-miss root labels should trigger R4 only, not R2.
+        records = [
+            _rec("a", "exec", "/bin/myapp", "root_event", parent_cause=None),
+        ]
+        result = AuditEngine().run(records)
+        codes = [f.code for f in result.findings]
+        assert "CML-AUDIT-R4-AMBIGUOUS_ROOT" in codes
+        assert "CML-AUDIT-R2-GAP_NOT_MARKED" not in codes
+
     def test_arbitrary_permitted_by_fires_r2_not_r4(self):
-        # R2 fires when permitted_by is neither "unobserved_parent" nor "root_event:".
-        # R4 must NOT double-fire.
+        # Arbitrary permitted_by → R2 (gap not marked), not R4 (no root resemblance).
         records = [
             _rec("a", "exec", "/bin/myapp", "some_context", parent_cause=None),
         ]
         result = AuditEngine().run(records)
         codes = [f.code for f in result.findings]
         assert "CML-AUDIT-R2-GAP_NOT_MARKED" in codes
+        assert "CML-AUDIT-R4-AMBIGUOUS_ROOT" not in codes
+
+    def test_unobserved_parent_no_r2_no_r4(self):
+        # Correctly labeled gap: neither rule fires.
+        records = [
+            _rec("a", "exec", "/bin/myapp", "unobserved_parent", parent_cause=None),
+        ]
+        result = AuditEngine().run(records)
+        codes = [f.code for f in result.findings]
+        assert "CML-AUDIT-R2-GAP_NOT_MARKED" not in codes
         assert "CML-AUDIT-R4-AMBIGUOUS_ROOT" not in codes
 
     def test_root_event_prefix_no_r4(self):

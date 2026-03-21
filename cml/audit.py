@@ -193,10 +193,37 @@ class AuditEngine:
                     ))
 
             # ----------------------------------------------------------
-            # R2 — Gap Marking Consistency
+            # R2 / R4 — Gap Marking & Root Identification (mutually exclusive)
+            #
+            # For null-parent non-root records:
+            #   R4 fires when permitted_by looks like a *near-miss* root label
+            #       (starts with the root prefix stem but lacks the separator).
+            #       Example: "root_event" instead of "root_event:system_boot".
+            #   R2 fires for all other unlabeled cases (arbitrary permitted_by
+            #       that is not "unobserved_parent" and not a near-miss root).
             # ----------------------------------------------------------
-            if r2_enabled and record.parent_cause is None and not cfg.is_root(record):
-                if record.permitted_by != "unobserved_parent":
+            if record.parent_cause is None and not cfg.is_root(record):
+                prefix_stem = cfg.root_event_prefix.rstrip(":/")
+                near_miss = (
+                    isinstance(record.permitted_by, str)
+                    and record.permitted_by != "unobserved_parent"
+                    and record.permitted_by.startswith(prefix_stem)
+                    and not record.permitted_by.startswith(cfg.root_event_prefix)
+                )
+
+                if r4_enabled and near_miss:
+                    result.add(Finding(
+                        code="CML-AUDIT-R4-AMBIGUOUS_ROOT",
+                        severity=Severity.WARN,
+                        record_id=record.id,
+                        message=(
+                            f"Near-miss root label: permitted_by='{record.permitted_by}' "
+                            f"looks like '{cfg.root_event_prefix}' but is missing the "
+                            f"required separator. Did you mean "
+                            f"'{cfg.root_event_prefix}<cause>'?"
+                        ),
+                    ))
+                elif r2_enabled and not near_miss and record.permitted_by != "unobserved_parent":
                     result.add(Finding(
                         code="CML-AUDIT-R2-GAP_NOT_MARKED",
                         severity=Severity.WARN,
@@ -204,25 +231,6 @@ class AuditEngine:
                         message=(
                             f"Causal gap: parent_cause=null but permitted_by="
                             f"'{record.permitted_by}' (expected 'unobserved_parent')."
-                        ),
-                    ))
-
-            # ----------------------------------------------------------
-            # R4 — Root Event Identification
-            # Fires when a record is marked as a gap ("unobserved_parent")
-            # but could actually be a root event that needs labeling.
-            # Mutually exclusive with R2 (which fires for all other unlabeled cases).
-            # ----------------------------------------------------------
-            if r4_enabled and record.parent_cause is None and not cfg.is_root(record):
-                if record.permitted_by == "unobserved_parent":
-                    result.add(Finding(
-                        code="CML-AUDIT-R4-AMBIGUOUS_ROOT",
-                        severity=Severity.WARN,
-                        record_id=record.id,
-                        message=(
-                            f"Ambiguous root: parent_cause=null and permitted_by="
-                            f"'unobserved_parent' — if this is a true root event, "
-                            f"label it with '{cfg.root_event_prefix}'."
                         ),
                     ))
 
@@ -253,8 +261,8 @@ class AuditEngine:
                                     f"has no causal link to preceding "
                                     f"SECRET access(es): {secret_ids}."
                                 ),
-                                chain_ids=secret_ids,
+                                chain_ids=list(secret_ids),
                             ))
 
-        result.ok = result.total - result.warnings - result.failures
+        result.ok = max(0, result.total - result.warnings - result.failures)
         return result

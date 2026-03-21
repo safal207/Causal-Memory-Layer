@@ -154,7 +154,11 @@ class CausalRecord:
     def is_root(self, prefix: str = "root_event:") -> bool:
         """True if this record is an explicit root event.
 
-        Pass `prefix=config.root_event_prefix` to respect a custom AuditConfig.
+        Uses the default root_event_prefix ("root_event:").  If your audit
+        pipeline uses a custom AuditConfig.root_event_prefix, pass it here:
+            record.is_root(prefix=config.root_event_prefix)
+        The audit engine always calls cfg.is_root(record) instead, which
+        already respects the configured prefix.
         """
         return (
             self.parent_cause is None
