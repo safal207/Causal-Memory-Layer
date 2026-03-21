@@ -151,33 +151,16 @@ class CausalRecord:
     # Semantic helpers
     # ------------------------------------------------------------------
 
-    def is_root(self) -> bool:
-        """True if this record is an explicit root event."""
+    def is_root(self, prefix: str = "root_event:") -> bool:
+        """True if this record is an explicit root event.
+
+        Pass `prefix=config.root_event_prefix` to respect a custom AuditConfig.
+        """
         return (
             self.parent_cause is None
             and isinstance(self.permitted_by, str)
-            and self.permitted_by.startswith("root_event:")
+            and self.permitted_by.startswith(prefix)
         )
-
-    def is_secret_access(self, secret_extensions=(".key", ".pem"),
-                          secret_prefixes=("/secrets/",)) -> bool:
-        """True if this record represents a classified SECRET access."""
-        obj = self.object
-        if isinstance(obj, dict):
-            if obj.get("classification") == "SECRET":
-                return True
-            path = obj.get("path", "")
-        else:
-            path = obj
-        if any(path.startswith(p) for p in secret_prefixes):
-            return True
-        if any(path.endswith(e) for e in secret_extensions):
-            return True
-        return False
-
-    def is_net_out(self) -> bool:
-        """True if this record represents network egress."""
-        return self.action in (Action.CONNECT, Action.SEND)
 
 
 # ---------------------------------------------------------------------------

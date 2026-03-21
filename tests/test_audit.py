@@ -118,14 +118,26 @@ class TestR3_SecretNetChain:
 
 
 class TestR4_AmbiguousRoot:
-    def test_null_parent_no_root_prefix_is_warn(self):
+    def test_unobserved_parent_fires_r4(self):
+        # R4 fires when the gap IS marked "unobserved_parent" — could be an unlabeled root.
         records = [
-            _rec("a", "exec", "/bin/myapp", "some_context", parent_cause=None),
+            _rec("a", "exec", "/bin/myapp", "unobserved_parent", parent_cause=None),
         ]
         result = AuditEngine().run(records)
         r4 = [f for f in result.findings if f.code == "CML-AUDIT-R4-AMBIGUOUS_ROOT"]
         assert len(r4) == 1
         assert r4[0].severity == Severity.WARN
+
+    def test_arbitrary_permitted_by_fires_r2_not_r4(self):
+        # R2 fires when permitted_by is neither "unobserved_parent" nor "root_event:".
+        # R4 must NOT double-fire.
+        records = [
+            _rec("a", "exec", "/bin/myapp", "some_context", parent_cause=None),
+        ]
+        result = AuditEngine().run(records)
+        codes = [f.code for f in result.findings]
+        assert "CML-AUDIT-R2-GAP_NOT_MARKED" in codes
+        assert "CML-AUDIT-R4-AMBIGUOUS_ROOT" not in codes
 
     def test_root_event_prefix_no_r4(self):
         records = [

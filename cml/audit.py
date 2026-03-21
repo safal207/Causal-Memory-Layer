@@ -66,10 +66,7 @@ class AuditConfig:
     })
 
     @staticmethod
-    def from_yaml(path: str) -> "AuditConfig":
-        with open(path) as f:
-            raw = yaml.safe_load(f)
-        cfg = AuditConfig()
+    def _apply_raw(cfg: "AuditConfig", raw: dict) -> "AuditConfig":
         cfg.root_event_prefix = raw.get("root_event_prefix", cfg.root_event_prefix)
         s = raw.get("secret", {})
         if "classifications" in s:
@@ -87,6 +84,17 @@ class AuditConfig:
             if rid:
                 cfg.rules_enabled[rid] = enabled
         return cfg
+
+    @staticmethod
+    def from_yaml(path: str) -> "AuditConfig":
+        with open(path) as f:
+            raw = yaml.safe_load(f)
+        return AuditConfig._apply_raw(AuditConfig(), raw)
+
+    @staticmethod
+    def from_yaml_string(text: str) -> "AuditConfig":
+        raw = yaml.safe_load(text)
+        return AuditConfig._apply_raw(AuditConfig(), raw)
 
     def is_secret(self, record: CausalRecord) -> bool:
         obj = record.object
@@ -201,19 +209,20 @@ class AuditEngine:
 
             # ----------------------------------------------------------
             # R4 — Root Event Identification
+            # Fires when a record is marked as a gap ("unobserved_parent")
+            # but could actually be a root event that needs labeling.
+            # Mutually exclusive with R2 (which fires for all other unlabeled cases).
             # ----------------------------------------------------------
             if r4_enabled and record.parent_cause is None and not cfg.is_root(record):
                 if record.permitted_by == "unobserved_parent":
-                    pass  # R2 already handles this
-                else:
                     result.add(Finding(
                         code="CML-AUDIT-R4-AMBIGUOUS_ROOT",
                         severity=Severity.WARN,
                         record_id=record.id,
                         message=(
-                            f"Ambiguous root: parent_cause=null but permitted_by="
-                            f"'{record.permitted_by}' does not start with "
-                            f"'{cfg.root_event_prefix}'."
+                            f"Ambiguous root: parent_cause=null and permitted_by="
+                            f"'unobserved_parent' — if this is a true root event, "
+                            f"label it with '{cfg.root_event_prefix}'."
                         ),
                     ))
 
@@ -247,4 +256,5 @@ class AuditEngine:
                                 chain_ids=secret_ids,
                             ))
 
+        result.ok = result.total - result.warnings - result.failures
         return result

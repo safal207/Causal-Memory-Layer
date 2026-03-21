@@ -122,11 +122,7 @@ def cmd_ctag(args):
 # ---------------------------------------------------------------------------
 
 def cmd_decode(args):
-    raw = args.ctag_hex.strip()
-    if raw.startswith("0x") or raw.startswith("0X"):
-        val = int(raw, 16)
-    else:
-        val = int(raw, 16)
+    val = int(args.ctag_hex.strip(), 16)
     decoded = decode_ctag(val)
     print(json.dumps(decoded, indent=2))
 

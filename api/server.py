@@ -23,7 +23,6 @@ import json
 import os
 import sys
 from typing import Optional
-from io import StringIO
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -62,10 +61,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# TODO(Pro/Enterprise): add Bearer-token auth middleware here.
 
 # ---------------------------------------------------------------------------
 # In-memory log store (Community tier)
 # Keyed by log_name → list[CausalRecord]
+# TODO(Pro/Enterprise): replace with a persistent store + TTL eviction.
 # ---------------------------------------------------------------------------
 
 _log_store: dict[str, list[CausalRecord]] = {}
@@ -102,22 +103,9 @@ def _parse_jsonl(text: str) -> list[CausalRecord]:
     return records
 
 
-def _run_audit(records: list[CausalRecord], config_yaml: Optional[str] = None) -> dict:
-    if config_yaml:
-        import tempfile, yaml
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(config_yaml)
-            tmp_path = f.name
-        try:
-            cfg = AuditConfig.from_yaml(tmp_path)
-        finally:
-            os.unlink(tmp_path)
-    else:
-        cfg = AuditConfig()
-
-    engine = AuditEngine(cfg)
-    result = engine.run(records)
-    return result
+def _run_audit(records: list[CausalRecord], config_yaml: Optional[str] = None) -> AuditResult:
+    cfg = AuditConfig.from_yaml_string(config_yaml) if config_yaml else AuditConfig()
+    return AuditEngine(cfg).run(records)
 
 
 # ---------------------------------------------------------------------------
@@ -153,9 +141,9 @@ def audit_text(req: AuditTextRequest):
     """
     records = _parse_jsonl(req.log)
     result  = _run_audit(records, req.config)
-    index   = records_to_index(records)
 
     if req.format == "markdown":
+        index = records_to_index(records)
         return PlainTextResponse(
             to_markdown(result, index=index),
             media_type="text/markdown"
