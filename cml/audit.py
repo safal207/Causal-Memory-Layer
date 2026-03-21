@@ -93,7 +93,7 @@ class AuditConfig:
 
     @staticmethod
     def from_yaml_string(text: str) -> "AuditConfig":
-        raw = yaml.safe_load(text)
+        raw = yaml.safe_load(text) or {}
         return AuditConfig._apply_raw(AuditConfig(), raw)
 
     def is_secret(self, record: CausalRecord) -> bool:
@@ -203,9 +203,13 @@ class AuditEngine:
             #       that is not "unobserved_parent" and not a near-miss root).
             # ----------------------------------------------------------
             if record.parent_cause is None and not cfg.is_root(record):
-                prefix_stem = cfg.root_event_prefix.rstrip(":/")
+                # Strip the last character (separator) to get the stem.
+                # Using slice instead of rstrip() which strips *characters*
+                # and would mangle multi-char separators like "::".
+                prefix_stem = cfg.root_event_prefix[:-1] if cfg.root_event_prefix else ""
                 near_miss = (
-                    isinstance(record.permitted_by, str)
+                    bool(prefix_stem)
+                    and isinstance(record.permitted_by, str)
                     and record.permitted_by != "unobserved_parent"
                     and record.permitted_by.startswith(prefix_stem)
                     and not record.permitted_by.startswith(cfg.root_event_prefix)
@@ -246,11 +250,10 @@ class AuditEngine:
                         secret_ids.append(r.id)
 
                     if cfg.is_net_out(r) and secret_ids:
-                        # Check if NET_OUT has a causal path to any SECRET
-                        linked = any(
-                            has_path(r.id, sid, index)
-                            for sid in secret_ids
-                        )
+                        # Precompute ancestor set once per NET_OUT (O(chain_depth))
+                        # instead of calling has_path per secret (O(S × depth)).
+                        anc = ancestors(r.id, index)
+                        linked = bool(anc & set(secret_ids))
                         if not linked:
                             result.add(Finding(
                                 code="CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN",

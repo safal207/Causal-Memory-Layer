@@ -147,6 +147,15 @@ _GEN_BUMP_CLASSES = {CLASS.EXEC, CLASS.PRIV}
 
 def should_bump_gen(action: str, cls: int, prev_dom: int, new_dom: int,
                     entering_break_glass: bool = False) -> bool:
+    """Determine if the GEN counter should bump.
+
+    Both action string and CLASS enum are checked intentionally: the CLASS
+    enum is the authoritative source, but the action string provides a
+    fallback when the caller hasn't mapped action→class yet.  A semantic
+    contradiction (e.g. action="open" with CLASS.EXEC) indicates a
+    misconfigured caller; the bump is still applied to err on the side of
+    caution (new generation = more conservative audit trail).
+    """
     if entering_break_glass:
         return True
     if action.lower() in _GEN_BUMP_ACTIONS:

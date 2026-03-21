@@ -130,7 +130,9 @@ class CausalRecord:
     @staticmethod
     def from_dict(d: dict) -> "CausalRecord":
         actor_raw = d["actor"]
-        actor = Actor.from_dict(actor_raw) if isinstance(actor_raw, dict) else actor_raw
+        if not isinstance(actor_raw, dict):
+            raise ValueError(f"'actor' must be a dict, got {type(actor_raw).__name__}")
+        actor = Actor.from_dict(actor_raw)
         return CausalRecord(
             id=d["id"],
             timestamp=d["timestamp"],

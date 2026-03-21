@@ -226,6 +226,9 @@ def main():
             out.flush()
 
     def parent_of(pid: int, ppid: int) -> tuple[str | None, str]:
+        # Note: reads pid_causes without _lock.  This is safe because
+        # perf_buffer_poll callbacks run single-threaded.  If multi-threaded
+        # polling is ever added, move this read under the lock.
         cause = pid_causes.get(ppid) or pid_causes.get(pid)
         perm  = "parent_process_context" if cause else "unobserved_parent"
         return cause, perm

@@ -33,7 +33,7 @@ This maps directly to the evidence requirements of modern compliance frameworks.
 
 ```bash
 # Run audit on production causal log
-cml audit production.jsonl --format markdown --config soc2_config.yaml \
+cml report production.jsonl --config soc2_config.yaml \
   --output soc2_evidence_$(date +%Y%m).md
 
 # Or via API
@@ -82,7 +82,8 @@ responses and for demonstrating data deletion compliance.
 
 ### FIN_TX Chain Rule
 
-For PCI scope, extend `audit_config.yaml`:
+For PCI scope, extend `audit_config.yaml` (planned for v0.8 — `custom_rules`
+is not yet parsed by the audit engine; this section shows the target schema):
 
 ```yaml
 custom_rules:

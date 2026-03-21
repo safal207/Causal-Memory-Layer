@@ -166,6 +166,36 @@ class TestR4_AmbiguousRoot:
         r4 = [f for f in result.findings if f.code == "CML-AUDIT-R4-AMBIGUOUS_ROOT"]
         assert len(r4) == 0
 
+    def test_custom_prefix_near_miss_fires_r4(self):
+        # Custom prefix "init::" — "init:" is a near-miss (missing second colon).
+        cfg = AuditConfig(root_event_prefix="init::")
+        records = [
+            _rec("a", "exec", "/sbin/init", "init:", parent_cause=None),
+        ]
+        result = AuditEngine(cfg).run(records)
+        codes = [f.code for f in result.findings]
+        assert "CML-AUDIT-R4-AMBIGUOUS_ROOT" in codes
+        assert "CML-AUDIT-R2-GAP_NOT_MARKED" not in codes
+
+    def test_custom_prefix_valid_root_no_r4(self):
+        cfg = AuditConfig(root_event_prefix="init::")
+        records = [
+            _rec("a", "exec", "/sbin/init", "init::boot", parent_cause=None),
+        ]
+        result = AuditEngine(cfg).run(records)
+        r4 = [f for f in result.findings if f.code == "CML-AUDIT-R4-AMBIGUOUS_ROOT"]
+        assert len(r4) == 0
+
+
+class TestFromYamlString:
+    def test_empty_yaml_returns_defaults(self):
+        cfg = AuditConfig.from_yaml_string("")
+        assert cfg.root_event_prefix == "root_event:"
+
+    def test_null_yaml_returns_defaults(self):
+        cfg = AuditConfig.from_yaml_string("---")
+        assert cfg.root_event_prefix == "root_event:"
+
 
 class TestExampleLogs:
     def test_exec_log_passes(self):

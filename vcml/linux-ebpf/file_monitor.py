@@ -99,10 +99,12 @@ TRACEPOINT_PROBE(syscalls, sys_enter_read) {
 _MAX_PID_CACHE = 10_000
 
 
-def _evict_if_full(d: dict) -> None:
-    """FIFO eviction: remove the oldest entry when the dict is full."""
-    if len(d) >= _MAX_PID_CACHE:
-        del d[next(iter(d))]
+def _evict_pid(pid_causes: dict, pid_open_path: dict) -> None:
+    """FIFO eviction: remove the oldest PID from both dicts to keep them in sync."""
+    if len(pid_causes) >= _MAX_PID_CACHE:
+        oldest = next(iter(pid_causes))
+        del pid_causes[oldest]
+        pid_open_path.pop(oldest, None)
 
 
 def classify_path(path: str, secret_prefixes: list, secret_exts: list) -> str:
@@ -173,8 +175,7 @@ def main():
         }
 
         print(json.dumps(record), flush=True)
-        _evict_if_full(pid_causes)
-        _evict_if_full(pid_open_path)
+        _evict_pid(pid_causes, pid_open_path)
         pid_causes[event.pid] = record_id
         pid_open_path[event.pid] = {"path": filename, "classification": classification,
                                     "cause_id": record_id}
@@ -208,7 +209,7 @@ def main():
         }
 
         print(json.dumps(record), flush=True)
-        _evict_if_full(pid_causes)
+        _evict_pid(pid_causes, pid_open_path)
         pid_causes[event.pid] = record_id
 
     b["open_events"].open_perf_buffer(on_open)

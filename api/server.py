@@ -69,7 +69,11 @@ app.add_middleware(
 # TODO(Pro/Enterprise): replace with a persistent store + TTL eviction.
 # ---------------------------------------------------------------------------
 
+_MAX_LOGS = 1_000
+_MAX_RECORDS_PER_LOG = 100_000
+
 _log_store: dict[str, list[CausalRecord]] = {}
+_log_ids: dict[str, set[str]] = {}   # parallel ID set for O(1) dedup
 
 
 def _get_log(log_name: str) -> list[CausalRecord]:
@@ -77,11 +81,19 @@ def _get_log(log_name: str) -> list[CausalRecord]:
 
 
 def _store_records(log_name: str, records: list[CausalRecord]):
+    if log_name not in _log_store and len(_log_store) >= _MAX_LOGS:
+        raise HTTPException(status_code=429, detail="Too many logs (community tier limit).")
     existing = _log_store.setdefault(log_name, [])
-    existing_ids = {r.id for r in existing}
+    ids = _log_ids.setdefault(log_name, {r.id for r in existing})
     for r in records:
-        if r.id not in existing_ids:
+        if len(existing) >= _MAX_RECORDS_PER_LOG:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Log '{log_name}' exceeds {_MAX_RECORDS_PER_LOG} record limit.",
+            )
+        if r.id not in ids:
             existing.append(r)
+            ids.add(r.id)
 
 
 # ---------------------------------------------------------------------------
