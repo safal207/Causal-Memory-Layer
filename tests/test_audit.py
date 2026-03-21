@@ -67,12 +67,15 @@ class TestR2_GapMarking:
 
 class TestR3_SecretNetChain:
     def test_secret_then_net_no_link_is_fail(self):
+        # All three records share pid=100 so R3 sees NET_OUT after a SECRET
+        # in the same PID. "c" has parent_cause=None so ancestors("c")={c},
+        # which has no intersection with secret_ids={"b"} — R3 fires.
         records = [
-            _rec("a", "exec", "/bin/myapp", "root_event:init"),
+            _rec("a", "exec", "/bin/myapp", "root_event:init", pid=100),
             _rec("b", "open", {"path": "/secrets/api.key", "classification": "SECRET"},
-                 "fs:read", parent_cause="a"),
+                 "fs:read", parent_cause="a", pid=100),
             _rec("c", "connect", {"addr": "1.2.3.4", "port": 443},
-                 "unobserved_parent", parent_cause=None),  # no link back to b
+                 "unobserved_parent", parent_cause=None, pid=100),  # no link back to b
         ]
         result = AuditEngine().run(records)
         r3 = [f for f in result.findings if f.code == "CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN"]

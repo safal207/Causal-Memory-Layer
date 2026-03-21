@@ -88,7 +88,7 @@ class AuditConfig:
     @staticmethod
     def from_yaml(path: str) -> "AuditConfig":
         with open(path) as f:
-            raw = yaml.safe_load(f)
+            raw = yaml.safe_load(f) or {}
         return AuditConfig._apply_raw(AuditConfig(), raw)
 
     @staticmethod
@@ -252,7 +252,10 @@ class AuditEngine:
                     if cfg.is_net_out(r) and secret_ids:
                         # Precompute ancestor set once per NET_OUT (O(chain_depth))
                         # instead of calling has_path per secret (O(S × depth)).
-                        anc = ancestors(r.id, index)
+                        # Exclude r.id itself: ancestors() includes the record
+                        # being tested, so a NET_OUT record that is also
+                        # classified SECRET would falsely match itself.
+                        anc = ancestors(r.id, index) - {r.id}
                         linked = bool(anc & set(secret_ids))
                         if not linked:
                             result.add(Finding(

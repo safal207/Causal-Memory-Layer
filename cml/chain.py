@@ -68,7 +68,9 @@ def has_path(
     """
     Return True if `to_id` is an ancestor of `from_id` via parent_cause links.
 
-    Used by audit R3 to verify SECRET → NET_OUT causal connectivity.
+    Public utility for point-to-point reachability queries.  The audit engine
+    uses ancestors() + set intersection for batch checks (O(chain_depth) vs
+    O(S × chain_depth)), but has_path is useful when testing a single pair.
     """
     visited: set[str] = set()
     start = index.get(from_id)
