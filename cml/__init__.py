@@ -28,7 +28,7 @@ from .ctag   import (
     compute_ctag, decode_ctag, compute_lhint,
 )
 from .chain  import reconstruct_chain, has_path, find_root, group_by_pid
-from .audit  import AuditEngine, AuditConfig, AuditResult, Finding, Severity
+from .audit  import AuditEngine, AuditConfig, AuditResult, Finding, Severity, CustomRule
 from .report import to_markdown, to_json, to_text
 
 __all__ = [
@@ -39,7 +39,7 @@ __all__ = [
     # chain
     "reconstruct_chain", "has_path", "find_root", "group_by_pid",
     # audit
-    "AuditEngine", "AuditConfig", "AuditResult", "Finding", "Severity",
+    "AuditEngine", "AuditConfig", "AuditResult", "Finding", "Severity", "CustomRule",
     # report
     "to_markdown", "to_json", "to_text",
 ]

@@ -82,8 +82,7 @@ responses and for demonstrating data deletion compliance.
 
 ### FIN_TX Chain Rule
 
-For PCI scope, extend `audit_config.yaml` (planned for v0.8 — `custom_rules`
-is not yet parsed by the audit engine; this section shows the target schema):
+For PCI scope, extend `audit_config.yaml`:
 
 ```yaml
 custom_rules:

@@ -38,6 +38,7 @@ from cml import (
     to_markdown, to_json, to_text,
     decode_ctag,
 )
+from api.store import InMemoryStore, SQLiteStore, StoreLimitError
 
 
 # ---------------------------------------------------------------------------
@@ -61,39 +62,61 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# TODO(Pro/Enterprise): add Bearer-token auth middleware here.
 
 # ---------------------------------------------------------------------------
-# In-memory log store (Community tier)
-# Keyed by log_name → list[CausalRecord]
-# TODO(Pro/Enterprise): replace with a persistent store + TTL eviction.
+# Bearer-token auth (enabled when CML_API_TOKEN env var is set)
 # ---------------------------------------------------------------------------
 
-_MAX_LOGS = 1_000
-_MAX_RECORDS_PER_LOG = 100_000
+_API_TOKEN = os.environ.get("CML_API_TOKEN")
 
-_log_store: dict[str, list[CausalRecord]] = {}
-_log_ids: dict[str, set[str]] = {}   # parallel ID set for O(1) dedup
+if _API_TOKEN:
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse as _AuthJSONResponse
+
+    class _BearerAuthMiddleware(BaseHTTPMiddleware):
+        _PUBLIC = {"/health", "/docs", "/redoc", "/openapi.json"}
+
+        async def dispatch(self, request: Request, call_next):
+            if request.url.path in self._PUBLIC:
+                return await call_next(request)
+            auth = request.headers.get("authorization", "")
+            if not auth.startswith("Bearer ") or auth[7:] != _API_TOKEN:
+                return _AuthJSONResponse(
+                    {"detail": "Invalid or missing Bearer token."},
+                    status_code=401,
+                )
+            return await call_next(request)
+
+    app.add_middleware(_BearerAuthMiddleware)
+
+# ---------------------------------------------------------------------------
+# Log store (pluggable backend)
+#
+# CML_STORE_PATH → SQLiteStore with TTL eviction (persistent)
+# unset          → InMemoryStore (community tier, ephemeral)
+# CML_STORE_TTL  → TTL in seconds (default: 86400 = 24h)
+# ---------------------------------------------------------------------------
+
+_store_path = os.environ.get("CML_STORE_PATH", "")
+_store_ttl = int(os.environ.get("CML_STORE_TTL", "86400"))
+
+_store = (
+    SQLiteStore(_store_path, ttl_seconds=_store_ttl)
+    if _store_path
+    else InMemoryStore()
+)
 
 
 def _get_log(log_name: str) -> list[CausalRecord]:
-    return _log_store.get(log_name, [])
+    return _store.get(log_name)
 
 
 def _store_records(log_name: str, records: list[CausalRecord]):
-    if log_name not in _log_store and len(_log_store) >= _MAX_LOGS:
-        raise HTTPException(status_code=429, detail="Too many logs (community tier limit).")
-    existing = _log_store.setdefault(log_name, [])
-    ids = _log_ids.setdefault(log_name, {r.id for r in existing})
-    for r in records:
-        if len(existing) >= _MAX_RECORDS_PER_LOG:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Log '{log_name}' exceeds {_MAX_RECORDS_PER_LOG} record limit.",
-            )
-        if r.id not in ids:
-            existing.append(r)
-            ids.add(r.id)
+    try:
+        _store.store(log_name, records)
+    except StoreLimitError as e:
+        raise HTTPException(status_code=429, detail=str(e))
 
 
 # ---------------------------------------------------------------------------

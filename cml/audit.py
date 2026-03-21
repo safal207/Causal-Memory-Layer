@@ -1,8 +1,8 @@
 """
-cml.audit — Audit engine (v0.5.1)
+cml.audit — Audit engine (v0.6)
 
 Implements read-only causal coherence analysis for vCML logs.
-Rules: R1, R2, R3, R4 (see vcml/audit.md)
+Rules: R1, R2, R3, R4 + custom rules (see vcml/audit.md)
 
 Audit does NOT block, enforce, or replace security products.
 """
@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from .record import CausalRecord, records_to_index
 from .chain import group_by_pid, has_path, ancestors
+from .ctag import CLASS
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +52,43 @@ class Finding:
 
 
 # ---------------------------------------------------------------------------
+# Custom rules
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CustomRule:
+    """User-defined audit rule parsed from YAML ``custom_rules`` section."""
+    id: str
+    description: str
+    trigger_class: int                             # CLASS enum value
+    severity: str = Severity.FAIL
+    code: str = ""
+    require_ancestor_class: Optional[int] = None
+    require_ancestor_permitted_by_prefix: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        d: dict = {
+            "id": self.id,
+            "description": self.description,
+            "trigger_class": CLASS.name(self.trigger_class),
+            "severity": self.severity,
+            "code": self.code,
+        }
+        if self.require_ancestor_class is not None:
+            d["require_ancestor_class"] = CLASS.name(self.require_ancestor_class)
+        if self.require_ancestor_permitted_by_prefix is not None:
+            d["require_ancestor_permitted_by_prefix"] = self.require_ancestor_permitted_by_prefix
+        return d
+
+
+def _effective_class(record: CausalRecord) -> int:
+    """Determine a record's CLASS from its CTAG or action string."""
+    if record.ctag is not None:
+        return (record.ctag >> 8) & 0xF
+    return CLASS.from_action(record.action)
+
+
+# ---------------------------------------------------------------------------
 # Audit configuration
 # ---------------------------------------------------------------------------
 
@@ -64,6 +102,7 @@ class AuditConfig:
     rules_enabled: dict[str, bool] = field(default_factory=lambda: {
         "R1": True, "R2": True, "R3": True, "R4": True
     })
+    custom_rules: list[CustomRule] = field(default_factory=list)
 
     @staticmethod
     def _apply_raw(cfg: "AuditConfig", raw: dict) -> "AuditConfig":
@@ -83,6 +122,28 @@ class AuditConfig:
             enabled = rule.get("enabled", True)
             if rid:
                 cfg.rules_enabled[rid] = enabled
+        for cr in raw.get("custom_rules", []):
+            try:
+                trigger = CLASS.from_name(cr["trigger_class"])
+            except KeyError:
+                raise ValueError(f"Unknown trigger_class: {cr['trigger_class']}")
+            anc_cls = None
+            if "require_ancestor_class" in cr:
+                try:
+                    anc_cls = CLASS.from_name(cr["require_ancestor_class"])
+                except KeyError:
+                    raise ValueError(f"Unknown require_ancestor_class: {cr['require_ancestor_class']}")
+            cfg.custom_rules.append(CustomRule(
+                id=cr["id"],
+                description=cr.get("description", ""),
+                trigger_class=trigger,
+                severity=cr.get("severity", Severity.FAIL),
+                code=cr.get("code", f"CML-AUDIT-{cr['id']}"),
+                require_ancestor_class=anc_cls,
+                require_ancestor_permitted_by_prefix=cr.get("require_ancestor_permitted_by_prefix"),
+            ))
+            # Auto-enable the custom rule unless explicitly disabled
+            cfg.rules_enabled.setdefault(cr["id"], True)
         return cfg
 
     @staticmethod
@@ -269,6 +330,47 @@ class AuditEngine:
                                 ),
                                 chain_ids=list(secret_ids),
                             ))
+
+        # ------------------------------------------------------------------
+        # Custom rules (R5+)
+        # ------------------------------------------------------------------
+        for rule in cfg.custom_rules:
+            if not cfg.rules_enabled.get(rule.id, True):
+                continue
+            for record in records:
+                if _effective_class(record) != rule.trigger_class:
+                    continue
+                anc_ids = ancestors(record.id, index) - {record.id}
+                satisfied = False
+                for aid in anc_ids:
+                    anc = index.get(aid)
+                    if anc is None:
+                        continue
+                    cls_ok = (
+                        rule.require_ancestor_class is None
+                        or _effective_class(anc) == rule.require_ancestor_class
+                    )
+                    prefix_ok = (
+                        rule.require_ancestor_permitted_by_prefix is None
+                        or (
+                            isinstance(anc.permitted_by, str)
+                            and anc.permitted_by.startswith(
+                                rule.require_ancestor_permitted_by_prefix
+                            )
+                        )
+                    )
+                    if cls_ok and prefix_ok:
+                        satisfied = True
+                        break
+                if not satisfied:
+                    result.add(Finding(
+                        code=rule.code,
+                        severity=rule.severity,
+                        record_id=record.id,
+                        message=(
+                            f"Custom rule {rule.id}: {rule.description}"
+                        ),
+                    ))
 
         result.ok = max(0, result.total - result.warnings - result.failures)
         return result

@@ -1,5 +1,6 @@
 """Tests for CTAG computation (v0.4)"""
 
+import warnings
 import pytest
 from cml.ctag import (
     compute_ctag, decode_ctag, compute_lhint,
@@ -118,10 +119,10 @@ class TestCTAGState:
 
 class TestShouldBumpGen:
     def test_exec_bumps(self):
-        assert should_bump_gen("exec", CLASS.NONE, DOM.USER, DOM.USER) is True
+        assert should_bump_gen("exec", CLASS.EXEC, DOM.USER, DOM.USER) is True
 
     def test_priv_bumps(self):
-        assert should_bump_gen("open", CLASS.PRIV, DOM.USER, DOM.USER) is True
+        assert should_bump_gen("priv", CLASS.PRIV, DOM.USER, DOM.USER) is True
 
     def test_dom_change_bumps(self):
         assert should_bump_gen("read", CLASS.READ, DOM.USER, DOM.KERNEL) is True
@@ -132,3 +133,19 @@ class TestShouldBumpGen:
     def test_break_glass_bumps(self):
         assert should_bump_gen("open", CLASS.READ, DOM.USER, DOM.USER,
                                entering_break_glass=True) is True
+
+    def test_action_class_mismatch_warns(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # action "exec" maps to CLASS.EXEC, but we pass CLASS.READ
+            result = should_bump_gen("exec", CLASS.READ, DOM.USER, DOM.USER)
+            assert result is True  # bumps via action string
+            assert len(w) == 1
+            assert "misconfiguration" in str(w[0].message)
+
+    def test_consistent_action_class_no_warning(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            should_bump_gen("exec", CLASS.EXEC, DOM.USER, DOM.USER)
+            # No warning when action and CLASS agree
+            assert len(w) == 0

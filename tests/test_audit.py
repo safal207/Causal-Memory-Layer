@@ -1,11 +1,13 @@
-"""Tests for the audit engine (R1–R4)"""
+"""Tests for the audit engine (R1–R4 + custom rules)"""
 
 import pytest
-from cml import load_jsonl, AuditEngine, AuditConfig, Severity
+from cml import load_jsonl, AuditEngine, AuditConfig, Severity, CustomRule
 from cml.record import CausalRecord, Actor
+from cml.ctag import CLASS
 
 
-def _rec(id_, action, object_, permitted_by, parent_cause=None, pid=100):
+def _rec(id_, action, object_, permitted_by, parent_cause=None, pid=100,
+         ctag=None):
     return CausalRecord(
         id=id_,
         timestamp=1_000_000_000,
@@ -14,6 +16,7 @@ def _rec(id_, action, object_, permitted_by, parent_cause=None, pid=100):
         object=object_,
         permitted_by=permitted_by,
         parent_cause=parent_cause,
+        ctag=ctag,
     )
 
 
@@ -198,6 +201,136 @@ class TestFromYamlString:
     def test_null_yaml_returns_defaults(self):
         cfg = AuditConfig.from_yaml_string("---")
         assert cfg.root_event_prefix == "root_event:"
+
+
+class TestFromYamlFile:
+    def test_empty_file_returns_defaults(self, tmp_path):
+        p = tmp_path / "empty.yaml"
+        p.write_text("")
+        cfg = AuditConfig.from_yaml(str(p))
+        assert cfg.root_event_prefix == "root_event:"
+        assert cfg.custom_rules == []
+
+    def test_custom_rules_parsed(self, tmp_path):
+        p = tmp_path / "cfg.yaml"
+        p.write_text("""
+custom_rules:
+  - id: R5-FIN_TX
+    description: "FIN_TX must chain to session"
+    trigger_class: FIN_TX
+    require_ancestor_class: EXEC
+    require_ancestor_permitted_by_prefix: "root_event:session:"
+    severity: FAIL
+    code: CML-AUDIT-R5-FIN_TX_NO_SESSION
+""")
+        cfg = AuditConfig.from_yaml(str(p))
+        assert len(cfg.custom_rules) == 1
+        assert cfg.custom_rules[0].trigger_class == CLASS.FIN_TX
+        assert cfg.custom_rules[0].require_ancestor_class == CLASS.EXEC
+
+
+class TestCustomRules:
+    def test_custom_rule_fires_when_no_ancestor(self):
+        rule = CustomRule(
+            id="R5-TEST",
+            description="NET_OUT must descend from EXEC root",
+            trigger_class=CLASS.NET_OUT,
+            require_ancestor_class=CLASS.EXEC,
+            require_ancestor_permitted_by_prefix="root_event:",
+            severity=Severity.FAIL,
+            code="CML-AUDIT-R5-TEST",
+        )
+        cfg = AuditConfig(custom_rules=[rule])
+        records = [
+            _rec("a", "connect", {"addr": "1.2.3.4"}, "unobserved_parent",
+                 parent_cause=None, pid=100),
+        ]
+        result = AuditEngine(cfg).run(records)
+        codes = [f.code for f in result.findings]
+        assert "CML-AUDIT-R5-TEST" in codes
+
+    def test_custom_rule_passes_when_ancestor_matches(self):
+        rule = CustomRule(
+            id="R5-TEST",
+            description="NET_OUT must descend from EXEC root",
+            trigger_class=CLASS.NET_OUT,
+            require_ancestor_class=CLASS.EXEC,
+            require_ancestor_permitted_by_prefix="root_event:",
+            severity=Severity.FAIL,
+            code="CML-AUDIT-R5-TEST",
+        )
+        cfg = AuditConfig(custom_rules=[rule])
+        records = [
+            _rec("a", "exec", "/bin/app", "root_event:init"),
+            _rec("b", "connect", {"addr": "1.2.3.4"}, "net:out",
+                 parent_cause="a", pid=100),
+        ]
+        result = AuditEngine(cfg).run(records)
+        codes = [f.code for f in result.findings]
+        assert "CML-AUDIT-R5-TEST" not in codes
+
+    def test_custom_rule_checks_permitted_by_prefix(self):
+        rule = CustomRule(
+            id="R5-TEST",
+            description="NET_OUT must descend from session root",
+            trigger_class=CLASS.NET_OUT,
+            require_ancestor_class=CLASS.EXEC,
+            require_ancestor_permitted_by_prefix="root_event:session:",
+            severity=Severity.FAIL,
+            code="CML-AUDIT-R5-TEST",
+        )
+        cfg = AuditConfig(custom_rules=[rule])
+        # Ancestor is EXEC but with wrong prefix
+        records = [
+            _rec("a", "exec", "/bin/app", "root_event:init"),
+            _rec("b", "connect", {"addr": "1.2.3.4"}, "net:out",
+                 parent_cause="a", pid=100),
+        ]
+        result = AuditEngine(cfg).run(records)
+        codes = [f.code for f in result.findings]
+        # Fails because prefix is "root_event:init" not "root_event:session:"
+        assert "CML-AUDIT-R5-TEST" in codes
+
+    def test_custom_rule_disabled_via_rules_enabled(self):
+        rule = CustomRule(
+            id="R5-TEST",
+            description="test",
+            trigger_class=CLASS.NET_OUT,
+            severity=Severity.FAIL,
+            code="CML-AUDIT-R5-TEST",
+        )
+        cfg = AuditConfig(
+            custom_rules=[rule],
+            rules_enabled={"R1": True, "R2": True, "R3": True, "R4": True,
+                           "R5-TEST": False},
+        )
+        records = [
+            _rec("a", "connect", {"addr": "1.2.3.4"}, "unobserved_parent",
+                 parent_cause=None),
+        ]
+        result = AuditEngine(cfg).run(records)
+        codes = [f.code for f in result.findings]
+        assert "CML-AUDIT-R5-TEST" not in codes
+
+    def test_custom_rule_uses_ctag_class(self):
+        """When a record has a CTAG, use its CLASS field, not action-based mapping."""
+        rule = CustomRule(
+            id="R5-FIN",
+            description="FIN_TX must chain to session",
+            trigger_class=CLASS.FIN_TX,
+            severity=Severity.FAIL,
+            code="CML-AUDIT-R5-FIN",
+        )
+        cfg = AuditConfig(custom_rules=[rule])
+        # action is "send" (CLASS.NET_OUT), but ctag encodes CLASS.FIN_TX
+        fin_ctag = (0 << 12) | (CLASS.FIN_TX << 8) | (0 << 4) | 0  # DOM=0, FIN_TX, GEN=0
+        records = [
+            _rec("a", "send", {"fd": 3}, "unobserved_parent",
+                 parent_cause=None, ctag=fin_ctag),
+        ]
+        result = AuditEngine(cfg).run(records)
+        codes = [f.code for f in result.findings]
+        assert "CML-AUDIT-R5-FIN" in codes
 
 
 class TestExampleLogs:

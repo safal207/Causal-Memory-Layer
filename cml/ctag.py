@@ -14,6 +14,7 @@ Reference: vcml/CTAG.md
 
 from __future__ import annotations
 
+import warnings
 from typing import Optional
 
 
@@ -156,6 +157,15 @@ def should_bump_gen(action: str, cls: int, prev_dom: int, new_dom: int,
     misconfigured caller; the bump is still applied to err on the side of
     caution (new generation = more conservative audit trail).
     """
+    # Validate action/CLASS consistency
+    expected_cls = CLASS.from_action(action)
+    if expected_cls != CLASS.NONE and expected_cls != cls:
+        warnings.warn(
+            f"Action '{action}' maps to {CLASS.name(expected_cls)} but "
+            f"cls={CLASS.name(cls)}; possible misconfiguration "
+            f"(bump applied conservatively).",
+            stacklevel=2,
+        )
     if entering_break_glass:
         return True
     if action.lower() in _GEN_BUMP_ACTIONS:
