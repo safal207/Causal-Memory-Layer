@@ -28,6 +28,9 @@ Causal Memory Layer is offered under an **Open Core** model:
 
 ### Pro — $99 / month per team
 
+> **DRAFT** — Hosted Pro tier is not yet available. This pricing reflects the
+> planned model. Self-hosted `api/server.py` is free and available today.
+
 Everything in Community, plus:
 
 | Feature | Included |
@@ -44,6 +47,9 @@ Everything in Community, plus:
 ---
 
 ### Enterprise — Custom pricing
+
+> **DRAFT** — Enterprise tier is not yet available. Contact enterprise@causal-memory.dev
+> to be notified at launch.
 
 Everything in Pro, plus:
 

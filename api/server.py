@@ -2,16 +2,25 @@
 CML Audit API Server (FastAPI)
 
 Endpoints:
-    POST /audit           — Audit a JSONL log (body: raw JSONL text)
-    POST /audit/file      — Audit an uploaded JSONL file
-    POST /ingest          — Append records to a named log store
-    GET  /chain/{id}      — Reconstruct causal chain for a record id
-    GET  /records/{log}   — List records in a named log
-    GET  /health          — Health check
+    POST /audit                    — Audit a JSONL log
+                                     Body: {"log": "<JSONL>", "config": "<YAML>", "format": "json|markdown|text"}
+    POST /audit/file               — Audit an uploaded JSONL file (multipart/form-data)
+    POST /ingest                   — Append records to a named log store
+                                     Body: {"log_name": "...", "records": [...]}
+    GET  /records/{log_name}       — List records in a named log
+    GET  /records/{log_name}/audit — Run audit on a stored log
+    GET  /chain/{log_name}/{id}    — Reconstruct causal chain for a record
+    POST /ctag/decode              — Decode a 16-bit CTAG value
+                                     Body: {"ctag": <int|hex_string>}
+    GET  /health                   — Health check
 
-Authentication (Pro/Enterprise):
-    Bearer token via Authorization header.
-    Community tier: no auth required, logs not persisted.
+Authentication:
+    Set CML_API_TOKEN env var to enable Bearer-token auth on all endpoints
+    except /health, /docs*, /redoc*. Community tier: unset = no auth.
+
+Store backend:
+    Set CML_STORE_PATH to a .db file path to enable SQLite persistence.
+    Unset = in-memory store (ephemeral, community tier).
 
 Run:
     uvicorn api.server:app --reload --port 8080

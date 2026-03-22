@@ -1,5 +1,9 @@
 # CML Commercial License
 
+> **DRAFT** — Commercial licensing terms are not yet finalised.
+> The MIT-licensed SDK is available today. Pro/Enterprise terms will be
+> published at v0.8 general availability.
+
 ## Open Core Model
 
 The Causal Memory Layer project operates under a dual-license model:

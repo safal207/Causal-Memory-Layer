@@ -105,7 +105,7 @@ exec → secret access (open/read) → network egress (connect/send)
 
 ---
 
-## v0.6 — Hypervisor Semantics (✅ завершено)
+## v0.6 — Hypervisor Semantics (✅ spec завершена)
 
 **Цель:**
 Расширить причинность выше одной ОС.
@@ -117,10 +117,13 @@ exec → secret access (open/read) → network egress (connect/send)
 - cross-VM causal chain semantics (`dom_crossing` record)
 - R3-HV: расширение правила SECRET→NET_OUT на межVM-контекст
 
+**Статус:** Спецификация и архитектурные документы завершены.
+Реализация (eBPF + hypervisor hooks) — следующий этап.
+
 
 ---
 
-## v0.7 — Hardware Mapping (✅ завершено)
+## v0.7 — Hardware Mapping (✅ research завершён)
 
 **Цель:**
 Показать, что CML естественно ложится на железо.
@@ -131,26 +134,30 @@ exec → secret access (open/read) → network egress (connect/send)
 - `vcml/hardware/riscv-pointer-masking.md` — RISC-V Smmpm/Ssnpm
 - `vcml/hardware/cheri-capability-causality.md` — CHERI otype + CML
 
-Это уровень research / architecture, не продукта.
+**Статус:** Research / architecture documents. Нет ни прошивки, ни патчей ядра.
+Это доказательство применимости, не продуктовая поставка.
 
 
 ---
 
-## v0.8 — Monetization & Distribution (🔲 следующий)
+## v0.8 — Monetization & Distribution (🟡 в процессе)
 
 **Цель:**
 Превратить CML в устойчивый продукт.
 
-**Deliverables:**
+**Завершено (docs/structure):**
 
-- PyPI release (`pip install causal-memory-layer`)
-- Hosted Audit API (managed service)
-- Compliance packs (SOC 2, GDPR, PCI-DSS)
-- Enterprise SDK (multi-tenant, SIEM integrations)
-- `PRICING.md` — Community / Pro / Enterprise tiers ✅
-- `LICENSE_COMMERCIAL.md` — Open Core model ✅
-- `docs/enterprise/compliance_guide.md` ✅
-- `docs/sdk/quickstart.md` ✅
+- `PRICING.md` — модель тиров Community / Pro / Enterprise (draft)
+- `LICENSE_COMMERCIAL.md` — Open Core model (draft)
+- `docs/enterprise/compliance_guide.md`
+- `docs/sdk/quickstart.md`
+
+**Не завершено (требует реализации):**
+
+- PyPI release (`pip install causal-memory-layer`) — упаковка готова, публикация нет
+- Hosted Audit API — не развёрнут
+- Compliance packs — docs написаны, автоматизации нет
+- Enterprise SDK (multi-tenant, SIEM integrations) — не реализован
 
 
 ---

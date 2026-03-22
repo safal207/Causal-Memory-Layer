@@ -3,12 +3,16 @@
 vCML Combined Monitor (v0.5 Reference Implementation)
 
 Monitors all three boundary types in a single process:
-  1. exec   — process execution
-  2. open/read — filesystem (secret detection)
-  3. connect/send — network egress (NET_OUT)
+  1. exec        — process execution        (tracepoint: sched_process_exec)
+  2. open        — filesystem open          (tracepoint: sys_enter_openat)
+  3. connect/send — network egress (NET_OUT) (tracepoint: sys_enter_connect, sys_enter_sendto)
+
+Note: sys_enter_read is NOT hooked. Only the open() call is captured,
+not subsequent read() calls. Filename and classification are recorded
+at open-time; the action logged is "open", not "read".
 
 Generates a unified JSONL causal log capturing the full chain:
-  exec → secret access → network egress
+  exec → secret open → network egress
 
 Usage:
     sudo ./combined_monitor.py [options]
