@@ -147,7 +147,8 @@ _GEN_BUMP_CLASSES = {CLASS.EXEC, CLASS.PRIV}
 
 
 def should_bump_gen(action: str, cls: int, prev_dom: int, new_dom: int,
-                    entering_break_glass: bool = False) -> bool:
+                    entering_break_glass: bool = False,
+                    warn_on_mismatch: bool = True) -> bool:
     """Determine if the GEN counter should bump.
 
     Both action string and CLASS enum are checked intentionally: the CLASS
@@ -156,10 +157,16 @@ def should_bump_gen(action: str, cls: int, prev_dom: int, new_dom: int,
     contradiction (e.g. action="open" with CLASS.EXEC) indicates a
     misconfigured caller; the bump is still applied to err on the side of
     caution (new generation = more conservative audit trail).
+
+    Args:
+        warn_on_mismatch: Emit a ``UserWarning`` when the action string and
+            ``cls`` disagree.  Set to ``False`` when the caller intentionally
+            overrides the default class mapping (e.g. an "open" that requires
+            elevated privileges and is classified as ``CLASS.PRIV``).
     """
     # Validate action/CLASS consistency
     expected_cls = CLASS.from_action(action)
-    if expected_cls != CLASS.NONE and expected_cls != cls:
+    if warn_on_mismatch and expected_cls != CLASS.NONE and expected_cls != cls:
         warnings.warn(
             f"Action '{action}' maps to {CLASS.name(expected_cls)} but "
             f"cls={CLASS.name(cls)}; possible misconfiguration "

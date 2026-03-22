@@ -333,44 +333,53 @@ class AuditEngine:
 
         # ------------------------------------------------------------------
         # Custom rules (R5+)
+        #
+        # Ancestor sets are computed once per record (keyed by id) and
+        # reused across all rules, reducing O(R × N × D) to O(N × D + R × N).
+        # The cache is built lazily — only triggered records pay the cost.
         # ------------------------------------------------------------------
-        for rule in cfg.custom_rules:
-            if not cfg.rules_enabled.get(rule.id, True):
-                continue
-            for record in records:
-                if _effective_class(record) != rule.trigger_class:
+        if cfg.custom_rules:
+            _anc_cache: dict[str, set[str]] = {}
+
+            def _anc(rid: str) -> set[str]:
+                if rid not in _anc_cache:
+                    _anc_cache[rid] = ancestors(rid, index) - {rid}
+                return _anc_cache[rid]
+
+            for rule in cfg.custom_rules:
+                if not cfg.rules_enabled.get(rule.id, True):
                     continue
-                anc_ids = ancestors(record.id, index) - {record.id}
-                satisfied = False
-                for aid in anc_ids:
-                    anc = index.get(aid)
-                    if anc is None:
+                for record in records:
+                    if _effective_class(record) != rule.trigger_class:
                         continue
-                    cls_ok = (
-                        rule.require_ancestor_class is None
-                        or _effective_class(anc) == rule.require_ancestor_class
-                    )
-                    prefix_ok = (
-                        rule.require_ancestor_permitted_by_prefix is None
-                        or (
-                            isinstance(anc.permitted_by, str)
-                            and anc.permitted_by.startswith(
-                                rule.require_ancestor_permitted_by_prefix
+                    satisfied = False
+                    for aid in _anc(record.id):
+                        anc = index.get(aid)
+                        if anc is None:
+                            continue
+                        cls_ok = (
+                            rule.require_ancestor_class is None
+                            or _effective_class(anc) == rule.require_ancestor_class
+                        )
+                        prefix_ok = (
+                            rule.require_ancestor_permitted_by_prefix is None
+                            or (
+                                isinstance(anc.permitted_by, str)
+                                and anc.permitted_by.startswith(
+                                    rule.require_ancestor_permitted_by_prefix
+                                )
                             )
                         )
-                    )
-                    if cls_ok and prefix_ok:
-                        satisfied = True
-                        break
-                if not satisfied:
-                    result.add(Finding(
-                        code=rule.code,
-                        severity=rule.severity,
-                        record_id=record.id,
-                        message=(
-                            f"Custom rule {rule.id}: {rule.description}"
-                        ),
-                    ))
+                        if cls_ok and prefix_ok:
+                            satisfied = True
+                            break
+                    if not satisfied:
+                        result.add(Finding(
+                            code=rule.code,
+                            severity=rule.severity,
+                            record_id=record.id,
+                            message=f"Custom rule {rule.id}: {rule.description}",
+                        ))
 
         result.ok = max(0, result.total - result.warnings - result.failures)
         return result

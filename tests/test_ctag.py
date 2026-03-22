@@ -149,3 +149,13 @@ class TestShouldBumpGen:
             should_bump_gen("exec", CLASS.EXEC, DOM.USER, DOM.USER)
             # No warning when action and CLASS agree
             assert len(w) == 0
+
+    def test_warn_on_mismatch_false_suppresses_warning(self):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            # Intentional override: "open" classified as PRIV (privileged open)
+            result = should_bump_gen(
+                "open", CLASS.PRIV, DOM.USER, DOM.USER, warn_on_mismatch=False
+            )
+            assert result is True   # bumps via cls=PRIV
+            assert len(w) == 0

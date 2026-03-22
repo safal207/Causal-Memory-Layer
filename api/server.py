@@ -75,10 +75,12 @@ if _API_TOKEN:
     from starlette.responses import JSONResponse as _AuthJSONResponse
 
     class _BearerAuthMiddleware(BaseHTTPMiddleware):
-        _PUBLIC = {"/health", "/docs", "/redoc", "/openapi.json"}
+        _PUBLIC_EXACT = {"/health", "/openapi.json"}
+        _PUBLIC_PREFIX = ("/docs", "/redoc")
 
         async def dispatch(self, request: Request, call_next):
-            if request.url.path in self._PUBLIC:
+            path = request.url.path
+            if path in self._PUBLIC_EXACT or path.startswith(self._PUBLIC_PREFIX):
                 return await call_next(request)
             auth = request.headers.get("authorization", "")
             if not auth.startswith("Bearer ") or auth[7:] != _API_TOKEN:
