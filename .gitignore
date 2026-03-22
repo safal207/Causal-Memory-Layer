@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+
+# VS Code extension build output
+integrations/vscode-cml/out/
+integrations/vscode-cml/node_modules/

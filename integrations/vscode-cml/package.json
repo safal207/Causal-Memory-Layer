@@ -1,0 +1,53 @@
+{
+  "name": "vscode-cml",
+  "displayName": "CML — Causal Memory Layer",
+  "description": "Audit causal logs and inspect causal chains in VS Code. Uses the local CML Python CLI as the source of truth.",
+  "version": "0.1.0",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other", "Linters"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cml.auditCurrentLog",
+        "title": "CML: Audit Current Log"
+      },
+      {
+        "command": "cml.showChainForSelectedRecord",
+        "title": "CML: Show Chain for Selected Record"
+      },
+      {
+        "command": "cml.auditExampleLog",
+        "title": "CML: Audit Example Log"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "cml.auditCurrentLog",
+          "when": "resourceExtname == .jsonl",
+          "group": "cml"
+        },
+        {
+          "command": "cml.showChainForSelectedRecord",
+          "when": "resourceExtname == .jsonl",
+          "group": "cml"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "build": "tsc -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
