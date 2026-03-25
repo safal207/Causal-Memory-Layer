@@ -31,7 +31,7 @@ CML существует как цитируемый фундамент.
 
 ---
 
-## v0.2 — vCML Skeleton
+## v0.2 — vCML Skeleton (✅ завершено)
 
 **Цель:**
 Показать, как CML может жить в реальной системе, не теряя чистоты.
@@ -49,7 +49,7 @@ CML существует как цитируемый фундамент.
 
 ---
 
-## v0.3 — First Boundary (exec)
+## v0.3 — First Boundary (exec) (✅ завершено)
 
 **Цель:**
 Оживить vCML на одной границе смысла.
@@ -59,79 +59,105 @@ exec / запуск процесса
 
 **Deliverables:**
 
-- минимальный hook (eBPF или user-space)
+- `vcml/linux-ebpf/exec_monitor.py` — рабочий eBPF-монитор
 - causal record stream (JSONL)
-- demo:
-  - запуск с `parent_cause`
-  - запуск без `parent_cause` (каузально сомнительно)
+- demo: запуск с/без `parent_cause`
 
 
 ---
 
-## v0.4 — Causal Tags in Action (CTAG)
+## v0.4 — Causal Tags in Action (CTAG) (✅ завершено)
 
 **Цель:**
 Доказать, что каузальные теги — не теория.
 
 **Deliverables:**
 
-- `vcml/CTAG.md`
-- `DOM` / `CLASS` / `GEN` / `LHINT` / `SEAL`
-- bump `GEN` на `EXEC` / `PRIV`
-- `LHINT` вычисляется и проверяется
-- простой chain-validator (`vcml audit`)
+- `vcml/CTAG.md` — спецификация 16-бит CTAG
+- `cml/ctag.py` — полная реализация DOM/CLASS/GEN/LHINT/SEAL
+- `cml/` — Python SDK (record, chain, audit, report)
+- `cli/main.py` — CLI (`cml audit`, `cml chain`, `cml ctag`, `cml decode`, `cml report`)
+- `api/server.py` — FastAPI REST API
+- `tests/` — 49 тестов, все проходят
+- `pyproject.toml` — pip-installable пакет (`pip install causal-memory-layer`)
 
 
 ---
 
-## v0.5 — Multi-Boundary Memory
+## v0.5 — Multi-Boundary Memory (✅ завершено)
 
 **Цель:**
 Показать, что CML — память системы, а не процессов.
 
-**Добавляем:**
+**Добавлено:**
 
-- filesystem (open/write)
-- network (connect/send)
+- `vcml/linux-ebpf/file_monitor.py` — мониторинг open/read
+- `vcml/linux-ebpf/net_monitor.py` — мониторинг connect/send
+- `vcml/linux-ebpf/combined_monitor.py` — единый монитор всех трёх границ
 
-**Deliverables:**
+**Цепочка:**
+exec → secret access (open/read) → network egress (connect/send)
 
-- цепочка: exec → secret access → data egress
-- обнаружение:
-  - egress без допустимой причины
-  - `SECRET` → `NET` без causal chain
+**Обнаружение:**
+- egress без каузальной причины (R3: `CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN`)
+- `SECRET` → `NET` без causal chain
 
 
 ---
 
-## v0.6 — Hypervisor Semantics
+## v0.6 — Hypervisor Semantics (✅ spec завершена)
 
 **Цель:**
 Расширить причинность выше одной ОС.
 
 **Deliverables:**
 
-- `hypervisor/README.md`
-- VM / tenant как causal domains
-- cross-VM causal chain semantics
+- `vcml/hypervisor/README.md` — язык и правила кросс-VM каузальности
+- VM / tenant как causal domains (DOM table)
+- cross-VM causal chain semantics (`dom_crossing` record)
+- R3-HV: расширение правила SECRET→NET_OUT на межVM-контекст
 
-Без реализации. Только язык и правила.
+**Статус:** Спецификация и архитектурные документы завершены.
+Реализация (eBPF + hypervisor hooks) — следующий этап.
 
 
 ---
 
-## v0.7 — Hardware Mapping
+## v0.7 — Hardware Mapping (✅ research завершён)
 
 **Цель:**
 Показать, что CML естественно ложится на железо.
 
 **Deliverables:**
 
-- `hardware/CTAG-8-16.md`
-- `hardware/riscv-pointer-masking.md`
-- `hardware/cheri-capability-causality.md`
+- `vcml/hardware/CTAG-8-16.md` — CTAG-8 (сжатый) + CTAG-16 mapping
+- `vcml/hardware/riscv-pointer-masking.md` — RISC-V Smmpm/Ssnpm
+- `vcml/hardware/cheri-capability-causality.md` — CHERI otype + CML
 
-Это уровень research / architecture, не продукта.
+**Статус:** Research / architecture documents. Нет ни прошивки, ни патчей ядра.
+Это доказательство применимости, не продуктовая поставка.
+
+
+---
+
+## v0.8 — Monetization & Distribution (🟡 в процессе)
+
+**Цель:**
+Превратить CML в устойчивый продукт.
+
+**Завершено (docs/structure):**
+
+- `PRICING.md` — модель тиров Community / Pro / Enterprise (draft)
+- `LICENSE_COMMERCIAL.md` — Open Core model (draft)
+- `docs/enterprise/compliance_guide.md`
+- `docs/sdk/quickstart.md`
+
+**Не завершено (требует реализации):**
+
+- PyPI release (`pip install causal-memory-layer`) — упаковка готова, публикация нет
+- Hosted Audit API — не развёрнут
+- Compliance packs — docs написаны, автоматизации нет
+- Enterprise SDK (multi-tenant, SIEM integrations) — не реализован
 
 
 ---
@@ -153,7 +179,7 @@ exec / запуск процесса
 
 - Не строим security product
 - Не делаем policy engine
-- Не оптимизируем производительность
-- Не “продаём” идею раньше времени
+- Не оптимизируем производительность раньше смысла
+- Не "продаём" идею раньше доказательства
 
 CML — это слой, который должен пережить свои реализации.
