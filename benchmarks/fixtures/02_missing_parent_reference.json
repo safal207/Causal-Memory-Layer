@@ -1,0 +1,10 @@
+{
+  "case_id": "missing-parent-reference",
+  "description": "A record with a nonexistent parent cause should fail reference integrity.",
+  "expected_passed": false,
+  "expected_codes": ["CML-AUDIT-R1-MISSING_PARENT"],
+  "records": [
+    {"id": "b1", "timestamp": 1000000010, "actor": {"pid": 102, "uid": 1000}, "action": "exec", "object": "/bin/agent", "permitted_by": "root_event:init", "parent_cause": null},
+    {"id": "b2", "timestamp": 1000000011, "actor": {"pid": 102, "uid": 1000}, "action": "open", "object": "/etc/passwd", "permitted_by": "fs:read", "parent_cause": "missing"}
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "case_id": "custom-rule-missing-session-ancestor",
+  "description": "A network action outside the required session lineage should fail a custom audit rule.",
+  "expected_passed": false,
+  "expected_codes": ["CML-AUDIT-R5-NET-OUTSIDE-SESSION"],
+  "config": {
+    "custom_rules": [
+      {
+        "id": "R5-NET-SESSION",
+        "description": "NET_OUT must descend from a session-scoped root authority.",
+        "trigger_class": "NET_OUT",
+        "require_ancestor_class": "EXEC",
+        "require_ancestor_permitted_by_prefix": "root_event:session:",
+        "severity": "FAIL",
+        "code": "CML-AUDIT-R5-NET-OUTSIDE-SESSION"
+      }
+    ]
+  },
+  "records": [
+    {"id": "f1", "timestamp": 1000000050, "actor": {"pid": 106, "uid": 1000}, "action": "exec", "object": "/bin/task", "permitted_by": "root_event:init", "parent_cause": null},
+    {"id": "f2", "timestamp": 1000000051, "actor": {"pid": 106, "uid": 1000}, "action": "connect", "object": {"addr": "9.9.9.9", "port": 443}, "permitted_by": "net:egress", "parent_cause": "f1"}
+  ]
+}

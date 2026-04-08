@@ -1,36 +1,156 @@
 # Causal Memory Layer (CML)
 
-CML is a foundational memory layer for recording reasons, permissions, and responsibility behind actions, not just events or results. It enables systems in AI, fintech, security, and distributed computing to preserve meaning and causal accountability across time, independent of execution or transport.
+Causal Memory Layer is an audit and accountability layer for checking whether a sensitive action was actually grounded in a valid causal chain of permission, intent, and responsibility.
+
+The core idea is simple: a system can be functionally correct at the output level while still being causally invalid. An action may succeed, a response may look reasonable, and a workflow may complete, but the underlying chain can still be missing approval, hiding a causal gap, or failing to preserve responsibility across steps.
+
+This makes CML relevant to AI safety, agentic oversight, fintech controls, security auditing, and other settings where it is not enough to know what happened. You also need to know why it was allowed to happen.
+
+## Problem
+
+Many systems record events, outputs, traces, and metrics, but do not preserve the causal structure behind authorization and action.
+
+That creates blind spots such as:
+
+- actions that appear valid but have no grounded parent cause
+- ambiguous or malformed root authority
+- causal gaps that are not marked explicitly
+- sensitive access followed by outbound behavior without a valid lineage
+- state transitions that cannot be tied back to intent or permission
+
+For agentic systems, this matters because output review alone can miss unsafe or causally invalid action chains.
+
+## What CML Does
+
+CML records why a state change was permitted, not only that it occurred.
+
+It focuses on:
+
+- causal links between actions and prior authorization
+- accountability and responsibility preservation
+- audit rules for detecting invalid or suspicious lineage
+- read-only validation of causal coherence in structured logs
+
+In practical terms, CML is a causal audit layer.
+
+## Why This Matters for Agentic Oversight
+
+In agentic systems, a final answer or tool result may look acceptable even when the underlying action chain is not.
+
+Examples:
+
+- a privileged action has no valid parent authorization
+- a root authority label is malformed or ambiguous
+- a secret access and a network action occur in the same process without a valid causal chain
+- a workflow contains an unmarked causal gap that hides where responsibility was lost
+
+CML helps make these failures legible.
+
+It is not a full safety stack on its own. It is one layer that checks whether the recorded action lineage is causally valid and accountable.
+
+## Current Artifact
+
+This repository already contains a working technical artifact, not only a concept.
+
+Current components include:
+
+- a Python causal audit engine
+- causal chain reconstruction utilities
+- CLI commands for audit and chain inspection
+- a small API layer and store interface
+- example logs and example audit outputs
+- tests for chain logic, audit rules, and CTAG behavior
+- a deterministic safety-eval benchmark with fixtures and tracked results
+- documentation for vCML semantics and audit rules
+
+Key implementation entry points:
+
+- `cml/audit.py`
+- `cml/chain.py`
+- `cli/main.py`
+- `api/server.py`
+- `tests/test_audit.py`
+
+## Threat Model Fit
+
+CML is best understood as infrastructure for detecting causally invalid action chains.
+
+It is useful for evaluating or auditing failures such as:
+
+- missing parent references
+- unmarked causal gaps
+- ambiguous root authority
+- secret-to-network paths without valid causal linkage
+- policy-specific lineage violations expressed as custom rules
+
+This repository does not claim to solve all AI safety problems. It contributes a specific audit primitive: checking whether actions were causally grounded in valid permission and responsibility chains.
 
 ## Scope
 
-The primary goal of Causal Memory Layer is to define **why a state change was permitted to happen**, linking it to the authorization and intent that preceded it.
+### In Scope
 
-### What is Causal Memory?
-*   **Immutable History of Intent**: Records the decision-making process and authorization chains.
-*   **Causal Links**: Explicitly connects effects to their causes (e.g., "Action B happened because Action A authorized it").
-*   **Accountability**: Attaches identity and responsibility to state transitions.
+- immutable records of intent, permission, and responsibility
+- explicit causal links between effects and prior causes
+- audit semantics for validating causal coherence
+- language-agnostic and transport-agnostic causal audit concepts
 
 ### Out of Scope
-*   **Transport**: CML is not responsible for moving bytes between nodes. It relies on underlying transport protocols but does not define them.
-*   **Execution**: CML does not execute code or business logic. It records the causality of the execution.
-*   **Storage Implementation**: CML defines the *semantics* of storage (what is stored and how it relates), not the *mechanics* (SQL, NoSQL, Block storage).
 
-### Differentiation
+- transport
+- execution
+- infrastructure orchestration
+- storage engine mechanics
+- model alignment as a whole
+
+CML does not execute code or enforce runtime policy by itself. It records and audits causal structure.
+
+## Differentiation
 
 | System Type | Focus | CML Difference |
 | :--- | :--- | :--- |
-| **Transport (HTTP, TCP)** | Moving data | CML cares about the *meaning* of the data, not the delivery. |
-| **Tracing (OpenTelemetry)** | Performance & Debugging | Tracing follows *what* happened. CML records *why* it was allowed to happen. |
-| **Execution (Lambda, K8s)** | Running tasks | CML is the memory of the execution, not the computer. |
+| Transport (HTTP, TCP) | Moving data | CML cares about the meaning and authorization lineage, not delivery. |
+| Tracing (OpenTelemetry) | Performance and debugging | Tracing records what happened. CML records why it was permitted to happen. |
+| Execution (Lambda, K8s, jobs) | Running tasks | CML is the memory and audit layer of execution, not the executor. |
+| Access logs | Surface events | CML preserves causal linkage and responsibility across steps. |
 
-## Foundations
+## Quick Start
 
-CML is designed to be:
-*   **Language Agnostic**: Usable in any programming environment.
-*   **Transport Agnostic**: Independent of how messages are delivered.
-*   **Infrastructure Agnostic**: Deployable on any stack.
+Run tests:
 
-This repository serves as the anchor point for specifications, formal definitions, and invariants of the Causal Memory Layer.
+```bash
+python -m pytest -q
+```
+
+Inspect example logs through the current Python tooling and examples in:
+
+- `examples/exec_causal_log.jsonl`
+- `examples/secret_to_net_log.jsonl`
+- `examples/secret_to_net_explain.md`
+- `benchmarks/README.md`
+- `benchmarks/RESULTS.md`
+
+## Repository Map
+
+- `cml/`: core Python implementation
+- `cli/`: command-line tooling
+- `api/`: store and server layer
+- `vcml/`: semantics, format, audit, and boundary documentation
+- `examples/`: sample logs and reports
+- `tests/`: regression coverage
+- `docs/`: wiki, SDK, enterprise, and scenario docs
+
+## Research Direction
+
+The strongest research direction for CML is causal audit for agentic oversight.
+
+A useful framing is:
+
+> How can we detect actions that appear valid at the surface level but are causally invalid because authorization, approval, or responsibility lineage is missing, ambiguous, or broken?
+
+That makes CML a strong supporting artifact for safety evaluation work focused on trace validity, authorization lineage, and accountability-preserving action chains.
+
+## Bottom Line
 
 A system may be functionally correct while being causally invalid.
+
+CML exists to make that distinction inspectable.

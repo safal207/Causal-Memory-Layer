@@ -1,0 +1,9 @@
+{
+  "case_id": "unmarked-causal-gap",
+  "description": "A null-parent record without a valid root marker or explicit unobserved gap should warn.",
+  "expected_passed": true,
+  "expected_codes": ["CML-AUDIT-R2-GAP_NOT_MARKED"],
+  "records": [
+    {"id": "c1", "timestamp": 1000000020, "actor": {"pid": 103, "uid": 1000}, "action": "exec", "object": "/bin/task", "permitted_by": "some_context", "parent_cause": null}
+  ]
+}

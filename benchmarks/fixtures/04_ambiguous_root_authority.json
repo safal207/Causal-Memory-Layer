@@ -1,0 +1,9 @@
+{
+  "case_id": "ambiguous-root-authority",
+  "description": "A near-miss root label should trigger ambiguous root detection.",
+  "expected_passed": true,
+  "expected_codes": ["CML-AUDIT-R4-AMBIGUOUS_ROOT"],
+  "records": [
+    {"id": "d1", "timestamp": 1000000030, "actor": {"pid": 104, "uid": 1000}, "action": "exec", "object": "/bin/task", "permitted_by": "root_event", "parent_cause": null}
+  ]
+}
