@@ -188,6 +188,10 @@ This is the important nuance: R3 only fires when the process has accessed a SECR
 These are strong follow-up demos when the core message is not "CML blocks," but
 "audit proves causal invalidity" even when runtime output looks acceptable.
 
+> These are proposed follow-up demo packages; not all are implemented artifacts yet.
+
+> **Core CML thesis:** A system can pass tests and still fail causal audit.
+
 ### 1) Privileged action without valid parent authorization
 
 **Story:** A privileged action succeeds at runtime, but the chain cannot prove a valid parent authorization.
@@ -236,11 +240,11 @@ These are strong follow-up demos when the core message is not "CML blocks," but
 
 **Expected audit narrative:** Co-occurrence without valid causal path.
 
-### 7) Retroactive justification attempt
+### 7) Post-hoc causal justification attempt
 
-**Story:** Action happens first; later someone tries to append/alter records to "justify" it.
+**Story:** Action happens first; later someone tries to reconstruct legitimacy after the fact.
 
-**Why it matters:** Powerful for audit/compliance and tamper-resistance storytelling.
+**Why it matters:** Strong audit/compliance narrative even without assuming a full tamper-resistance demo package.
 
 **Expected audit narrative:** Post-hoc explanation cannot restore missing causal validity.
 
@@ -260,5 +264,5 @@ These are strong follow-up demos when the core message is not "CML blocks," but
 4. Responsibility lost across handoff.
 5. Valid output, invalid cause.
 6. Secret read exists, but wrong network action consumes it.
-7. Retroactive justification attempt.
+7. Post-hoc causal justification attempt.
 8. Multi-step approval chain broken at one hop.
