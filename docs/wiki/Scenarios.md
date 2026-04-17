@@ -180,3 +180,89 @@ This is the important nuance: R3 only fires when the process has accessed a SECR
 | Null parent with unlabeled permitted_by | WARN | R2, R4 |
 | Full pipeline with proper chain | PASS | — |
 | Independent flows in same process | PASS | — |
+
+---
+
+## Next demo candidates (post secret→network)
+
+These are strong follow-up demos when the core message is not "CML blocks," but
+"audit proves causal invalidity" even when runtime output looks acceptable.
+
+> These are proposed follow-up demo packages; not all are implemented artifacts yet.
+
+> **Core CML thesis:** A system can pass tests and still fail causal audit.
+
+### 1) Privileged action without valid parent authorization
+
+**Story:** A privileged action succeeds at runtime, but the chain cannot prove a valid parent authorization.
+
+**Why it matters:** Shows CML validating *authority lineage*, not just final success/failure.
+
+**Expected audit narrative:** Runtime success, causal invalidity.
+
+### 2) Unmarked causal gap
+
+**Story:** The chain has a gap (`parent_cause: null`) with no valid root/unobserved marker, while output remains acceptable.
+
+**Why it matters:** A very clean demo that "many logs" is not the same as "provable accountability."
+
+**Expected audit narrative:** Gap is present; transition of permission/intent into action is unprovable.
+
+### 3) Wrong ancestor / lineage contamination
+
+**Story:** An action points to a parent record, but the parent is from the wrong lineage (wrong process/branch/story).
+
+**Why it matters:** Goes beyond missing links and demonstrates *false links*.
+
+**Expected audit narrative:** Chain exists syntactically, invalid causally.
+
+### 4) Responsibility lost across handoff (multi-agent/service)
+
+**Story:** Agent/service A hands work to B; final action exists, but responsibility transfer was not explicitly and validly preserved.
+
+**Why it matters:** Strong multi-agent accountability case.
+
+**Expected audit narrative:** Loss of accountability across boundary.
+
+### 5) Valid output, invalid cause
+
+**Story:** System returns correct answer and tests pass, but causal provenance fails audit.
+
+**Why it matters:** Core CML thesis: correctness != causal legitimacy.
+
+**Expected audit narrative:** Functional pass, causal fail.
+
+### 6) Secret read exists, but wrong network action consumes it
+
+**Story:** Secret read occurred and network send occurred, but send belongs to a different process/branch/causal line.
+
+**Why it matters:** Stronger variant of current secret→network example.
+
+**Expected audit narrative:** Co-occurrence without valid causal path.
+
+### 7) Post-hoc causal justification attempt
+
+**Story:** Action happens first; later someone tries to reconstruct legitimacy after the fact.
+
+**Why it matters:** Strong audit/compliance narrative even without assuming a full tamper-resistance demo package.
+
+**Expected audit narrative:** Post-hoc explanation cannot restore missing causal validity.
+
+### 8) Multi-step approval chain broken at one hop
+
+**Story:** A 4-step approval flow appears normal, but one hop fails authority transfer.
+
+**Why it matters:** Enterprise/regulatory workflow realism.
+
+**Expected audit narrative:** Precise point-in-chain invalidity identified.
+
+### Suggested implementation order
+
+1. Privileged action without valid parent authorization.
+2. Unmarked causal gap.
+3. Wrong ancestor / lineage contamination.
+4. Responsibility lost across handoff.
+5. Valid output, invalid cause.
+6. Secret read exists, but wrong network action consumes it.
+7. Post-hoc causal justification attempt.
+8. Multi-step approval chain broken at one hop.
