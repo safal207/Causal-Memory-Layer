@@ -42,6 +42,17 @@ class TestR1_ReferenceIntegrity:
         assert "CML-AUDIT-R1-MISSING_PARENT" not in codes
 
 
+class TestDemo_PrivilegedActionMissingAuthorization:
+    def test_fixture_fails_on_missing_authorization_parent(self):
+        records = load_jsonl("examples/privileged_action_missing_authorization_log.jsonl")
+        result = AuditEngine().run(records)
+
+        r1 = [f for f in result.findings if f.code == "CML-AUDIT-R1-MISSING_PARENT"]
+        assert len(r1) == 1
+        assert r1[0].record_id == "b2"
+        assert r1[0].severity == Severity.FAIL
+
+
 class TestR2_GapMarking:
     def test_gap_not_marked_is_warn(self):
         records = [
