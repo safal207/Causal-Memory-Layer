@@ -26,7 +26,7 @@ It is a **memory layer** — a read-only audit trail that tells you whether a ca
 | New to CML, just curious | [Concepts](Concepts) — what causal validity means and why it matters |
 | Developer, want to try it | [Getting Started](Getting-Started) — install, run, audit your first log |
 | Want to see it in action | [Demo](Demo) — step-by-step terminal walkthrough |
-| Want the strongest first audit demo | [Demo Package: Causal Invalidity](../demos/secret_to_network_causal_invalid/README.md) — secret→network that succeeds functionally but fails causally |
+| Want the strongest first audit demo | [Demo Package: Causal Invalidity](../../demos/secret_to_network_causal_invalid/README.md) — secret→network that succeeds functionally but fails causally |
 | Want real-world scenarios | [Scenarios](Scenarios) — concrete use cases and what CML shows |
 | Want to contribute | [Contributing](Contributing) — architecture, conventions, where to start |
 
