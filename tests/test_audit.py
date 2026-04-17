@@ -346,3 +346,14 @@ class TestExampleLogs:
         r3 = [f for f in result.findings
               if f.code == "CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN"]
         assert len(r3) >= 1
+
+
+def test_secret_to_net_example_has_single_r3_failure():
+    """Regression: canonical example should keep one explicit causal-invalid NET_OUT finding."""
+    records = load_jsonl("examples/secret_to_net_log.jsonl")
+    result = AuditEngine().run(records)
+
+    r3 = [f for f in result.findings if f.code == "CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN"]
+    assert len(r3) == 1
+    assert r3[0].record_id == "b3"
+    assert r3[0].severity == Severity.FAIL
