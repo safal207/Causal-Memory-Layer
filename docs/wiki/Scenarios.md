@@ -183,12 +183,20 @@ This is the important nuance: R3 only fires when the process has accessed a SECR
 
 ---
 
+## Implemented follow-up demo package
+
+- [Privileged action without valid parent authorization](../../demos/privileged_action_missing_authorization/README.md)
+
+  Runtime can show a privileged write as successful, while audit still fails causal validity when the referenced authorization parent record is missing (`CML-AUDIT-R1-MISSING_PARENT`).
+
+---
+
 ## Next demo candidates (post secret→network)
 
 These are strong follow-up demos when the core message is not "CML blocks," but
 "audit proves causal invalidity" even when runtime output looks acceptable.
 
-> These are proposed follow-up demo packages; not all are implemented artifacts yet.
+> These are proposed follow-up demo packages; some are now implemented artifacts.
 
 > **Core CML thesis:** A system can pass tests and still fail causal audit.
 
