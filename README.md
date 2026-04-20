@@ -6,6 +6,16 @@ The core idea is simple: a system can be functionally correct at the output leve
 
 This makes CML relevant to AI safety, agentic oversight, fintech controls, security auditing, and other settings where it is not enough to know what happened. You also need to know why it was allowed to happen.
 
+## Example: 5-hop QA Causal Mismatch (A→B vs A→C)
+
+In one of the first experiments with CML, I used it as a causal audit layer on top of a 5-hop QA task over an internal knowledge graph.
+
+The model had to answer a question that required following a chain of facts A→B→…→Z. On the 4th hop it started to "correct" the intermediate fact and silently replaced the required edge A→B with a more plausible A→C that did not exist in the graph.
+
+CML was running as a read-only audit layer over the event trace. For this query it showed no causal link through the required B edge, while tracing a clean path through the incorrect C edge. In other words, the textual reasoning trace looked fine, but the recorded causal chain had drifted away from the ground-truth path.
+
+This is exactly the class of failures CML is designed to surface: cases where the model produces a plausible chain-of-thought that is causally disconnected from the authorized path that was supposed to ground the answer. The audit log for this run is in `examples/multihop_qa_mismatch_log.jsonl` and a walkthrough of how the mismatch shows up in chain reconstruction is in `examples/multihop_qa_mismatch_explain.md`.
+
 ## Problem
 
 Many systems record events, outputs, traces, and metrics, but do not preserve the causal structure behind authorization and action.
