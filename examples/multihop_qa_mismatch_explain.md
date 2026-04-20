@@ -25,9 +25,12 @@ gap, which is formally allowed.
 The failure class is only visible through chain reconstruction:
 
 ```
-ancestors("ans1") = {q1, h1, h2_C, h3, h4, h5}
-ancestors("h2_B") = {}    # isolated — no upstream causal lineage
+ancestors("ans1") = {q1, h1, h2_C, h3, h4, h5, ans1}
+ancestors("h2_B") = {"h2_B"}   # only self — no upstream causal lineage
 ```
+
+(`ancestors()` in `cml/chain.py` returns the record itself plus its upstream
+chain, so an isolated record's ancestor set is exactly `{self}`.)
 
 The answer record `ans1` has a complete 5-hop chain back to `q1`, but the chain
 goes through `h2_C`, not `h2_B`. The required intermediate fact (`h2_B`) was
