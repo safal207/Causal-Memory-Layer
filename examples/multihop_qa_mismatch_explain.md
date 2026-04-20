@@ -2,33 +2,52 @@
 
 Input: `examples/multihop_qa_mismatch_log.jsonl`
 
-## Summary
-- OK: 6
-- WARN: 0
-- FAIL: 1
+## What the audit engine reports
 
-## Findings
+Running the current `AuditEngine` (R1–R4, no custom rules) on this fixture:
 
-### FAIL — CML-AUDIT-MISSING_REQUIRED_EDGE
-- Record: `h2_B`
-- Reason: required edge `A→B` has `parent_cause = null` and `permitted_by = unobserved_parent`
-- The B edge was never used as a `parent_cause` for any downstream step
+```
+summary: total=8, ok=8, warnings=0, failures=0, passed=True
+findings: []
+```
 
-Reconstructed context:
-- Hop 1: `h1` resolves entity_A correctly (parent_cause: q1)
-- Hop 2 (required): `h2_B` — edge A→B bypassed (parent_cause: null) ← gap here
-- Hop 2 (actual): `h2_C` — edge A→C used instead (parent_cause: h1)
-- Hops 3–5: chain continues cleanly through C→D→E→Z (causally valid relative to h2_C)
+The audit passes. R1 skips `h2_B` because its `parent_cause` is `null`.
+R2 skips it because `permitted_by = "unobserved_parent"` — the gap is
+explicitly marked, which satisfies the gap-marking rule. R3 does not apply
+(no SECRET / NET_OUT). There are no custom rules configured.
 
-## Interpretation
+This is the interesting part of the example: **the current rule set does not
+flag a causally-orphaned hop by itself.** The required B edge is marked as a
+gap, which is formally allowed.
 
-The answer was produced via a causally complete chain — but through the wrong path.
+## What the causal chain reveals
 
-The surface reasoning trace (`A → C → D → E → Z`) is internally consistent and
-has no gaps. The audit flag is that the ground-truth edge `A→B` never appears as
-a `parent_cause` in any downstream record. The required intermediate fact was
-silently substituted with a more plausible alternative, and the substitution is
-only visible in the causal record, not in the final output.
+The failure class is only visible through chain reconstruction:
 
-This is the core failure class CML is designed to surface: a functionally valid
-answer that is causally disconnected from the required authorization path.
+```
+ancestors("ans1") = {q1, h1, h2_C, h3, h4, h5}
+ancestors("h2_B") = {}    # isolated — no upstream causal lineage
+```
+
+The answer record `ans1` has a complete 5-hop chain back to `q1`, but the chain
+goes through `h2_C`, not `h2_B`. The required intermediate fact (`h2_B`) was
+recorded as a causal gap and then silently dropped from the path that produced
+the answer. It appears in the log but is never referenced as a `parent_cause`
+downstream.
+
+## Why this matters
+
+The textual reasoning trace (A → C → D → E → Z) is internally consistent and
+passes R1/R2. The substitution of A→B with A→C is invisible to the default
+audit rules and only surfaces when you compare the reconstructed ancestor set
+of the answer against the ground-truth required path.
+
+This example is a walkthrough of a failure class CML is designed to expose at
+the chain-inspection level: a functionally valid answer produced through a
+causally complete but incorrect path, with the required edge marked as a gap
+rather than carried forward.
+
+A custom rule or an external ground-truth check (e.g. asserting that every
+required edge id appears in `ancestors(answer_id)`) is what would turn this
+from a chain observation into an audit FAIL. See `examples/audit_config_example.yaml`
+for the custom-rule mechanism.

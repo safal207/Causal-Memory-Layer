@@ -357,3 +357,26 @@ def test_secret_to_net_example_has_single_r3_failure():
     assert len(r3) == 1
     assert r3[0].record_id == "b3"
     assert r3[0].severity == Severity.FAIL
+
+
+def test_multihop_qa_mismatch_example_matches_explain():
+    """Regression: the 5-hop QA fixture documents a chain-level mismatch that
+    the default rule set does not flag as a FAIL. The gap is visible only via
+    chain reconstruction: the bypassed B edge is isolated and does not appear
+    in the answer's ancestor set. Locks the behavior documented in
+    examples/multihop_qa_mismatch_explain.md."""
+    from cml.record import records_to_index
+    from cml.chain import ancestors
+
+    records = load_jsonl("examples/multihop_qa_mismatch_log.jsonl")
+    result = AuditEngine().run(records)
+
+    assert result.passed()
+    assert result.failures == 0
+    assert result.warnings == 0
+
+    index = records_to_index(records)
+    ans_anc = ancestors("ans1", index)
+    assert "h2_B" not in ans_anc
+    assert "h2_C" in ans_anc
+    assert ancestors("h2_B", index) == {"h2_B"}
