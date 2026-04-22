@@ -2,7 +2,7 @@
 
 Causal Memory Layer (CML) is a causal validity layer for sensitive and high-risk actions.
 
-It checks whether an action that appears operationally correct has valid authorization lineage and responsibility preservation across steps. CML is designed for settings where knowing what happened is not enough; we also need to know why it was allowed to happen.
+It checks whether an action that appears operationally correct is backed by valid authorization lineage and preserves responsibility across steps. CML is designed for settings where knowing what happened is not enough; we also need to know why it was allowed to happen.
 
 The core idea is central: a system may be functionally correct while being causally invalid. An action may succeed, a response may look reasonable, and a workflow may complete, but the underlying chain can still be causally unauthorized, missing parent approval, hiding a causal gap, or failing responsibility preservation across steps.
 
@@ -14,7 +14,7 @@ In one of the first experiments with CML, I used it as a causal validity layer o
 
 The model had to answer a question that required following a chain of facts A→B→…→Z. On the 4th hop it started to "correct" the intermediate fact and silently replaced the required edge A→B with a more plausible A→C that did not exist in the graph.
 
-CML was running as a read-only validator over the event trace. For this query it showed no causal link through the required B edge, while tracing a clean path through the incorrect C edge. In other words, the textual reasoning trace looked fine, but the recorded causal chain had drifted away from the expected authorized path.
+CML was running as a read-only validator over the event trace. For this query it showed no causal link through the required B edge, while tracing a clean path through the incorrect C edge. In other words, the textual reasoning trace looked fine, but the recorded causal chain had diverged from the authorization lineage that was supposed to ground the answer.
 
 This is exactly the class of failures CML is designed to surface: cases where the model produces a plausible chain-of-thought that is causally disconnected from the authorization lineage that was supposed to ground the answer. The audit log for this run is in `examples/multihop_qa_mismatch_log.jsonl` and a walkthrough of how the mismatch shows up in chain reconstruction is in `examples/multihop_qa_mismatch_explain.md`.
 
