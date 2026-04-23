@@ -1,10 +1,18 @@
 __pycache__/
 *.py[cod]
 *.pyo
+.pytest_cache/
 .Python
 *.egg-info/
 dist/
 build/
+target/
+node_modules/
+coverage/
+*.log
+*.tmp
+*.temp
+.DS_Store
 
 # VS Code extension build output
 integrations/vscode-cml/out/

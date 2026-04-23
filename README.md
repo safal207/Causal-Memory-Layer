@@ -1,6 +1,25 @@
 # Causal Memory Layer (CML)
 
-Causal Memory Layer (CML) is a causal validity layer for sensitive and high-risk actions.
+![Status](https://img.shields.io/badge/status-active-brightgreen)
+![Audit](https://img.shields.io/badge/audit-causal%20lineage-blue)
+![License](https://img.shields.io/badge/license-MIT-orange)
+
+**Project status:** Active development with test coverage and CI validation for core audit semantics.
+
+**Fast validation (under 2 minutes):**
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+## Review Links
+- Architecture: `docs/`
+- Validation: `pytest`
+- Security: `SECURITY.md`
+- Roadmap: `ROADMAP.md`
+- License: `LICENSE`
+
+Causal Memory Layer is an open-source causal audit layer for checking whether a sensitive action was actually grounded in a valid chain of permission, intent, and responsibility.
 
 It checks whether an action that appears operationally correct is backed by valid authorization lineage and preserves responsibility across steps. CML is designed for settings where knowing what happened is not enough; we also need to know why it was allowed to happen.
 
@@ -17,6 +36,14 @@ The model had to answer a question that required following a chain of facts A→
 CML was running as a read-only validator over the event trace. For this query it showed no causal link through the required B edge, while tracing a clean path through the incorrect C edge. In other words, the textual reasoning trace looked fine, but the recorded causal chain had diverged from the authorization lineage that was supposed to ground the answer.
 
 This is exactly the class of failures CML is designed to surface: cases where the model produces a plausible chain-of-thought that is causally disconnected from the authorization lineage that was supposed to ground the answer. The audit log for this run is in `examples/multihop_qa_mismatch_log.jsonl` and a walkthrough of how the mismatch shows up in chain reconstruction is in `examples/multihop_qa_mismatch_explain.md`.
+
+## Application-Ready Summary
+
+Use this framing in grant or fellowship applications:
+
+- CML detects actions that look valid at output level but are causally invalid in lineage.
+- CML provides deterministic, reproducible audit checks instead of narrative-only review.
+- CML contributes one concrete safety primitive: causal validity testing for authorization and responsibility chains.
 
 ## Problem
 
@@ -135,6 +162,12 @@ Run tests:
 python -m pytest -q
 ```
 
+Run deterministic safety benchmark:
+
+```bash
+python scripts/run_safety_eval.py
+```
+
 Inspect example logs through the current Python tooling and examples in:
 
 - `examples/exec_causal_log.jsonl`
@@ -142,6 +175,13 @@ Inspect example logs through the current Python tooling and examples in:
 - `examples/secret_to_net_explain.md`
 - `benchmarks/README.md`
 - `benchmarks/RESULTS.md`
+
+## Evidence Snapshot
+
+- Deterministic safety benchmark fixtures with expected audit findings (`benchmarks/fixtures/`)
+- Covered failure classes: valid chain, missing parent, unmarked gap, ambiguous root, secret-to-network without valid lineage, custom policy violation
+- Reproducible benchmark run command: `python scripts/run_safety_eval.py`
+- Tracked benchmark report: `benchmarks/RESULTS.md`
 
 ## Repository Map
 
