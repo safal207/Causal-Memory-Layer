@@ -213,6 +213,13 @@ class TestFromYamlString:
         cfg = AuditConfig.from_yaml_string("---")
         assert cfg.root_event_prefix == "root_event:"
 
+    def test_non_mapping_yaml_raises_value_error(self):
+        with pytest.raises(ValueError, match="mapping/object"):
+            AuditConfig.from_yaml_string("""
+- bad
+- config
+""")
+
 
 class TestFromYamlFile:
     def test_empty_file_returns_defaults(self, tmp_path):

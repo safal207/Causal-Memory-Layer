@@ -117,6 +117,9 @@ class AuditConfig:
 
     @staticmethod
     def _apply_raw(cfg: "AuditConfig", raw: dict) -> "AuditConfig":
+        if not isinstance(raw, dict):
+            raise ValueError("Audit config root must be a mapping/object")
+
         cfg.root_event_prefix = raw.get("root_event_prefix", cfg.root_event_prefix)
         s = raw.get("secret", {})
         if "classifications" in s:
