@@ -65,7 +65,7 @@ pytest -q || true
 1. **Fail-open CLI parsing behavior (fixed)**
    - Prior CLI behavior skipped invalid JSON lines with warning and continued processing.
    - Risk: malformed logs could still produce valid-looking audit output.
-   - Remediation: CLI now fails closed with explicit parse error and exit code 1 for invalid JSON or malformed required fields.
+   - Remediation: CLI now fails closed with explicit parse error and exit code 1 for invalid JSON or malformed required fields, including strict integer checks (rejecting bool-as-int) and non-empty `parent_cause` when provided.
 
 2. **Unknown custom severity handling ambiguity (fixed)**
    - Prior config accepted arbitrary severity strings for custom rules.
@@ -97,6 +97,7 @@ Current state is improved toward fail-closed behavior for ingestion and rule sem
 
 ## Re-run checklist
 - [x] `pytest -q`
+- [x] CLI regression tests include bool-as-int rejection and empty `parent_cause` rejection
 - [x] Bandit executed with `pipx run --spec bandit`
 - [ ] Semgrep full run with stable explicit config (`p/ci` or project policy set) in CI
 - [ ] Dependency vulnerability scan (e.g., `pip-audit`) in CI

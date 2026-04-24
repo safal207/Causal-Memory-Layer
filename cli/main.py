@@ -13,6 +13,10 @@ import sys
 from pathlib import Path
 
 
+def _is_strict_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _validate_raw_record(raw: dict, line_no: int) -> None:
     required = ("id", "timestamp", "actor", "action", "object", "permitted_by")
     missing = [key for key in required if key not in raw]
@@ -20,8 +24,8 @@ def _validate_raw_record(raw: dict, line_no: int) -> None:
         raise ValueError(f"Line {line_no}: missing required keys: {missing}")
     if not isinstance(raw["id"], str) or not raw["id"].strip():
         raise ValueError(f"Line {line_no}: field 'id' must be a non-empty string")
-    if not isinstance(raw["timestamp"], int):
-        raise ValueError(f"Line {line_no}: field 'timestamp' must be an integer")
+    if not _is_strict_int(raw["timestamp"]):
+        raise ValueError(f"Line {line_no}: field 'timestamp' must be a strict integer")
     if not isinstance(raw["action"], str) or not raw["action"].strip():
         raise ValueError(f"Line {line_no}: field 'action' must be a non-empty string")
     if not isinstance(raw["permitted_by"], str) or not raw["permitted_by"].strip():
@@ -29,11 +33,11 @@ def _validate_raw_record(raw: dict, line_no: int) -> None:
     actor = raw["actor"]
     if not isinstance(actor, dict):
         raise ValueError(f"Line {line_no}: field 'actor' must be an object")
-    if not isinstance(actor.get("pid"), int) or not isinstance(actor.get("uid"), int):
-        raise ValueError(f"Line {line_no}: actor.pid and actor.uid must be integers")
+    if not _is_strict_int(actor.get("pid")) or not _is_strict_int(actor.get("uid")):
+        raise ValueError(f"Line {line_no}: actor.pid and actor.uid must be strict integers")
     parent = raw.get("parent_cause")
-    if parent is not None and not isinstance(parent, str):
-        raise ValueError(f"Line {line_no}: field 'parent_cause' must be a string or null")
+    if parent is not None and (not isinstance(parent, str) or not parent.strip()):
+        raise ValueError(f"Line {line_no}: field 'parent_cause' must be a non-empty string or null")
 
 
 def _load_jsonl(file_path: str) -> list[dict]:
