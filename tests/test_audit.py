@@ -213,6 +213,13 @@ class TestFromYamlString:
         cfg = AuditConfig.from_yaml_string("---")
         assert cfg.root_event_prefix == "root_event:"
 
+    def test_non_mapping_yaml_raises_value_error(self):
+        with pytest.raises(ValueError, match="mapping/object"):
+            AuditConfig.from_yaml_string("""
+- bad
+- config
+""")
+
 
 class TestFromYamlFile:
     def test_empty_file_returns_defaults(self, tmp_path):
@@ -391,3 +398,28 @@ def test_multihop_qa_mismatch_example_matches_explain():
     assert "h2_B" not in ans_anc
     assert "h2_C" in ans_anc
     assert ancestors("h2_B", index) == {"h2_B"}
+
+
+def test_unknown_custom_severity_fails_closed():
+    with pytest.raises(ValueError, match="Unknown severity"):
+        AuditConfig.from_yaml_string("""
+custom_rules:
+  - id: R5-TEST
+    description: bad severity
+    trigger_class: NET_OUT
+    severity: MAYBE
+""")
+
+
+def test_unknown_programmatic_custom_severity_fails_closed():
+    rule = CustomRule(
+        id="R5-BAD",
+        description="bad",
+        trigger_class=CLASS.NET_OUT,
+        severity="MAYBE",
+        code="CML-AUDIT-R5-BAD",
+    )
+    with pytest.raises(ValueError, match="Unknown severity"):
+        AuditEngine(AuditConfig(custom_rules=[rule])).run([
+            _rec("a", "connect", {"addr": "1.1.1.1"}, "unobserved_parent", parent_cause=None),
+        ])

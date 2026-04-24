@@ -13,7 +13,7 @@ import yaml
 from dataclasses import dataclass, field
 from typing import Optional
 from .record import CausalRecord, records_to_index
-from .chain import group_by_pid, has_path, ancestors
+from .chain import group_by_pid, ancestors
 from .ctag import CLASS
 
 
@@ -25,6 +25,17 @@ class Severity:
     OK   = "OK"
     WARN = "WARN"
     FAIL = "FAIL"
+
+    _ALLOWED = {OK, WARN, FAIL}
+
+    @staticmethod
+    def normalize(value: str) -> str:
+        normalized = str(value).upper()
+        if normalized not in Severity._ALLOWED:
+            raise ValueError(
+                f"Unknown severity: {value!r}. Allowed values: {sorted(Severity._ALLOWED)}"
+            )
+        return normalized
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +117,9 @@ class AuditConfig:
 
     @staticmethod
     def _apply_raw(cfg: "AuditConfig", raw: dict) -> "AuditConfig":
+        if not isinstance(raw, dict):
+            raise ValueError("Audit config root must be a mapping/object")
+
         cfg.root_event_prefix = raw.get("root_event_prefix", cfg.root_event_prefix)
         s = raw.get("secret", {})
         if "classifications" in s:
@@ -137,7 +151,7 @@ class AuditConfig:
                 id=cr["id"],
                 description=cr.get("description", ""),
                 trigger_class=trigger,
-                severity=cr.get("severity", Severity.FAIL),
+                severity=Severity.normalize(cr.get("severity", Severity.FAIL)),
                 code=cr.get("code", f"CML-AUDIT-{cr['id']}"),
                 require_ancestor_class=anc_cls,
                 require_ancestor_permitted_by_prefix=cr.get("require_ancestor_permitted_by_prefix"),
@@ -195,6 +209,7 @@ class AuditResult:
     findings: list[Finding] = field(default_factory=list)
 
     def add(self, finding: Finding):
+        finding.severity = Severity.normalize(finding.severity)
         self.findings.append(finding)
         if finding.severity == Severity.OK:
             self.ok += 1
@@ -347,6 +362,7 @@ class AuditEngine:
                 return _anc_cache[rid]
 
             for rule in cfg.custom_rules:
+                rule.severity = Severity.normalize(rule.severity)
                 if not cfg.rules_enabled.get(rule.id, True):
                     continue
                 for record in records:
