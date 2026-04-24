@@ -391,3 +391,28 @@ def test_multihop_qa_mismatch_example_matches_explain():
     assert "h2_B" not in ans_anc
     assert "h2_C" in ans_anc
     assert ancestors("h2_B", index) == {"h2_B"}
+
+
+def test_unknown_custom_severity_fails_closed():
+    with pytest.raises(ValueError, match="Unknown severity"):
+        AuditConfig.from_yaml_string("""
+custom_rules:
+  - id: R5-TEST
+    description: bad severity
+    trigger_class: NET_OUT
+    severity: MAYBE
+""")
+
+
+def test_unknown_programmatic_custom_severity_fails_closed():
+    rule = CustomRule(
+        id="R5-BAD",
+        description="bad",
+        trigger_class=CLASS.NET_OUT,
+        severity="MAYBE",
+        code="CML-AUDIT-R5-BAD",
+    )
+    with pytest.raises(ValueError, match="Unknown severity"):
+        AuditEngine(AuditConfig(custom_rules=[rule])).run([
+            _rec("a", "connect", {"addr": "1.1.1.1"}, "unobserved_parent", parent_cause=None),
+        ])
