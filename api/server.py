@@ -30,12 +30,29 @@ Hardening env vars:
     CML_DISABLE_DOCS — when truthy, hides /docs and /redoc.
     CML_STORE_TTL    — SQLite TTL in seconds (1..31_536_000, default 86_400).
 
+Rate limiting (slowapi):
+    CML_RATE_LIMIT_ENABLED  — master switch (default: on).
+    CML_RATE_LIMIT_DEFAULT  — default per-key budget (default: "60/minute").
+    CML_RATE_LIMIT_INGEST   — override for /ingest (default: "30/minute").
+    CML_RATE_LIMIT_AUDIT    — override for /audit, /audit/file, and
+                              /records/{log_name}/audit (default: "30/minute").
+    CML_RATE_LIMIT_RECORDS  — override for /records/{log_name}
+                              (default: "120/minute").
+    CML_RATE_LIMIT_CHAIN    — override for /chain/{log_name}/{id}
+                              (default: "120/minute").
+    CML_RATE_LIMIT_CTAG     — override for /ctag/decode (default: "300/minute").
+    CML_RATE_LIMIT_BACKEND  — slowapi storage URI (default: "memory://"; e.g.
+                              "redis://host:6379" for multi-replica deploys).
+    CML_TRUST_PROXY         — when truthy, key by X-Forwarded-For. Off by
+                              default — trusting it blindly enables bypass.
+
 Run:
     uvicorn api.server:app --reload --port 8080
 """
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import logging
@@ -46,10 +63,12 @@ from typing import Optional
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fastapi import FastAPI, HTTPException, Header, UploadFile, File, Body
+from fastapi import FastAPI, HTTPException, Header, Request, UploadFile, File, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
 
 from cml import (
     CausalRecord, load_jsonl, records_to_index,
@@ -133,6 +152,52 @@ _CORS_ORIGINS = _resolve_cors_origins()
 
 
 # ---------------------------------------------------------------------------
+# Rate limiting configuration
+# ---------------------------------------------------------------------------
+
+_RATE_LIMIT_ENABLED = _env_bool("CML_RATE_LIMIT_ENABLED", default=True)
+_RATE_LIMIT_DEFAULT = os.environ.get("CML_RATE_LIMIT_DEFAULT") or "60/minute"
+_RATE_LIMIT_INGEST = os.environ.get("CML_RATE_LIMIT_INGEST") or "30/minute"
+_RATE_LIMIT_AUDIT = os.environ.get("CML_RATE_LIMIT_AUDIT") or "30/minute"
+_RATE_LIMIT_RECORDS = os.environ.get("CML_RATE_LIMIT_RECORDS") or "120/minute"
+_RATE_LIMIT_CHAIN = os.environ.get("CML_RATE_LIMIT_CHAIN") or "120/minute"
+_RATE_LIMIT_CTAG = os.environ.get("CML_RATE_LIMIT_CTAG") or "300/minute"
+_RATE_LIMIT_BACKEND = os.environ.get("CML_RATE_LIMIT_BACKEND") or "memory://"
+_TRUST_PROXY = _env_bool("CML_TRUST_PROXY", default=False)
+
+
+def _rate_limit_key(request: "Request") -> str:
+    """Bucket per Bearer token, fall back to client IP.
+
+    The token is hashed so log lines and slowapi keys never carry the raw
+    secret. ``X-Forwarded-For`` is honoured only when ``CML_TRUST_PROXY``
+    is set — trusting it by default would let any client spoof their key.
+    """
+    auth = request.headers.get("authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[7:].strip()
+        if token:
+            digest = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+            return f"tok:{digest}"
+    if _TRUST_PROXY:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            # Use the leftmost (original client) entry. Subsequent entries
+            # are upstream proxies we control under CML_TRUST_PROXY.
+            return f"ip:{forwarded.split(',')[0].strip()}"
+    client = request.client.host if request.client else "unknown"
+    return f"ip:{client}"
+
+
+limiter = Limiter(
+    key_func=_rate_limit_key,
+    default_limits=[_RATE_LIMIT_DEFAULT],
+    storage_uri=_RATE_LIMIT_BACKEND,
+    enabled=_RATE_LIMIT_ENABLED,
+)
+
+
+# ---------------------------------------------------------------------------
 # App setup
 # ---------------------------------------------------------------------------
 
@@ -146,6 +211,31 @@ app = FastAPI(
     docs_url=None if _DISABLE_DOCS else "/docs",
     redoc_url=None if _DISABLE_DOCS else "/redoc",
 )
+
+def _rate_limit_handler(request: "Request", exc: RateLimitExceeded) -> JSONResponse:
+    """Build a 429 response that always carries ``Retry-After``.
+
+    slowapi's default handler omits ``Retry-After`` unless ``headers_enabled``
+    is set on the limiter, but enabling that flag conflicts with routes that
+    return ``Response`` objects directly. We compute the retry window from
+    the underlying ``RateLimitItem`` so callers always know how long to back
+    off, regardless of which route was throttled.
+    """
+    retry_after = 60
+    try:
+        retry_after = int(exc.limit.limit.get_expiry())
+    except (AttributeError, TypeError, ValueError):
+        pass
+    response = JSONResponse(
+        {"detail": f"Rate limit exceeded: {exc.detail}"},
+        status_code=429,
+    )
+    response.headers["Retry-After"] = str(retry_after)
+    return response
+
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 # Methods are restricted to those the API actually serves. Allowed headers are
 # limited to what the API consumes — anything else gets blocked at the browser.
@@ -283,6 +373,10 @@ class IngestRequest(BaseModel):
 
 # ---------------------------------------------------------------------------
 # Routes
+#
+# /health is intentionally undecorated so liveness probes from load balancers
+# and uptime checks cannot be rate limited. All other routes are bucketed via
+# the slowapi limiter; per-route limits are configurable through env vars.
 # ---------------------------------------------------------------------------
 
 @app.get("/health")
@@ -291,7 +385,8 @@ def health():
 
 
 @app.post("/audit")
-def audit_text(req: AuditTextRequest):
+@limiter.limit(_RATE_LIMIT_AUDIT)
+def audit_text(request: Request, req: AuditTextRequest):
     """
     Audit a JSONL log provided as a string.
 
@@ -313,7 +408,8 @@ def audit_text(req: AuditTextRequest):
 
 
 @app.post("/audit/file")
-async def audit_file(file: UploadFile = File(...)):
+@limiter.limit(_RATE_LIMIT_AUDIT)
+async def audit_file(request: Request, file: UploadFile = File(...)):
     """
     Audit an uploaded JSONL file.
     """
@@ -325,7 +421,8 @@ async def audit_file(file: UploadFile = File(...)):
 
 
 @app.post("/ingest")
-def ingest(req: IngestRequest):
+@limiter.limit(_RATE_LIMIT_INGEST)
+def ingest(request: Request, req: IngestRequest):
     """
     Append records to a named in-memory log.
     """
@@ -341,7 +438,8 @@ def ingest(req: IngestRequest):
 
 
 @app.get("/records/{log_name}")
-def list_records(log_name: str):
+@limiter.limit(_RATE_LIMIT_RECORDS)
+def list_records(request: Request, log_name: str):
     """List all records in a named log."""
     log_name = _validate_log_name(log_name)
     records = _get_log(log_name)
@@ -352,7 +450,8 @@ def list_records(log_name: str):
 
 
 @app.get("/records/{log_name}/audit")
-def audit_stored_log(log_name: str):
+@limiter.limit(_RATE_LIMIT_AUDIT)
+def audit_stored_log(request: Request, log_name: str):
     """Run audit on a stored log."""
     log_name = _validate_log_name(log_name)
     records = _get_log(log_name)
@@ -363,7 +462,8 @@ def audit_stored_log(log_name: str):
 
 
 @app.get("/chain/{log_name}/{record_id}")
-def get_chain(log_name: str, record_id: str):
+@limiter.limit(_RATE_LIMIT_CHAIN)
+def get_chain(request: Request, log_name: str, record_id: str):
     """
     Reconstruct the causal chain for a record in a stored log.
     """
@@ -383,7 +483,8 @@ def get_chain(log_name: str, record_id: str):
 
 
 @app.post("/ctag/decode")
-def api_decode_ctag(body: dict = Body(...)):
+@limiter.limit(_RATE_LIMIT_CTAG)
+def api_decode_ctag(request: Request, body: dict = Body(...)):
     """Decode a 16-bit CTAG value."""
     raw = body.get("ctag")
     if raw is None:
