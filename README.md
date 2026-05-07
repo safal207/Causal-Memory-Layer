@@ -13,6 +13,7 @@ pytest
 ```
 
 ## Review Links
+- Grant evidence: `docs/GRANT_EVIDENCE.md`
 - Architecture: `docs/`
 - Validation: `pytest`
 - Security: `SECURITY.md`
