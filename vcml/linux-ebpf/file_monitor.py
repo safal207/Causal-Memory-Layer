@@ -139,8 +139,8 @@ def main():
         sys.exit(1)
 
     print(
-        f"Monitoring open/read events | secret_prefixes={secret_prefixes} "
-        f"exts={secret_exts} | Ctrl-C to stop.",
+        f"Monitoring open/read events | configured_secret_prefixes={len(secret_prefixes)} "
+        f"configured_secret_exts={len(secret_exts)} | Ctrl-C to stop.",
         file=sys.stderr
     )
 
