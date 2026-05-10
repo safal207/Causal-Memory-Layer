@@ -1,0 +1,14 @@
+services:
+  cml-api:
+    build: .
+    container_name: cml-audit-api
+    ports:
+      - "8080:8080"
+    environment:
+      - CML_RATE_LIMIT_ENABLED=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      

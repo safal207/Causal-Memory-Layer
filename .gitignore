@@ -13,7 +13,7 @@ coverage/
 *.tmp
 *.temp
 .DS_Store
-
+.venv/
 # VS Code extension build output
 integrations/vscode-cml/out/
 integrations/vscode-cml/node_modules/
