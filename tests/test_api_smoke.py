@@ -34,4 +34,4 @@ def test_post_ctag_decode_invalid():
     """Verify that an invalid CTAG returns a 422 error."""
     response = client.post("/ctag/decode", json={"ctag": "not-a-hex-code"})
     assert response.status_code == 422
-    
+
