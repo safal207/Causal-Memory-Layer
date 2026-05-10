@@ -17,15 +17,20 @@ docker compose up --build
 ```
 The API will be available at `http://localhost:8080`.
 
-### 2. Verify Health
+### 2. Verification
 Open a terminal and run:
 ```bash
+# Start the services
+docker compose up --build -d
+
+# Check API health
 curl http://localhost:8080/health
+
+# Clean up
+docker compose down
 ```
-**Expected Output:**
-```json
+Expected Health Output:
 {"status":"ok","version":"0.4.0"}
-```
 
 ## 🛠 Common Commands
 
