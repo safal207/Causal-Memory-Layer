@@ -159,7 +159,8 @@ CML does not execute code or enforce runtime policy by itself. It validates whet
 | Transport (HTTP, TCP) | Moving data | CML does not focus on delivery; it focuses on authorization lineage and responsibility preservation across sensitive transitions. |
 
 ## Quick Start
-
+**Quickstart (Docker):**
+See the [Docker Quickstart guide](./docs/api/DOCKER_QUICKSTART.md) to run the API in a container.
 Run tests:
 
 ```bash
