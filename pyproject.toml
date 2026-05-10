@@ -48,6 +48,7 @@ dev = [
   "uvicorn[standard]>=0.29",
   "python-multipart>=0.0.9",
   "slowapi>=0.1.9",
+  "httpx",
 ]
 
 [project.scripts]
