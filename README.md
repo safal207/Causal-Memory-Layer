@@ -16,6 +16,7 @@ pytest
 - Start here: `docs/START_HERE.md`
 - Grant evidence: `docs/GRANT_EVIDENCE.md`
 - Benchmark evidence: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
+- Hosted Audit API MVP: `docs/api/HOSTED_AUDIT_API_MVP.md`
 - Architecture: `docs/`
 - Validation: `pytest`
 - Security: `SECURITY.md`
@@ -186,6 +187,7 @@ Inspect example logs through the current Python tooling and examples in:
 - Reproducible benchmark run command: `python scripts/run_safety_eval.py`
 - Tracked benchmark report: `benchmarks/RESULTS.md`
 - Reviewer-friendly benchmark interpretation: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
+- Hosted API MVP contract: `docs/api/HOSTED_AUDIT_API_MVP.md`
 
 ## Repository Map
 
