@@ -3,6 +3,7 @@
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 ![Audit](https://img.shields.io/badge/audit-causal%20lineage-blue)
 ![License](https://img.shields.io/badge/license-MIT-orange)
+[![Safety Eval](https://img.shields.io/badge/safety--eval-6%2F6%20matched-purple)](docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md)
 
 **Project status:** Active development with test coverage and CI validation for core audit semantics.
 
