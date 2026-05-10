@@ -13,6 +13,7 @@ pytest
 ```
 
 ## Review Links
+- Start here: `docs/START_HERE.md`
 - Grant evidence: `docs/GRANT_EVIDENCE.md`
 - Architecture: `docs/`
 - Validation: `pytest`
