@@ -46,7 +46,6 @@ curl -X POST http://localhost:8080/ctag/decode \
 
 ### 5. Authenticated Request Example
 When the Hosted API is active, endpoints will require a bearer token. Use the `CML_API_TOKEN` environment variable.
-When the Hosted API is active, endpoints will require a bearer token. Use the `CML_API_TOKEN` environment variable.
 ```bash
 curl -X POST http://localhost:8080/audit \
   -H "Authorization: Bearer $CML_API_TOKEN" \
