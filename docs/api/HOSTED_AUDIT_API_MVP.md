@@ -49,6 +49,10 @@ Optional later endpoints:
 | `GET /v1/chain/{log_name}/{record_id}` | Reconstruct chain for stored records. |
 | `POST /v1/ctag/decode` | Decode CTAG values. |
 
+## Documentation & Examples
+
+For practical integration tests and request/response validation, see:
+- [Verified cURL Examples](HOSTED_AUDIT_API_CURL_EXAMPLES.md)
 ## Authentication
 
 MVP assumption:
