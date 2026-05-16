@@ -1,5 +1,7 @@
 # Causal Memory Layer (CML)
 
+[![CI](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/ci.yml/badge.svg)](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/ci.yml)
+[![Package Validation](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/python-package-validation.yml/badge.svg)](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/python-package-validation.yml)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 ![Audit](https://img.shields.io/badge/audit-causal%20lineage-blue)
 ![License](https://img.shields.io/badge/license-MIT-orange)

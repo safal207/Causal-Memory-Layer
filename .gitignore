@@ -9,6 +9,14 @@ build/
 target/
 node_modules/
 coverage/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.venv/
+venv/
+.env
+.env.*
 *.log
 *.tmp
 *.temp
