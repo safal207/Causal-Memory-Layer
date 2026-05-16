@@ -304,9 +304,7 @@ def main():
     def on_send(cpu, data, size):
         ev  = b["send_events"].event(data)
         rid = str(uuid.uuid4())
-        with _lock:
-            pc = pid_causes.get(ev.pid)
-        pb  = pc if pc else "unobserved_parent"
+        pc, pb = parent_of(ev.pid, ev.ppid)
         emit({
             "id": rid, "timestamp": time.time_ns(),
             "actor": {"pid": ev.pid, "ppid": ev.ppid, "uid": ev.uid,
@@ -326,14 +324,15 @@ def main():
     b["connect_events"].open_perf_buffer(on_connect)
     b["send_events"].open_perf_buffer(on_send)
 
-    while True:
-        try:
-            b.perf_buffer_poll()
-        except KeyboardInterrupt:
-            break
-
-    if args.output != "-":
-        out.close()
+    try:
+        while True:
+            try:
+                b.perf_buffer_poll()
+            except KeyboardInterrupt:
+                break
+    finally:
+        if args.output != "-":
+            out.close()
 
 
 if __name__ == "__main__":

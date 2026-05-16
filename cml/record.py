@@ -129,10 +129,19 @@ class CausalRecord:
 
     @staticmethod
     def from_dict(d: dict) -> "CausalRecord":
+        required = ("id", "timestamp", "actor", "action", "object", "permitted_by")
+        missing = [k for k in required if k not in d]
+        if missing:
+            raise ValueError(
+                f"CausalRecord missing required field(s): {', '.join(missing)}"
+            )
         actor_raw = d["actor"]
         if not isinstance(actor_raw, dict):
             raise ValueError(f"'actor' must be a dict, got {type(actor_raw).__name__}")
-        actor = Actor.from_dict(actor_raw)
+        try:
+            actor = Actor.from_dict(actor_raw)
+        except KeyError as e:
+            raise ValueError(f"'actor' missing required field: {e.args[0]}") from e
         return CausalRecord(
             id=d["id"],
             timestamp=d["timestamp"],

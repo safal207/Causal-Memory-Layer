@@ -70,6 +70,7 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 
+import cml
 from cml import (
     CausalRecord, load_jsonl, records_to_index,
     AuditEngine, AuditConfig, AuditResult,
@@ -207,7 +208,7 @@ app = FastAPI(
         "Causal Memory Layer — REST API for causal log ingestion, "
         "audit, and chain reconstruction."
     ),
-    version="0.4.0",
+    version=cml.__version__,
     docs_url=None if _DISABLE_DOCS else "/docs",
     redoc_url=None if _DISABLE_DOCS else "/redoc",
 )
@@ -344,6 +345,7 @@ def _parse_jsonl(text: str) -> list[CausalRecord]:
             try:
                 records.append(CausalRecord.from_json(line))
             except Exception as e:
+                logger.exception("Failed to parse JSONL record")
                 raise HTTPException(
                     status_code=422,
                     detail=f"Failed to parse record: {e}\nLine: {line[:80]}"
@@ -381,7 +383,7 @@ class IngestRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.4.0"}
+    return {"status": "ok", "version": cml.__version__}
 
 
 @app.post("/audit")
@@ -432,6 +434,7 @@ def ingest(request: Request, req: IngestRequest):
         try:
             records.append(CausalRecord.from_dict(raw))
         except Exception as e:
+            logger.exception("Failed to ingest record")
             raise HTTPException(status_code=422, detail=f"Invalid record: {e}")
     _store_records(log_name, records)
     return {"log_name": log_name, "ingested": len(records)}

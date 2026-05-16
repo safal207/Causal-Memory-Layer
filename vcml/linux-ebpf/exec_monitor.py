@@ -83,7 +83,7 @@ def main():
         # Decode filename
         try:
             filename = event.filename.decode('utf-8')
-        except:
+        except UnicodeDecodeError:
             filename = event.filename.decode('latin1')
         filename = filename.split('\x00', 1)[0]
 
