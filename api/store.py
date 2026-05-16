@@ -35,6 +35,7 @@ class LogStore(Protocol):
     def store(self, log_name: str, records: list[CausalRecord]) -> int: ...
     def log_count(self) -> int: ...
     def record_count(self, log_name: str) -> int: ...
+    def close(self) -> None: ...
 
 
 # ---------------------------------------------------------------------------
@@ -75,6 +76,10 @@ class InMemoryStore:
 
     def record_count(self, log_name: str) -> int:
         return len(self._logs.get(log_name, []))
+
+    def close(self) -> None:
+        """No-op: matches the LogStore protocol so callers can close()
+        any backend uniformly."""
 
 
 # ---------------------------------------------------------------------------

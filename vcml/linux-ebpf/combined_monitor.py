@@ -33,6 +33,7 @@ import uuid
 import socket
 import struct
 import argparse
+import logging
 import threading
 
 try:
@@ -162,10 +163,14 @@ TRACEPOINT_PROBE(syscalls, sys_enter_sendto) {
 # Helpers
 # ---------------------------------------------------------------------------
 
+logger = logging.getLogger("vcml.combined_monitor")
+
+
 def _decode_str(b_arr: bytes) -> str:
     try:
         return b_arr.decode("utf-8").split("\x00", 1)[0]
-    except Exception:
+    except UnicodeDecodeError as e:
+        logger.debug("utf-8 decode failed (%s); falling back to latin1", e)
         return b_arr.decode("latin1").split("\x00", 1)[0]
 
 
@@ -183,7 +188,8 @@ _MAX_PID_CACHE = 10_000
 def _ip_str(daddr_le: int) -> str:
     try:
         return socket.inet_ntoa(struct.pack("<I", daddr_le))
-    except Exception:
+    except (struct.error, OSError) as e:
+        logger.debug("inet_ntoa failed for %r: %s", daddr_le, e)
         return str(daddr_le)
 
 
@@ -205,7 +211,15 @@ def main():
     )
     parser.add_argument("--external-only", action="store_true",
                         help="Only emit NET_OUT records for non-loopback destinations")
+    parser.add_argument("--debug", action="store_true",
+                        help="Enable debug logging on stderr (decode/parse failures, etc.)")
     args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.WARNING,
+        format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+        stream=sys.stderr,
+    )
 
     out = open(args.output, "w") if args.output != "-" else sys.stdout
 

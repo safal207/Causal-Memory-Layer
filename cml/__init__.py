@@ -20,7 +20,12 @@ Quick start:
     print(result.passed(), result.findings)
 """
 
-__version__ = "0.4.0"
+from importlib.metadata import PackageNotFoundError, version as _pkg_version
+
+try:
+    __version__ = _pkg_version("causal-memory-layer")
+except PackageNotFoundError:  # not installed (editable source checkout)
+    __version__ = "0.0.0+unknown"
 
 from .record import CausalRecord, Actor, Action, load_jsonl, records_to_index
 from .ctag   import (
