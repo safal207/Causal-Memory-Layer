@@ -16,6 +16,8 @@ pytest
 ## Review Links
 - Start here: `docs/START_HERE.md`
 - Grant evidence: `docs/GRANT_EVIDENCE.md`
+- ProofPath ecosystem graph: `https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md`
+- Related LS grant path: `docs/RELATED_LS_GRANT_PATH.md`
 - Benchmark evidence: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
 - Hosted Audit API MVP: `docs/api/HOSTED_AUDIT_API_MVP.md`
 - Architecture: `docs/`
