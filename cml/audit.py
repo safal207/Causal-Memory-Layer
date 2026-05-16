@@ -362,7 +362,7 @@ class AuditEngine:
                 return _anc_cache[rid]
 
             for rule in cfg.custom_rules:
-                rule.severity = Severity.normalize(rule.severity)
+                rule_severity = Severity.normalize(rule.severity)
                 if not cfg.rules_enabled.get(rule.id, True):
                     continue
                 for record in records:
@@ -392,7 +392,7 @@ class AuditEngine:
                     if not satisfied:
                         result.add(Finding(
                             code=rule.code,
-                            severity=rule.severity,
+                            severity=rule_severity,
                             record_id=record.id,
                             message=f"Custom rule {rule.id}: {rule.description}",
                         ))

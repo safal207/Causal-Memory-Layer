@@ -86,22 +86,36 @@ def audit(records: list[dict], _config: dict | None = None) -> dict:
                     ),
                 })
 
-        # R2 — Gap Marking Consistency
-        if parent_cause is None:
-            is_root = isinstance(permitted_by, str) and permitted_by.startswith(ROOT_PREFIX)
-            is_marked_gap = permitted_by == "unobserved_parent"
-            if not is_root and not is_marked_gap:
-                rec_findings.append({
-                    "rule": "R2",
-                    "code": "CML-AUDIT-R2-GAP_NOT_MARKED",
-                    "severity": "WARN",
-                    "record_id": rid,
-                    "line": line,
-                    "message": (
-                        f"parent_cause is null but permitted_by ('{permitted_by}') is"
-                        " neither 'unobserved_parent' nor a 'root_event:' label"
-                    ),
-                })
+        # R2 / R4 — Gap Marking & Root Identification (mutually exclusive)
+        #
+        # For null-parent non-root records:
+        #   R4 fires when permitted_by looks like a *near-miss* root label
+        #       (starts with the root prefix stem but lacks the separator).
+        #   R2 fires for all other unlabeled cases (arbitrary permitted_by
+        #       that is not "unobserved_parent" and not a near-miss root).
+        is_root = isinstance(permitted_by, str) and permitted_by.startswith(ROOT_PREFIX)
+        is_marked_gap = permitted_by == "unobserved_parent"
+        prefix_stem = ROOT_PREFIX[:-1] if ROOT_PREFIX else ""
+        near_miss = (
+            parent_cause is None
+            and not is_root
+            and not is_marked_gap
+            and bool(prefix_stem)
+            and isinstance(permitted_by, str)
+            and permitted_by.startswith(prefix_stem)
+        )
+        if parent_cause is None and not is_root and not is_marked_gap and not near_miss:
+            rec_findings.append({
+                "rule": "R2",
+                "code": "CML-AUDIT-R2-GAP_NOT_MARKED",
+                "severity": "WARN",
+                "record_id": rid,
+                "line": line,
+                "message": (
+                    f"parent_cause is null but permitted_by ('{permitted_by}') is"
+                    " neither 'unobserved_parent' nor a 'root_event:' label"
+                ),
+            })
 
         # Track SECRET accesses (open/read of a SECRET object)
         if action in ("open", "read") and _is_secret(obj) and pid is not None:
@@ -139,22 +153,21 @@ def audit(records: list[dict], _config: dict | None = None) -> dict:
                         })
                         break  # one finding per NET_OUT record
 
-        # R4 — Root Event Identification
-        if parent_cause is None:
-            is_root = isinstance(permitted_by, str) and permitted_by.startswith(ROOT_PREFIX)
-            is_marked_gap = permitted_by == "unobserved_parent"
-            if not is_root and not is_marked_gap:
-                rec_findings.append({
-                    "rule": "R4",
-                    "code": "CML-AUDIT-R4-AMBIGUOUS_ROOT",
-                    "severity": "WARN",
-                    "record_id": rid,
-                    "line": line,
-                    "message": (
-                        f"Record has parent_cause=null but is neither a root_event"
-                        f" nor marked as unobserved_parent (permitted_by: '{permitted_by}')"
-                    ),
-                })
+        # R4 — Root Event Identification (near-miss root labels only).
+        # The condition was computed alongside R2 above; we re-use it here.
+        if near_miss:
+            rec_findings.append({
+                "rule": "R4",
+                "code": "CML-AUDIT-R4-AMBIGUOUS_ROOT",
+                "severity": "WARN",
+                "record_id": rid,
+                "line": line,
+                "message": (
+                    f"Near-miss root label: permitted_by='{permitted_by}'"
+                    f" looks like '{ROOT_PREFIX}' but is missing the required"
+                    f" separator. Did you mean '{ROOT_PREFIX}<cause>'?"
+                ),
+            })
 
         if rec_findings:
             findings.extend(rec_findings)
