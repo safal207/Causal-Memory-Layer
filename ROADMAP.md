@@ -152,10 +152,16 @@ exec → secret access (open/read) → network egress (connect/send)
 - `docs/enterprise/compliance_guide.md`
 - `docs/sdk/quickstart.md`
 
-**Не завершено (требует реализации):**
+**Завершено (инфраструктура):**
 
-- PyPI release (`pip install causal-memory-layer`) — упаковка готова, публикация нет
-- Hosted Audit API — не развёрнут
+- PyPI release — упаковка + CI готовы (`.github/workflows/publish-pypi.yml` с Trusted Publishing)
+- Hosted Audit API инфра — Dockerfile + docker-compose.yml + deploy guide (`docs/deploy/README.md`)
+- CI с coverage gate (--cov-fail-under=45) + status badges в README
+
+**Остаток (требует финальной отмашки):**
+
+- PyPI publikation — нужно создать Release tag (v0.4.0) и запустить workflow (требует trusted publisher setup на PyPI)
+- Hosted deploy — выбрать платформу (Fly.io / Render / Railway), связать секреты, развернуть
 - Compliance packs — docs написаны, автоматизации нет
 - Enterprise SDK (multi-tenant, SIEM integrations) — не реализован
 

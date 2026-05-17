@@ -1,0 +1,94 @@
+name: Publish to PyPI
+
+# Triggered when a GitHub Release is published (or manually via the
+# Actions UI for dry runs against Test PyPI).
+#
+# Uses PyPI's Trusted Publishing (OIDC) — no API tokens needed.
+# Set this up at https://pypi.org/manage/account/publishing/ once:
+#   PyPI project name: causal-memory-layer
+#   Owner: safal207
+#   Repository name: Causal-Memory-Layer
+#   Workflow filename: publish-pypi.yml
+#   Environment name: pypi
+# Repeat for Test PyPI (https://test.pypi.org) with environment "test-pypi"
+# if you want the dry-run path to work.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Publish target"
+        required: true
+        default: "test-pypi"
+        type: choice
+        options: ["test-pypi", "pypi"]
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install build tooling
+        run: |
+          python -m pip install --upgrade pip build twine
+      - name: Verify pyproject version matches the release tag
+        if: github.event_name == 'release'
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          pkg_version=$(python -c "import tomllib,sys;print(tomllib.loads(open('pyproject.toml','rb').read().decode())['project']['version'])")
+          if [ "$tag" != "$pkg_version" ]; then
+            echo "::error::Release tag ($tag) does not match pyproject.toml version ($pkg_version)"
+            exit 1
+          fi
+      - name: Build distributions
+        run: python -m build
+      - name: Check distribution metadata
+        run: python -m twine check --strict dist/*
+      - name: Upload built artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish-test-pypi:
+    name: Publish to Test PyPI
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'test-pypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: test-pypi
+      url: https://test.pypi.org/project/causal-memory-layer
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/causal-memory-layer
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
