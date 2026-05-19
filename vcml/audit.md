@@ -49,7 +49,9 @@ Causal integrity means:
 
 ## Decision Codes
 
-Audit emits standardized decision codes (read-only). See `DECISION_CODES.md`.
+Audit emits standardized decision codes (read-only). See [`DECISION_CODES.md`](../DECISION_CODES.md).
+For a plain-language explanation of each built-in finding code, see
+[`docs/audit/FINDINGS_GLOSSARY.md`](../docs/audit/FINDINGS_GLOSSARY.md).
 
 Common outcomes:
 - OK: chain coherent for the examined rule
