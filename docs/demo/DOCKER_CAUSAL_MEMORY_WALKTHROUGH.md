@@ -41,8 +41,8 @@ curl http://localhost:8080/health
 
 Expected response:
 
-```json
-{"status": "ok", "version": "0.5.1"}
+```text
+Expected: `status` is `"ok"` and a `version` field is present.
 ```
 
 ---
@@ -83,6 +83,8 @@ curl -s -X POST http://localhost:8080/audit \
     "format": "json"
   }'
 ```
+
+> The payload above matches `examples/api/causal_memory_demo.jsonl` in this repo.
 
 Expected response:
 
