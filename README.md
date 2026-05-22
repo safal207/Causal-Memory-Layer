@@ -20,6 +20,7 @@ pytest
 - Grant evidence: `docs/GRANT_EVIDENCE.md`
 - CML adoption equilibrium framing: [`docs/CML_AI_ADOPTION_EQUILIBRIUM_LAYER.md`](docs/CML_AI_ADOPTION_EQUILIBRIUM_LAYER.md)
 - Fintech causal validity demo framing: [`docs/FINTECH_LIMIT_DEMO.md`](docs/FINTECH_LIMIT_DEMO.md)
+- LTP ↔ CML bridge: [`docs/LTP_CML_BRIDGE.md`](docs/LTP_CML_BRIDGE.md)
 - Related LS grant path: `docs/RELATED_LS_GRANT_PATH.md`
 - LS Grant Reviewer Packet 2026: `https://github.com/safal207/LS/blob/main/docs/GRANT_REVIEWER_PACKET_2026.md`
 - ProofPath ecosystem graph: `https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md`
