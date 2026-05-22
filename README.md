@@ -23,6 +23,7 @@ pytest
 - ProofPath ecosystem graph: `https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md`
 - Benchmark evidence: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
 - Hosted Audit API MVP: `docs/api/HOSTED_AUDIT_API_MVP.md`
+- Audit findings glossary: [`docs/audit/FINDINGS_GLOSSARY.md`](docs/audit/FINDINGS_GLOSSARY.md)
 - Architecture: `docs/`
 - Validation: `pytest`
 - Security: `SECURITY.md`
