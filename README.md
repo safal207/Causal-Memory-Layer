@@ -18,6 +18,7 @@ pytest
 ## Review Links
 - Start here: `docs/START_HERE.md`
 - Grant evidence: `docs/GRANT_EVIDENCE.md`
+- Docker causal memory walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
 - CML adoption equilibrium framing: [`docs/CML_AI_ADOPTION_EQUILIBRIUM_LAYER.md`](docs/CML_AI_ADOPTION_EQUILIBRIUM_LAYER.md)
 - Fintech causal validity demo framing: [`docs/FINTECH_LIMIT_DEMO.md`](docs/FINTECH_LIMIT_DEMO.md)
 - LTP ↔ CML bridge: [`docs/LTP_CML_BRIDGE.md`](docs/LTP_CML_BRIDGE.md)
@@ -182,6 +183,14 @@ Run deterministic safety benchmark:
 python scripts/run_safety_eval.py
 ```
 
+Run the Docker demo:
+
+```bash
+docker compose up --build
+```
+
+Then open a second terminal and follow [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md).
+
 Inspect example logs through the current Python tooling and examples in:
 
 - `examples/exec_causal_log.jsonl`
@@ -198,6 +207,7 @@ Inspect example logs through the current Python tooling and examples in:
 - Tracked benchmark report: `benchmarks/RESULTS.md`
 - Reviewer-friendly benchmark interpretation: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
 - Hosted API MVP contract: `docs/api/HOSTED_AUDIT_API_MVP.md`
+- Docker causal memory walkthrough: `docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`
 
 ## Repository Map
 
