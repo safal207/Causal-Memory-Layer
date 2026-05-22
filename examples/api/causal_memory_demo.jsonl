@@ -1,0 +1,2 @@
+{"id":"demo-evt-001","timestamp":1690000001000000000,"actor":{"pid":1000,"uid":0,"ppid":null},"action":"exec","object":"/usr/bin/approve","permitted_by":"root_event:manager_approval","parent_cause":null}
+{"id":"demo-evt-002","timestamp":1690000002000000000,"actor":{"pid":1001,"uid":1000,"ppid":1000},"action":"write","object":"/data/funds.db","permitted_by":"parent_process_context","parent_cause":"demo-evt-MISSING"}

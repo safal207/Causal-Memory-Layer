@@ -34,7 +34,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN groupadd --system --gid 1001 cml \
  && useradd  --system --uid 1001 --gid cml --home /home/cml --shell /usr/sbin/nologin cml \
  && mkdir -p /home/cml \
- && chown -R cml:cml /home/cml
+ && chown -R cml:cml /home/cml \
+ && mkdir -p /data \
+ && chown cml:cml /data
 
 COPY --from=build /opt/venv /opt/venv
 
