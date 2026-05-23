@@ -6,122 +6,112 @@
 ![Audit](https://img.shields.io/badge/audit-causal%20lineage-blue)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 [![Safety Eval](https://img.shields.io/badge/safety--eval-6%2F6%20matched-purple)](docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md)
-https://safal207.github.io/Causal-Memory-Layer/
 
-**Project status:** Active development with test coverage and CI validation for core audit semantics.
+![CML before-after causal audit visual](docs/assets/cml-before-after.svg)
 
-**Fast validation (under 2 minutes):**
+## Why CML?
+
+**Logs show what happened. CML checks why it was allowed.**
+
+A workflow can pass every functional test and still be causally invalid: the action succeeded, but the approval, intent, or responsibility lineage is missing, ambiguous, or broken.
+
+```text
+ordinary log:  action completed -> OK
+CML audit:     parent_cause=approval-42 -> MISSING_PARENT
+```
+
+CML is an open-source causal audit layer for structured action traces, AI-agent workflows, high-trust automation, and reviewable safety infrastructure.
+
+> A system may be functionally correct while being causally invalid.
+
+**Star this repo if you care about auditable AI agents, deterministic oversight, causal traces, and open-source AI safety infrastructure.**
+
+## 30-second demo
+
+Run the local API:
+
+```bash
+docker compose up --build
+```
+
+Then follow the Docker walkthrough:
+
+```text
+docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md
+```
+
+Expected example finding:
+
+```text
+CML-AUDIT-R1-MISSING_PARENT
+```
+
+The action may look operationally valid, but CML asks whether its causal parent exists.
+
+## Use CML when you need to audit
+
+- AI-agent tool calls and action chains.
+- Human approval handoffs.
+- Automation workflows with high-trust actions.
+- Fintech or review-heavy decision paths.
+- Structured traces where responsibility lineage matters.
+- Research benchmarks for causal validity in agentic systems.
+
+## How CML differs
+
+| System type | Usually answers | CML adds |
+| :--- | :--- | :--- |
+| Logs | What happened? | Was the action causally permitted? |
+| Tracing | Where did execution go? | Did responsibility lineage survive the workflow? |
+| Observability | What failed operationally? | What succeeded but had broken causal lineage? |
+| Policy checks | Is this allowed now? | Why was this specific action allowed in this trace? |
+| CML | Why was this action allowed? | Narrow audit primitive, not a full runtime safety stack. |
+
+## Fast validation
+
 ```bash
 pip install -e ".[dev]"
 pytest
+python scripts/run_safety_eval.py
 ```
 
-## Review Links
-- Start here: `docs/START_HERE.md`
+Dashboard:
+
+```text
+https://safal207.github.io/Causal-Memory-Layer/
+```
+
+## Review links
+
+- Start here: [`docs/START_HERE.md`](docs/START_HERE.md)
 - Grant reviewer checklist: [`docs/GRANT_REVIEWER_CHECKLIST.md`](docs/GRANT_REVIEWER_CHECKLIST.md)
-- Grant evidence: `docs/GRANT_EVIDENCE.md`
-- Benchmark evidence: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
-- Larger-grant benchmark expansion plan: [`docs/evidence/BENCHMARK_EXPANSION_PLAN_50K_100K.md`](docs/evidence/BENCHMARK_EXPANSION_PLAN_50K_100K.md)
+- Grant evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
+- Benchmark evidence: [`docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`](docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md)
+- Docker walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
+- Causal invalidity patterns: [`docs/research/CAUSAL_INVALIDITY_PATTERNS.md`](docs/research/CAUSAL_INVALIDITY_PATTERNS.md)
+- $75k-$100k grant plan: [`docs/grants/CML_75K_100K_GRANT_PLAN.md`](docs/grants/CML_75K_100K_GRANT_PLAN.md)
 - External validation protocol: [`docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md`](docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md)
 - Technical report outline: [`docs/research/TECHNICAL_REPORT_OUTLINE.md`](docs/research/TECHNICAL_REPORT_OUTLINE.md)
-- Docker causal memory walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
-- CML adoption equilibrium framing: [`docs/CML_AI_ADOPTION_EQUILIBRIUM_LAYER.md`](docs/CML_AI_ADOPTION_EQUILIBRIUM_LAYER.md)
-- Fintech causal validity demo framing: [`docs/FINTECH_LIMIT_DEMO.md`](docs/FINTECH_LIMIT_DEMO.md)
-- LTP ↔ CML bridge: [`docs/LTP_CML_BRIDGE.md`](docs/LTP_CML_BRIDGE.md)
-- Related LS grant path: `docs/RELATED_LS_GRANT_PATH.md`
-- LS Grant Reviewer Packet 2026: `https://github.com/safal207/LS/blob/main/docs/GRANT_REVIEWER_PACKET_2026.md`
-- ProofPath ecosystem graph: `https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md`
-- Hosted Audit API MVP: `docs/api/HOSTED_AUDIT_API_MVP.md`
 - Audit findings glossary: [`docs/audit/FINDINGS_GLOSSARY.md`](docs/audit/FINDINGS_GLOSSARY.md)
-- Architecture: `docs/`
-- Validation: `pytest`
-- Security: `SECURITY.md`
-- Roadmap: `ROADMAP.md`
-- License: `LICENSE`
+- LTP / CML bridge: [`docs/LTP_CML_BRIDGE.md`](docs/LTP_CML_BRIDGE.md)
+- Roadmap: [`ROADMAP.md`](ROADMAP.md)
+- Security: [`SECURITY.md`](SECURITY.md)
+- License: [`LICENSE`](LICENSE)
 
-Causal Memory Layer is an open-source causal audit layer for checking whether a sensitive action was actually grounded in a valid chain of permission, intent, and responsibility.
-
-It checks whether an action that appears operationally correct is backed by valid authorization lineage and preserves responsibility across steps. CML is designed for settings where knowing what happened is not enough; we also need to know why it was allowed to happen.
-
-The core idea is central: a system may be functionally correct while being causally invalid. An action may succeed, a response may look reasonable, and a workflow may complete, but the underlying chain can still be causally unauthorized, missing parent approval, hiding a causal gap, or failing responsibility preservation across steps.
-
-This makes CML relevant to high-risk AI workflows, agentic oversight, fintech controls, security auditing, and safety evaluation.
-
-## Example: 5-hop QA Causal Mismatch (A→B vs A→C)
-
-In one of the first experiments with CML, I used it as a causal validity layer on top of a 5-hop QA task over an internal knowledge graph.
-
-The model had to answer a question that required following a chain of facts A→B→…→Z. On the 4th hop it started to "correct" the intermediate fact and silently replaced the required edge A→B with a more plausible A→C that did not exist in the graph.
-
-CML was running as a read-only validator over the event trace. For this query it showed no causal link through the required B edge, while tracing a clean path through the incorrect C edge. In other words, the textual reasoning trace looked fine, but the recorded causal chain had diverged from the authorization lineage that was supposed to ground the answer.
-
-This is exactly the class of failures CML is designed to surface: cases where the model produces a plausible chain-of-thought that is causally disconnected from the authorization lineage that was supposed to ground the answer. The audit log for this run is in `examples/multihop_qa_mismatch_log.jsonl` and a walkthrough of how the mismatch shows up in chain reconstruction is in `examples/multihop_qa_mismatch_explain.md`.
-
-## Application-Ready Summary
-
-Use this framing in grant or fellowship applications:
-
-- CML detects actions that look valid at output level but are causally invalid in lineage.
-- CML provides deterministic, reproducible audit checks instead of narrative-only review.
-- CML contributes one concrete safety primitive: causal validity testing for authorization and responsibility chains.
-
-## Problem
-
-Many systems record events, outputs, traces, and metrics, but do not validate the causal structure behind authorization and action.
-
-That creates blind spots such as:
-
-- actions that appear valid but have no grounded parent cause
-- ambiguous or malformed root authority
-- causally unauthorized privileged actions that still succeed operationally
-- sensitive access followed by outbound behavior without a valid lineage
-- state transitions that cannot be tied back to intent, permission, and responsibility
-
-For agentic systems, this matters because output review alone can miss unsafe or causally invalid action chains.
-
-## What CML Does
-
-CML checks whether a sensitive action or state transition was causally valid, not only whether it occurred.
-
-It focuses on:
-
-- validating causal links between actions and prior authorization
-- preserving responsibility lineage across multi-step workflows
-- checking intent and permission continuity across transitions
-- detecting suspicious or invalid lineage (missing parents, malformed roots, broken handoffs)
-- validating causal coherence from structured logs and traces
-
-In practical terms, CML is a causal validity and authorization-lineage primitive that can support audit and accountability workflows.
-
-## Why This Matters for Agentic Systems
-
-Agentic systems can produce actions that appear reasonable or successful while lacking valid causal grounding. CML exists to make those failures inspectable.
-
-Examples:
-
-- a privileged action has no valid parent authorization
-- a root authority label is malformed or ambiguous
-- a secret access and a network action occur in the same process without valid causal lineage
-- a workflow contains an unmarked causal gap where responsibility was lost
-
-CML helps identify actions that are operationally successful but causally unauthorized.
-
-It is not a full safety stack on its own. It is one validation primitive that checks whether recorded action lineage is causally valid and responsibility-preserving.
-
-## Current Artifact
+## Current artifact
 
 This repository already contains a working technical artifact, not only a concept.
 
 Current components include:
 
-- a Python causal validation and audit engine
-- causal chain reconstruction utilities
-- CLI commands for lineage validation and chain inspection
-- a small API layer and store interface
-- example logs and example audit outputs
-- tests for chain logic, audit rules, and CTAG behavior
-- a deterministic safety-eval benchmark with fixtures and tracked results
-- documentation for vCML semantics and audit rules
+- Python causal validation and audit engine;
+- causal chain reconstruction utilities;
+- CLI commands for lineage validation and chain inspection;
+- API layer and store interface;
+- example logs and audit outputs;
+- tests for chain logic, audit rules, and CTAG behavior;
+- deterministic safety-eval benchmark with fixtures and tracked results;
+- documentation for vCML semantics and audit rules.
 
 Key implementation entry points:
 
@@ -131,103 +121,63 @@ Key implementation entry points:
 - `api/server.py`
 - `tests/test_audit.py`
 
-## Threat Model Fit
+## Problem
 
-CML is best understood as infrastructure for causal validity checking of sensitive actions.
+Many systems record events, outputs, traces, and metrics, but do not validate the causal structure behind authorization and action.
 
-It is useful for evaluating or auditing failures such as:
+That creates blind spots such as:
 
-- missing parent authorization references
-- unmarked causal gaps
-- ambiguous root authority
-- secret-to-network paths without valid causal linkage
-- broken responsibility lineage across handoffs
-- policy-specific authorization-lineage violations expressed as custom rules
+- actions that appear valid but have no grounded parent cause;
+- ambiguous or malformed root authority;
+- actions that succeed operationally while losing approval lineage;
+- state transitions that cannot be tied back to intent, permission, and responsibility.
 
-This repository does not claim to solve all AI safety problems. It contributes a specific control primitive: checking causal validity through authorization lineage, intent continuity, and responsibility preservation.
+For agentic systems, this matters because output review alone can miss causally invalid action chains.
 
-## Scope
+## What CML does
 
-### In Scope
+CML checks whether a high-trust action or state transition was causally valid, not only whether it occurred.
 
-- immutable records of intent, permission, and responsibility
-- explicit causal links between effects and prior causes
-- semantics for validating causal validity and authorization-lineage coherence
-- language-agnostic and transport-agnostic causal validity concepts
+It focuses on:
 
-### Out of Scope
+- validating causal links between actions and prior authorization;
+- preserving responsibility lineage across multi-step workflows;
+- checking intent and permission continuity across transitions;
+- detecting suspicious or invalid lineage such as missing parents, malformed roots, or broken handoffs;
+- validating causal coherence from structured logs and traces.
 
-- transport
-- execution
-- infrastructure orchestration
-- storage engine mechanics
-- model alignment as a whole
+## Evidence snapshot
 
-CML does not execute code or enforce runtime policy by itself. It validates whether recorded action chains are causally valid and responsibility-preserving.
-
-## Differentiation
-
-| System Type | Focus | CML Difference |
-| :--- | :--- | :--- |
-| Logs / access events | What happened | CML checks whether what happened was causally permitted and properly authorized. |
-| Tracing (OpenTelemetry) | Execution order, latency, performance | Tracing explains execution flow. CML checks causal validity of authorization lineage. |
-| Execution (Lambda, K8s, jobs) | Running tasks | CML is not the executor; it validates authorization lineage behind sensitive actions. |
-| Transport (HTTP, TCP) | Moving data | CML does not focus on delivery; it focuses on authorization lineage and responsibility preservation across sensitive transitions. |
-
-## Quick Start
-
-Run tests:
-
-```bash
-python -m pytest -q
-```
-
-Run deterministic safety benchmark:
-
-```bash
-python scripts/run_safety_eval.py
-```
-
-Run the Docker demo:
-
-```bash
-docker compose up --build
-```
-
-Then open a second terminal and follow [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md).
-
-Inspect example logs through the current Python tooling and examples in:
-
-- `examples/exec_causal_log.jsonl`
-- `examples/secret_to_net_log.jsonl`
-- `examples/secret_to_net_explain.md`
-- `benchmarks/README.md`
-- `benchmarks/RESULTS.md`
-
-## Evidence Snapshot
-
-- Deterministic safety benchmark fixtures with expected audit findings (`benchmarks/fixtures/`)
-- Covered failure classes: valid chain, missing parent, unmarked gap, ambiguous root, secret-to-network without valid lineage, custom policy violation
-- Reproducible benchmark run command: `python scripts/run_safety_eval.py`
-- Tracked benchmark report: `benchmarks/RESULTS.md`
+- Deterministic benchmark fixtures with expected audit findings: `benchmarks/fixtures/`
+- Current tracked benchmark result: `6/6 matched`
+- Benchmark runner: `python scripts/run_safety_eval.py`
+- Tracked report: `benchmarks/RESULTS.md`
 - Reviewer-friendly benchmark interpretation: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
-- Larger-grant benchmark expansion path: `docs/evidence/BENCHMARK_EXPANSION_PLAN_50K_100K.md`
+- Larger-grant expansion path: `docs/evidence/BENCHMARK_EXPANSION_PLAN_50K_100K.md`
 - External validation protocol: `docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md`
-- Technical report outline: `docs/research/TECHNICAL_REPORT_OUTLINE.md`
-- Hosted API MVP contract: `docs/api/HOSTED_AUDIT_API_MVP.md`
-- Docker causal memory walkthrough: `docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`
 
-## Repository Map
+## Repository map
 
 - `cml/`: core Python implementation
 - `cli/`: command-line tooling
-- `api/`: store and server layer
-- `vcml/`: semantics, format, audit, and boundary documentation
+- `api/`: API and store layer
+- `vcml/`: vCML semantics, format, audit, and boundary docs
 - `examples/`: sample logs and reports
+- `benchmarks/`: deterministic benchmark fixtures and results
 - `tests/`: regression coverage
-- `docs/`: wiki, SDK, enterprise, and scenario docs
+- `docs/`: supporting docs for review, research, and deployment
 
-## Research Direction
+## Scope
+
+CML does not claim to solve all AI safety, security, or compliance problems.
+
+It contributes one focused primitive:
+
+```text
+causal-validity checking for structured action traces
+```
+
+## Research direction
 
 The strongest research direction for CML is causal validity checking for agentic oversight.
 
@@ -235,9 +185,7 @@ A useful framing is:
 
 > How can we detect actions that appear valid at the surface level but are causally invalid because authorization, approval, or responsibility lineage is missing, ambiguous, or broken?
 
-That makes CML a strong supporting artifact for safety evaluation work focused on causal validity, authorization lineage, and responsibility-preserving action chains.
-
-## Bottom Line
+## Bottom line
 
 A system may be functionally correct while being causally invalid.
 
