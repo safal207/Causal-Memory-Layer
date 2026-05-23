@@ -19,6 +19,10 @@ pytest
 - Start here: `docs/START_HERE.md`
 - Grant reviewer checklist: [`docs/GRANT_REVIEWER_CHECKLIST.md`](docs/GRANT_REVIEWER_CHECKLIST.md)
 - Grant evidence: `docs/GRANT_EVIDENCE.md`
+- Benchmark evidence: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
+- Larger-grant benchmark expansion plan: [`docs/evidence/BENCHMARK_EXPANSION_PLAN_50K_100K.md`](docs/evidence/BENCHMARK_EXPANSION_PLAN_50K_100K.md)
+- External validation protocol: [`docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md`](docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md)
+- Technical report outline: [`docs/research/TECHNICAL_REPORT_OUTLINE.md`](docs/research/TECHNICAL_REPORT_OUTLINE.md)
 - Docker causal memory walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
 - CML adoption equilibrium framing: [`docs/CML_AI_ADOPTION_EQUILIBRIUM_LAYER.md`](docs/CML_AI_ADOPTION_EQUILIBRIUM_LAYER.md)
 - Fintech causal validity demo framing: [`docs/FINTECH_LIMIT_DEMO.md`](docs/FINTECH_LIMIT_DEMO.md)
@@ -26,7 +30,6 @@ pytest
 - Related LS grant path: `docs/RELATED_LS_GRANT_PATH.md`
 - LS Grant Reviewer Packet 2026: `https://github.com/safal207/LS/blob/main/docs/GRANT_REVIEWER_PACKET_2026.md`
 - ProofPath ecosystem graph: `https://github.com/safal207/ProofPath/blob/main/docs/ECOSYSTEM_GRAPH.md`
-- Benchmark evidence: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
 - Hosted Audit API MVP: `docs/api/HOSTED_AUDIT_API_MVP.md`
 - Audit findings glossary: [`docs/audit/FINDINGS_GLOSSARY.md`](docs/audit/FINDINGS_GLOSSARY.md)
 - Architecture: `docs/`
@@ -207,6 +210,9 @@ Inspect example logs through the current Python tooling and examples in:
 - Reproducible benchmark run command: `python scripts/run_safety_eval.py`
 - Tracked benchmark report: `benchmarks/RESULTS.md`
 - Reviewer-friendly benchmark interpretation: `docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`
+- Larger-grant benchmark expansion path: `docs/evidence/BENCHMARK_EXPANSION_PLAN_50K_100K.md`
+- External validation protocol: `docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md`
+- Technical report outline: `docs/research/TECHNICAL_REPORT_OUTLINE.md`
 - Hosted API MVP contract: `docs/api/HOSTED_AUDIT_API_MVP.md`
 - Docker causal memory walkthrough: `docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`
 
