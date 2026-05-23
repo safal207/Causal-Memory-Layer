@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CML $75k–$100k Grant Plan</title>
+  <style>
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f8fafc;color:#0f172a;line-height:1.7}
+    .wrap{max-width:980px;margin:0 auto;padding:48px 22px 72px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:28px;padding:34px;box-shadow:0 24px 70px rgba(15,23,42,.08)}
+    h1{font-size:clamp(40px,7vw,68px);line-height:.95;letter-spacing:-.06em;margin:0 0 18px}h2{font-size:30px;letter-spacing:-.035em;margin-top:38px}h3{font-size:22px;margin-top:28px}p,li{color:#475569}a{color:#0f172a;font-weight:800}.badge{display:inline-block;border:1px solid #e2e8f0;border-radius:999px;padding:8px 13px;margin-bottom:18px;font-weight:900;color:#334155;background:#fff}
+    pre{background:#0f172a;color:#e2e8f0;border-radius:20px;padding:18px;overflow:auto}code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}table{width:100%;border-collapse:collapse;margin:18px 0;background:#fff}th,td{border:1px solid #e2e8f0;padding:10px;text-align:left;vertical-align:top}th{background:#f1f5f9;color:#334155}.nav{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}.btn{display:inline-flex;text-decoration:none;border-radius:16px;padding:12px 16px;background:#0f172a;color:white}.btn.secondary{background:white;color:#0f172a;border:1px solid #e2e8f0}.muted{color:#64748b}.lead{font-size:20px;color:#64748b}.callout{background:#f8fafc;border:1px solid #e2e8f0;border-radius:22px;padding:18px;margin:18px 0}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <a class="btn secondary" href="../index.html">← Dashboard</a>
+      <a class="btn" href="https://github.com/safal207/Causal-Memory-Layer/blob/main/docs/grants/CML_75K_100K_GRANT_PLAN.md">Source on GitHub</a>
+    </div>
+    <div class="card">
+      <div class="badge">Grant-scale execution plan</div>
+      <h1>CML $75k–$100k Grant Plan</h1>
+      <p class="lead">A credible funding ask for turning Causal Memory Layer from an early open-source causal audit artifact into a benchmark-backed, externally reproducible research prototype for causal-validity checking in agentic AI workflows.</p>
+
+      <h2>One-sentence ask</h2>
+      <pre><code>We request $75k–$100k to expand CML into a reproducible benchmark and external-validation package for detecting causally invalid actions in agentic AI workflows.</code></pre>
+
+      <h2>Short thesis</h2>
+      <p>AI agents increasingly perform actions, not only generate text. In high-stakes workflows, an action can succeed operationally while lacking valid authorization, approval, intent, or responsibility lineage.</p>
+      <div class="callout"><strong>What happened is not enough.</strong><br/>We need to know why it was allowed.</div>
+
+      <h2>Current baseline</h2>
+      <p>CML already has a Python causal validation and audit engine, causal chain reconstruction utilities, CLI and API surfaces, deterministic benchmark fixtures, tracked benchmark results, Docker demo walkthrough, grant evidence package, explicit non-claims, LTP/CML architecture bridge, and reviewer checklist.</p>
+      <pre><code>Total cases: 6
+Matched cases: 6
+Mismatches: 0
+Expected passed / failed: 3 / 3
+Predicted passed / failed: 3 / 3</code></pre>
+
+      <h2>What the grant will produce</h2>
+      <pre><code>30–50 deterministic benchmark fixtures
+10–12 causal invalidity failure classes
+machine-readable expected findings
+Markdown + JSON benchmark reports
+2–5 external validation notes
+Docker-based reproducibility path
+short technical report
+clear benchmark limitations and non-claims</code></pre>
+
+      <h2>Why $75k–$100k is justified</h2>
+      <p>A smaller grant can fund maintenance and documentation. A $75k–$100k grant funds a complete evidence package: benchmark taxonomy, fixture expansion, expected finding metadata, report generation, external validation, technical report, API/demo hardening, and integration boundary docs.</p>
+      <p>The value is not only code. The value is producing a reusable evaluation artifact that other researchers and engineers can run, inspect, critique, and extend.</p>
+
+      <h2>Workstreams</h2>
+      <h3>1. Benchmark taxonomy and fixture expansion</h3>
+      <p>Move from 6 curated fixtures to 30–50 benchmark fixtures across 10–12 causal failure classes.</p>
+      <ul><li>documented causal invalidity taxonomy</li><li>fixture naming convention</li><li>positive and negative controls</li><li>expected finding metadata</li><li>expanded benchmark fixtures</li></ul>
+
+      <h3>2. Benchmark runner and report generation</h3>
+      <p>Make benchmark outputs easy to reproduce, compare, and cite.</p>
+      <ul><li>Markdown report generation</li><li>JSON result export</li><li>benchmark version metadata</li><li>commit SHA and environment metadata</li><li>mismatch reporting</li></ul>
+
+      <h3>3. External validation package</h3>
+      <p>Show that reviewers outside the project can reproduce CML results from public instructions.</p>
+      <ul><li>validation protocol</li><li>clean environment instructions</li><li>external validation note template</li><li>2–5 validation notes</li><li>reproduction problems tracked as issues</li></ul>
+
+      <h3>4. Docker/API demo hardening</h3>
+      <p>Make the demo path reviewer-friendly and reliable on common local environments.</p>
+
+      <h3>5. Technical report</h3>
+      <p>Publish a short technical report explaining the model, benchmark method, results, and limitations.</p>
+
+      <h3>6. Integration boundaries</h3>
+      <p>Clarify how CML relates to LTP, T-Trace, CaPU, TTM DB, logs, observability, and runtime policy systems.</p>
+
+      <h2>Budget model</h2>
+      <h3>$75k ask</h3>
+      <table><thead><tr><th>Category</th><th>Amount</th><th>Purpose</th></tr></thead><tbody><tr><td>Benchmark expansion</td><td>$25k</td><td>taxonomy, fixtures, expected findings, controls</td></tr><tr><td>Runner/reporting</td><td>$12k</td><td>JSON/Markdown reports, metadata, mismatch summaries</td></tr><tr><td>External validation</td><td>$12k</td><td>protocol, validator support, reproduction issue handling</td></tr><tr><td>Docker/API hardening</td><td>$8k</td><td>walkthrough reliability, payloads, demo scripts</td></tr><tr><td>Technical report</td><td>$10k</td><td>methodology, results, limitations, publication-quality draft</td></tr><tr><td>Maintenance/community</td><td>$8k</td><td>contributor review, docs polish, CI support</td></tr></tbody></table>
+
+      <h3>$100k ask</h3>
+      <table><thead><tr><th>Category</th><th>Amount</th><th>Purpose</th></tr></thead><tbody><tr><td>Benchmark expansion</td><td>$32k</td><td>50 fixtures, 12 failure classes, stronger controls</td></tr><tr><td>Runner/reporting</td><td>$15k</td><td>richer reports, version comparison, machine-readable outputs</td></tr><tr><td>External validation</td><td>$18k</td><td>3–5 validators, validation notes, reproduction issue loop</td></tr><tr><td>Docker/API hardening</td><td>$10k</td><td>stronger local demo, API examples, troubleshooting</td></tr><tr><td>Technical report</td><td>$15k</td><td>full technical report + publishable artifact</td></tr><tr><td>Integration boundary docs</td><td>$5k</td><td>LTP/T-Trace/CaPU boundary clarity</td></tr><tr><td>Maintenance/community</td><td>$5k</td><td>contributor coordination and review</td></tr></tbody></table>
+
+      <h2>Milestones</h2>
+      <ul><li><strong>Month 1:</strong> taxonomy, fixture metadata, initial 12–15 fixtures</li><li><strong>Month 2:</strong> 25–35 fixtures, positive/negative controls, report outputs</li><li><strong>Month 3:</strong> external validation, Docker walkthrough improvements, reproduction issue loop</li><li><strong>Month 4:</strong> 30–50 fixtures, final benchmark report, technical report draft</li></ul>
+
+      <h2>Success criteria</h2>
+      <pre><code>I can run CML locally, reproduce benchmark findings, inspect expected results,
+read external validation notes, and understand exactly what the benchmark proves
+and does not prove.</code></pre>
+
+      <h2>What this grant does not claim</h2>
+      <p>This grant does not claim that CML will solve AI alignment, provide certified compliance, replace IAM/SIEM/EDR/observability stacks, prevent all unsafe actions, or prove a deployed AI system is safe.</p>
+      <pre><code>CML will provide a reproducible benchmark-backed research prototype for causal-validity checking in structured agentic action traces.</code></pre>
+
+      <h2>Best grant ask wording</h2>
+      <h3>For $75k</h3>
+      <pre><code>We request $75,000 to expand CML into a benchmark-backed, externally reproducible research artifact for causal-validity checking in agentic AI workflows, including 30–50 fixtures, report generation, external validation notes, and a technical report.</code></pre>
+      <h3>For $100k</h3>
+      <pre><code>We request $100,000 to produce a more complete open-source causal-validity evaluation package for agentic AI workflows, including expanded benchmarks, machine-readable expected findings, external validation across multiple reviewers, Docker/API reproducibility, and a publication-ready technical report.</code></pre>
+
+      <h2>Bottom line</h2>
+      <div class="callout">The $75k–$100k case is credible if the application frames CML as open-source AI safety research infrastructure for reproducible causal-validity evaluation, not as a finished production compliance platform.</div>
+    </div>
+  </div>
+</body>
+</html>
