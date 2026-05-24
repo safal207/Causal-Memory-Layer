@@ -85,6 +85,7 @@ https://safal207.github.io/Causal-Memory-Layer/
 
 - Start here: [`docs/START_HERE.md`](docs/START_HERE.md)
 - Grant reviewer checklist: [`docs/GRANT_REVIEWER_CHECKLIST.md`](docs/GRANT_REVIEWER_CHECKLIST.md)
+- Portfolio relationship: [`docs/PORTFOLIO_RELATIONSHIP.md`](docs/PORTFOLIO_RELATIONSHIP.md)
 - Grant evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
 - Benchmark evidence: [`docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`](docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md)
 - Docker walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
