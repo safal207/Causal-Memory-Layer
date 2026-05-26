@@ -84,6 +84,8 @@ https://safal207.github.io/Causal-Memory-Layer/
 ## Review links
 
 - Start here: [`docs/START_HERE.md`](docs/START_HERE.md)
+- Reviewer path: [`docs/REVIEWER_PATH.md`](docs/REVIEWER_PATH.md)
+- Non-claims: [`docs/NON_CLAIMS.md`](docs/NON_CLAIMS.md)
 - Grant reviewer checklist: [`docs/GRANT_REVIEWER_CHECKLIST.md`](docs/GRANT_REVIEWER_CHECKLIST.md)
 - Portfolio relationship: [`docs/PORTFOLIO_RELATIONSHIP.md`](docs/PORTFOLIO_RELATIONSHIP.md)
 - Grant evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
@@ -111,6 +113,7 @@ Current components include:
 - API layer and store interface;
 - example logs and audit outputs;
 - tests for chain logic, audit rules, and CTAG behavior;
+- API smoke tests for health, audit, and CTAG decode;
 - deterministic safety-eval benchmark with fixtures and tracked results;
 - documentation for vCML semantics and audit rules.
 
@@ -121,6 +124,7 @@ Key implementation entry points:
 - `cli/main.py`
 - `api/server.py`
 - `tests/test_audit.py`
+- `tests/test_api_smoke.py`
 
 ## Problem
 
@@ -177,6 +181,8 @@ It contributes one focused primitive:
 ```text
 causal-validity checking for structured action traces
 ```
+
+See [`docs/NON_CLAIMS.md`](docs/NON_CLAIMS.md) for the full scope boundary.
 
 ## Research direction
 
