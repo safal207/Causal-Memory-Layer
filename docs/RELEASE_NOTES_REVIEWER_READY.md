@@ -132,6 +132,26 @@ python scripts/run_safety_eval.py -> passed: 6/6 matched
 
 Note: local working tree dirtiness was reported as pre-existing and unrelated to PR #50.
 
+## Clean-checkout validation recorded
+
+A fresh clone validation was completed after the reviewer-ready docs, API smoke tests, and dependency fix landed on `main`.
+
+Recorded result:
+
+```text
+Branch: main fresh clone
+pip install -e ".[dev]" -> ok
+pytest -> passed: 157 passed, 0 failed
+python scripts/run_safety_eval.py -> passed: 6/6 matched
+git status -> clean
+```
+
+Notes:
+
+- `httpx` is now included in dependencies; no manual install was needed.
+- Fresh clone shows 157 tests because additional tests from merged/manual-applied changes are included.
+- No working tree dirtiness, missing dependencies, or failures were reported.
+
 ## Current evidence anchors
 
 | Evidence | Location |
@@ -174,6 +194,14 @@ pytest passes
 safety eval: 6/6 matched
 ```
 
+Clean-checkout recorded result:
+
+```text
+157 passed
+6/6 matched
+git status clean
+```
+
 ## Reviewer interpretation
 
 CML should be evaluated as a focused infrastructure primitive, not as a full safety platform.
@@ -210,19 +238,18 @@ Together, they make high-risk agent behavior more inspectable at both path and c
 
 ## Remaining recommended hardening
 
-Before a formal reviewer-ready tag, complete:
+Optional next steps:
 
-- clean-checkout validation on fresh clone;
-- confirm benchmark/evidence docs still match generated results;
-- optionally add a release tag after clean validation;
-- optionally collect one external reviewer comment or issue specific to CML.
+- add a reviewer-ready tag;
+- collect one external reviewer comment or issue specific to CML;
+- expand the deterministic benchmark beyond the current 6/6 seed scaffold.
 
 ## Bottom line
 
 CML is now substantially cleaner for external review:
 
 ```text
-clear problem framing + reviewer path + non-claims + portfolio relationship + smoke tests + recorded validation
+clear problem framing + reviewer path + non-claims + portfolio relationship + smoke tests + recorded validation + clean-checkout confirmation
 ```
 
-It is ready for the next step: clean-checkout validation and optional reviewer-ready tag.
+It is ready for a reviewer-ready snapshot/tag.
