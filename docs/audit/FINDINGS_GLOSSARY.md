@@ -103,4 +103,3 @@ label like `root_event:system_boot` or `root_event:user_request`.
 - Decision code reference: [`../../DECISION_CODES.md`](../../DECISION_CODES.md)
 - Benchmark fixtures and results: [`../../benchmarks/README.md`](../../benchmarks/README.md)
 - Example audit report: [`../../examples/audit_report_example.md`](../../examples/audit_report_example.md)
-
