@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import yaml
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 from .record import CausalRecord, records_to_index
 from .chain import group_by_pid, ancestors
 from .ctag import CLASS
+from .experimental.cause_band import evaluate_fixture, load_fixture
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +116,8 @@ class AuditConfig:
         "R1": True, "R2": True, "R3": True, "R4": True
     })
     custom_rules: list[CustomRule] = field(default_factory=list)
+    enable_experimental_cause_band: bool = False
+    experimental_cause_band_fixture: Optional[str] = None
 
     @staticmethod
     def _apply_raw(cfg: "AuditConfig", raw: dict) -> "AuditConfig":
@@ -131,6 +135,16 @@ class AuditConfig:
         n = raw.get("net_out", {})
         if "actions" in n:
             cfg.net_out_actions = n["actions"]
+        experimental = raw.get("experimental", {})
+        if isinstance(experimental, dict):
+            cfg.enable_experimental_cause_band = bool(
+                experimental.get(
+                    "enable_cause_band",
+                    cfg.enable_experimental_cause_band,
+                )
+            )
+            if "cause_band_fixture" in experimental:
+                cfg.experimental_cause_band_fixture = experimental["cause_band_fixture"]
         for rule in raw.get("rules", []):
             rid = rule.get("id")
             enabled = rule.get("enabled", True)
@@ -396,6 +410,24 @@ class AuditEngine:
                             record_id=record.id,
                             message=f"Custom rule {rule.id}: {rule.description}",
                         ))
+
+        # ------------------------------------------------------------------
+        # Experimental Cause Band sidecar evaluation
+        # ------------------------------------------------------------------
+        if cfg.enable_experimental_cause_band and cfg.experimental_cause_band_fixture:
+            cause_band_raw = load_fixture(Path(cfg.experimental_cause_band_fixture))
+            cause_band_result = evaluate_fixture(cause_band_raw)
+            for code in cause_band_result["predicted_codes"]:
+                result.add(Finding(
+                    code=code,
+                    severity=Severity.FAIL,
+                    record_id=str(cause_band_result.get("case_id") or "experimental-cause-band"),
+                    message=(
+                        "Experimental Cause Band finding from sidecar fixture: "
+                        f"{code}. This finding is non-normative and opt-in only."
+                    ),
+                    chain_ids=[str(band) for band in cause_band_result.get("bands", [])],
+                ))
 
         result.ok = max(0, result.total - result.warnings - result.failures)
         return result
