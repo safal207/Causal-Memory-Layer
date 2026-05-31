@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from scripts.run_experimental_cause_band_eval import evaluate_fixture
+from cml.experimental.cause_band import evaluate_fixture
 
 
 FIXTURE_PATH = Path("benchmarks/experimental/07_range_drift_intent.json")
