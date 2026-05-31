@@ -92,6 +92,7 @@ https://safal207.github.io/Causal-Memory-Layer/
 - Technical report outline: [`docs/research/TECHNICAL_REPORT_OUTLINE.md`](docs/research/TECHNICAL_REPORT_OUTLINE.md)
 - Funding / research evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
 - Docker walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
+- Cause Band concept: [`docs/research/CAUSE_BAND.md`](docs/research/CAUSE_BAND.md)
 - Causal invalidity patterns: [`docs/research/CAUSAL_INVALIDITY_PATTERNS.md`](docs/research/CAUSAL_INVALIDITY_PATTERNS.md)
 - Audit findings glossary: [`docs/audit/FINDINGS_GLOSSARY.md`](docs/audit/FINDINGS_GLOSSARY.md)
 - LTP / CML bridge: [`docs/LTP_CML_BRIDGE.md`](docs/LTP_CML_BRIDGE.md)

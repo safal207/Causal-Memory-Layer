@@ -46,6 +46,7 @@ Examples of failures CML is designed to surface:
 
 - **Causal record** — a structured event with cause, effect, authority, and responsibility context.
 - **Causal chain** — linked records showing how an action was grounded.
+- **Cause Band** — a temporal admissibility range where a system state remains causally valid; persistent deviation from the band becomes a causal signal.
 - **vCML** — concrete record/format semantics for representing causal memory in systems.
 - **CTAG** — compact causal tags for domain/class/generation/local hint/seal semantics.
 - **Audit rule** — a deterministic check over causal lineage.
