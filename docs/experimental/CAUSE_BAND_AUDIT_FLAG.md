@@ -126,11 +126,19 @@ Before promoting Cause Band beyond experimental status:
 4. Keep stable audit behavior unchanged until semantics are versioned.
 5. Document all findings as experimental until promoted into formal audit-rule docs.
 
+See the proposed semantics draft:
+
+```text
+docs/research/CAUSE_BAND_RANGE_POLICY_SEMANTICS.md
+```
+
 ## Related artifacts
 
 - `docs/research/CAUSE_BAND.md`
 - `docs/research/CAUSE_BAND_AUDIT_RULE_SKETCH.md`
+- `docs/research/CAUSE_BAND_RANGE_POLICY_SEMANTICS.md`
 - `benchmarks/experimental/07_range_drift_intent.json`
 - `cml/experimental/cause_band.py`
 - `scripts/run_experimental_cause_band_eval.py`
 - Issue `#102`
+- Issue `#105`
