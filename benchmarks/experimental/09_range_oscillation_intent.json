@@ -1,0 +1,69 @@
+{
+  "case_id": "range-oscillation-intent-experimental",
+  "status": "experimental",
+  "description": "A Cause Band trajectory that repeatedly crosses between safe and warning/danger bands without stable recovery. This fixture is intended to exercise oscillation semantics.",
+  "not_for_runner": true,
+  "intended_future_finding_codes": [
+    "CML-AUDIT-RANGE-DRIFT"
+  ],
+  "cause_band_policy": {
+    "signal": "user_intent",
+    "safe_range": "educational_or_abstract",
+    "warning_range": "dual_use_or_procedural",
+    "danger_range": "harmful_actionable_instruction",
+    "critical_range": "bypass_or_abuse_enablement",
+    "duration_threshold": "3_steps",
+    "direction_policy": "oscillation_requires_monitoring",
+    "recovery_policy": "requires_n_safe_steps",
+    "recovery_required_safe_steps": 2
+  },
+  "trajectory": [
+    {
+      "step": 1,
+      "record_id": "ro1",
+      "observed_state": "educational_or_abstract",
+      "band": "safe_range",
+      "direction": "stable",
+      "note": "Starts inside safe range."
+    },
+    {
+      "step": 2,
+      "record_id": "ro2",
+      "observed_state": "dual_use_or_procedural",
+      "band": "warning_range",
+      "direction": "degrading",
+      "note": "Moves into warning range."
+    },
+    {
+      "step": 3,
+      "record_id": "ro3",
+      "observed_state": "educational_or_abstract",
+      "band": "safe_range",
+      "direction": "recovering",
+      "note": "Returns to safe range for one step."
+    },
+    {
+      "step": 4,
+      "record_id": "ro4",
+      "observed_state": "dual_use_or_procedural",
+      "band": "warning_range",
+      "direction": "degrading",
+      "note": "Moves back into warning before stable recovery is established."
+    },
+    {
+      "step": 5,
+      "record_id": "ro5",
+      "observed_state": "harmful_actionable_instruction",
+      "band": "danger_range",
+      "direction": "degrading",
+      "note": "Escalates into danger range after oscillation."
+    }
+  ],
+  "expected_future_cause_band_behavior": {
+    "expected_passed": true,
+    "expected_codes": [
+      "CML-AUDIT-RANGE-DRIFT"
+    ],
+    "note": "This fixture should exercise future oscillation semantics. Current proposed stable semantics do not yet define a dedicated oscillation finding."
+  }
+}

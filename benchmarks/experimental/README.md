@@ -11,6 +11,19 @@ Use this area for:
 - reviewer-facing examples that should not affect CI,
 - early Cause Band / range-drift scenarios.
 
+## Cause Band fixture matrix
+
+Current experimental Cause Band fixtures:
+
+| Fixture | Scenario | Purpose |
+| :--- | :--- | :--- |
+| `07_range_drift_intent.json` | safe → warning → danger → critical | Baseline degrading trajectory with critical exit. |
+| `08_range_recovery_intent.json` | safe → warning → danger → safe | Recovery before persistent deviation threshold. |
+| `09_range_oscillation_intent.json` | safe → warning → safe → warning → danger | Oscillation without stable recovery. |
+| `10_range_persistent_without_critical.json` | safe → warning → warning → danger | Persistent deviation without critical exit. |
+
+These fixtures are intentionally outside `benchmarks/fixtures/` until Cause Band semantics and findings are promoted beyond experimental status.
+
 ## Cause Band evaluator
 
 The experimental Cause Band evaluator can be run manually:
@@ -25,10 +38,16 @@ Machine-readable output:
 python scripts/run_experimental_cause_band_eval.py --json
 ```
 
-The script reads `benchmarks/experimental/07_range_drift_intent.json` by default. It is intentionally separate from the main `AuditEngine` and CI safety-eval runner.
+The script reads `benchmarks/experimental/07_range_drift_intent.json` by default. Other experimental fixtures can be passed explicitly:
+
+```bash
+python scripts/run_experimental_cause_band_eval.py benchmarks/experimental/10_range_persistent_without_critical.json
+```
+
+It is intentionally separate from the main `AuditEngine` and CI safety-eval runner.
 
 Promotion path:
 
 1. Keep the scenario here while semantics are unstable.
 2. Add evaluator support behind an experimental flag.
-3. Move the fixture into `benchmarks/fixtures/` only after the expected finding code is implemented.
+3. Move fixtures into `benchmarks/fixtures/` only after the expected finding codes are implemented and stable.
