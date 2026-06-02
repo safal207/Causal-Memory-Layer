@@ -5,6 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .cause_band_trajectory import is_oscillating, recovered_to_safe, trajectory_direction
+
 BAND_RANK = {
     "safe_range": 0,
     "warning_range": 1,
@@ -104,6 +106,9 @@ def evaluate_fixture(raw: dict[str, Any]) -> dict[str, Any]:
         "status": raw.get("status", "experimental"),
         "duration_threshold": duration_threshold,
         "bands": bands,
+        "trajectory_direction": trajectory_direction(ranks),
+        "recovered_to_safe": recovered_to_safe(ranks),
+        "oscillating": is_oscillating(ranks),
         "max_consecutive_outside_safe": max_consecutive,
         "predicted_codes": predicted_codes,
         "expected_future_codes": expected_codes,
@@ -119,6 +124,9 @@ def render_text(result: dict[str, Any]) -> str:
         f"status={result['status']}",
         f"duration_threshold={result['duration_threshold']}",
         f"bands={' -> '.join(result['bands'])}",
+        f"trajectory_direction={result['trajectory_direction']}",
+        f"recovered_to_safe={result['recovered_to_safe']}",
+        f"oscillating={result['oscillating']}",
         f"max_consecutive_outside_safe={result['max_consecutive_outside_safe']}",
         f"predicted_codes={','.join(result['predicted_codes']) or '-'}",
         f"expected_future_codes={','.join(expected)}",
