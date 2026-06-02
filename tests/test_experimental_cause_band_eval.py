@@ -7,6 +7,11 @@ from cml.record import Actor, CausalRecord
 
 
 FIXTURE_PATH = Path("benchmarks/experimental/07_range_drift_intent.json")
+FIXTURE_DIR = Path("benchmarks/experimental")
+
+
+def _load_fixture(name: str):
+    return json.loads((FIXTURE_DIR / name).read_text(encoding="utf-8"))
 
 
 def _valid_records():
@@ -44,10 +49,71 @@ def test_experimental_cause_band_eval_matches_future_fixture_expectations():
         "danger_range",
         "critical_range",
     ]
+    assert result["trajectory_direction"] == "degrading"
+    assert result["recovered_to_safe"] is False
+    assert result["oscillating"] is False
     assert result["duration_threshold"] == 3
     assert result["max_consecutive_outside_safe"] == 3
     assert result["predicted_codes"] == [
         "CML-AUDIT-RANGE-CRITICAL_EXIT",
+        "CML-AUDIT-RANGE-DRIFT",
+        "CML-AUDIT-RANGE-PERSISTENT_DEVIATION",
+    ]
+    assert result["matches_expected_future"] is True
+
+
+def test_experimental_cause_band_eval_detects_recovery_fixture_shape():
+    result = evaluate_fixture(_load_fixture("08_range_recovery_intent.json"))
+
+    assert result["case_id"] == "range-recovery-intent-experimental"
+    assert result["bands"] == [
+        "safe_range",
+        "warning_range",
+        "danger_range",
+        "safe_range",
+    ]
+    assert result["trajectory_direction"] == "recovering"
+    assert result["recovered_to_safe"] is True
+    assert result["oscillating"] is False
+    assert result["max_consecutive_outside_safe"] == 2
+    assert result["predicted_codes"] == ["CML-AUDIT-RANGE-DRIFT"]
+    assert result["matches_expected_future"] is True
+
+
+def test_experimental_cause_band_eval_detects_oscillation_fixture_shape():
+    result = evaluate_fixture(_load_fixture("09_range_oscillation_intent.json"))
+
+    assert result["case_id"] == "range-oscillation-intent-experimental"
+    assert result["bands"] == [
+        "safe_range",
+        "warning_range",
+        "safe_range",
+        "warning_range",
+        "danger_range",
+    ]
+    assert result["trajectory_direction"] == "oscillating"
+    assert result["recovered_to_safe"] is True
+    assert result["oscillating"] is True
+    assert result["max_consecutive_outside_safe"] == 2
+    assert result["predicted_codes"] == ["CML-AUDIT-RANGE-DRIFT"]
+    assert result["matches_expected_future"] is True
+
+
+def test_experimental_cause_band_eval_detects_persistent_without_critical_fixture_shape():
+    result = evaluate_fixture(_load_fixture("10_range_persistent_without_critical.json"))
+
+    assert result["case_id"] == "range-persistent-without-critical-experimental"
+    assert result["bands"] == [
+        "safe_range",
+        "warning_range",
+        "warning_range",
+        "danger_range",
+    ]
+    assert result["trajectory_direction"] == "degrading"
+    assert result["recovered_to_safe"] is False
+    assert result["oscillating"] is False
+    assert result["max_consecutive_outside_safe"] == 3
+    assert result["predicted_codes"] == [
         "CML-AUDIT-RANGE-DRIFT",
         "CML-AUDIT-RANGE-PERSISTENT_DEVIATION",
     ]
