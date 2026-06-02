@@ -38,6 +38,27 @@ Machine-readable output:
 python scripts/run_experimental_cause_band_eval.py --json
 ```
 
+The evaluator reports finding codes and trajectory diagnostics.
+
+Finding codes currently remain limited to:
+
+```text
+CML-AUDIT-RANGE-DRIFT
+CML-AUDIT-RANGE-PERSISTENT_DEVIATION
+CML-AUDIT-RANGE-CRITICAL_EXIT
+```
+
+Trajectory diagnostics currently include:
+
+```text
+trajectory_direction
+recovered_to_safe
+oscillating
+max_consecutive_outside_safe
+```
+
+Recovery and oscillation are diagnostics only for now. They are not promoted to standalone `CML-AUDIT-RANGE-*` finding codes until severity and audit-result semantics are stable.
+
 The script reads `benchmarks/experimental/07_range_drift_intent.json` by default. Other experimental fixtures can be passed explicitly:
 
 ```bash
