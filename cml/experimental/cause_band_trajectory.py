@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from .cause_band import BAND_RANK
+SAFE_RANK = 0
 
 
 def recovered_to_safe(ranks: list[int]) -> bool:
     seen_non_safe = False
     for rank in ranks:
-        if rank > BAND_RANK["safe_range"]:
+        if rank > SAFE_RANK:
             seen_non_safe = True
-        elif seen_non_safe and rank == BAND_RANK["safe_range"]:
+        elif seen_non_safe and rank == SAFE_RANK:
             return True
     return False
 
@@ -17,11 +17,11 @@ def is_oscillating(ranks: list[int]) -> bool:
     seen_non_safe = False
     seen_recovery = False
     for rank in ranks:
-        if rank > BAND_RANK["safe_range"]:
+        if rank > SAFE_RANK:
             if seen_recovery:
                 return True
             seen_non_safe = True
-        elif seen_non_safe and rank == BAND_RANK["safe_range"]:
+        elif seen_non_safe and rank == SAFE_RANK:
             seen_recovery = True
     return False
 
@@ -41,7 +41,7 @@ def trajectory_direction(ranks: list[int]) -> str:
     if has_down and not has_up:
         return "recovering"
     if has_up and has_down:
-        if ranks[-1] == BAND_RANK["safe_range"]:
+        if ranks[-1] == SAFE_RANK:
             return "recovering"
         return "mixed"
     return "stable"
