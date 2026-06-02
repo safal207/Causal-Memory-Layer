@@ -41,7 +41,7 @@ Example for `user_intent`:
 ```text
 safe_range     = educational or abstract
 warning_range  = dual-use or procedural
- danger_range  = unsafe actionable state
+danger_range   = unsafe actionable state
 critical_range = bypass or abuse-enabling state
 ```
 
