@@ -8,6 +8,14 @@ It exposes CML audit functions as MCP tools so compatible AI clients can call CM
 
 It does not change stable CML semantics and does not provide enforcement, blocking, compliance certification, or production safety guarantees.
 
+## Quickstarts
+
+For a short local coding-assistant setup path, see:
+
+```text
+docs/integrations/CURSOR_MCP_QUICKSTART.md
+```
+
 ## Why MCP?
 
 CML is most useful when an AI-agent builder can ask:
@@ -174,6 +182,6 @@ Potential follow-up work:
 
 1. Add file-based trace loading tool.
 2. Add a dedicated `evaluate_agent_trace_sidecar` tool.
-3. Add Cursor-specific and Claude Desktop-specific setup docs.
+3. Add client-specific setup docs.
 4. Add example screenshots or short demo video.
 5. Add hosted transport only after local usage is validated.
