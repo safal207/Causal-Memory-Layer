@@ -85,6 +85,7 @@ https://safal207.github.io/Causal-Memory-Layer/
 
 - Start here: [`docs/START_HERE.md`](docs/START_HERE.md)
 - Reviewer path: [`docs/REVIEWER_PATH.md`](docs/REVIEWER_PATH.md)
+- Research map: [`docs/research/CML_RESEARCH_MAP.md`](docs/research/CML_RESEARCH_MAP.md)
 - Non-claims: [`docs/NON_CLAIMS.md`](docs/NON_CLAIMS.md)
 - Portfolio relationship: [`docs/PORTFOLIO_RELATIONSHIP.md`](docs/PORTFOLIO_RELATIONSHIP.md)
 - Benchmark evidence: [`docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`](docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md)
