@@ -6,11 +6,17 @@ This document is a future research direction note.
 
 It does not define stable CML or vCML semantics yet. It does not claim prediction, enforcement, compliance, or production safety capability. It records a possible next layer above Cause Band and Causal Feedback Memory.
 
+Related framing note:
+
+```text
+docs/research/DORMANT_CAUSAL_PATTERNS.md
+```
+
 ## Core idea
 
 Some causal failures do not appear as completed mistakes immediately.
 
-They begin as latent causes that may become real only when time and matching conditions align.
+They begin as dormant or latent causes that may become real only when time and matching conditions align.
 
 ```text
 Future mistake = latent cause + time + matching conditions
@@ -34,6 +40,23 @@ Temporal Causal Watchpoints add another question:
 
 ```text
 Is there a latent causal pattern that has not failed yet, but should be watched over time?
+```
+
+## Dormant pattern framing
+
+A dormant causal pattern is not yet an active failure.
+
+It is a causal shape that has appeared, remains inactive, and may become operationally relevant only if activation conditions later match.
+
+```text
+Dormant Causal Pattern = what is remembered
+Temporal Causal Watchpoint = how it is watched over time
+```
+
+Shorter:
+
+```text
+Some causes wait for conditions.
 ```
 
 ## Why this matters
