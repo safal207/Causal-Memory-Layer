@@ -1,0 +1,28 @@
+{
+  "records": [
+    {
+      "id": "root",
+      "timestamp": 1,
+      "actor": {
+        "pid": 100,
+        "uid": 1000
+      },
+      "action": "exec",
+      "object": "/bin/app",
+      "permitted_by": "root_event:user_request",
+      "parent_cause": null
+    },
+    {
+      "id": "child",
+      "timestamp": 2,
+      "actor": {
+        "pid": 100,
+        "uid": 1000
+      },
+      "action": "open",
+      "object": "/tmp/readme.txt",
+      "permitted_by": "fs:read",
+      "parent_cause": "missing-parent"
+    }
+  ]
+}
