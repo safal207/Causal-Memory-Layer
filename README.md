@@ -57,6 +57,17 @@ The action may look operationally valid, but CML asks whether its causal parent 
 - Structured traces where responsibility lineage matters.
 - Research benchmarks for causal validity in agentic systems.
 
+## Agent-audit MCP integration
+
+CML can also run as an experimental MCP tool server for AI-agent audit workflows.
+
+```bash
+pip install -e ".[mcp]"
+cml-mcp
+```
+
+See [`docs/integrations/MCP_AGENT_AUDIT.md`](docs/integrations/MCP_AGENT_AUDIT.md) for local MCP client setup and available tools.
+
 ## How CML differs
 
 | System type | Usually answers | CML adds |
@@ -93,6 +104,7 @@ https://safal207.github.io/Causal-Memory-Layer/
 - Technical report outline: [`docs/research/TECHNICAL_REPORT_OUTLINE.md`](docs/research/TECHNICAL_REPORT_OUTLINE.md)
 - Funding / research evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
 - Docker walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
+- MCP agent-audit integration: [`docs/integrations/MCP_AGENT_AUDIT.md`](docs/integrations/MCP_AGENT_AUDIT.md)
 - Cause Band concept: [`docs/research/CAUSE_BAND.md`](docs/research/CAUSE_BAND.md)
 - Cause Band trajectory walkthrough: [`docs/demo/CAUSE_BAND_TRAJECTORY_WALKTHROUGH.md`](docs/demo/CAUSE_BAND_TRAJECTORY_WALKTHROUGH.md)
 - Agent intent drift example: [`docs/demo/AGENT_INTENT_DRIFT_CAUSE_BAND_EXAMPLE.md`](docs/demo/AGENT_INTENT_DRIFT_CAUSE_BAND_EXAMPLE.md)
