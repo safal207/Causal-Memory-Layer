@@ -1,0 +1,34 @@
+{
+  "cause_band_sidecar": {
+    "case_id": "mcp-cause-band-degrading-demo",
+    "status": "experimental",
+    "cause_band_policy": {
+      "duration_threshold": "3_steps"
+    },
+    "trajectory": [
+      {
+        "step": 1,
+        "band": "safe_range"
+      },
+      {
+        "step": 2,
+        "band": "warning_range"
+      },
+      {
+        "step": 3,
+        "band": "danger_range"
+      },
+      {
+        "step": 4,
+        "band": "critical_range"
+      }
+    ],
+    "expected_future_cause_band_behavior": {
+      "expected_codes": [
+        "CML-AUDIT-RANGE-DRIFT",
+        "CML-AUDIT-RANGE-PERSISTENT_DEVIATION",
+        "CML-AUDIT-RANGE-CRITICAL_EXIT"
+      ]
+    }
+  }
+}

@@ -18,6 +18,17 @@ install CML with MCP extra
 -> receive CML findings / Cause Band diagnostics
 ```
 
+## Demo payloads
+
+Ready-to-copy demo payloads live in:
+
+```text
+examples/mcp/audit_trace_missing_parent.json
+examples/mcp/evaluate_cause_band_degrading.json
+```
+
+Use these files when you want to try the MCP tools without copying JSON from this document manually.
+
 ## 1. Install CML with MCP support
 
 From the repository root:
@@ -109,7 +120,14 @@ evaluate_cause_band
 
 ## 5. Try core causal audit
 
-Ask the client to call `audit_trace` with this payload:
+Fast path:
+
+```text
+Use the CML MCP server to call audit_trace with examples/mcp/audit_trace_missing_parent.json.
+Explain the result in plain English.
+```
+
+Manual payload:
 
 ```json
 {
@@ -150,7 +168,14 @@ The second action points to a parent cause that does not exist in the trace.
 
 ## 6. Try Cause Band evaluation
 
-Ask the client to call `evaluate_cause_band` with this payload:
+Fast path:
+
+```text
+Use the CML MCP server to call evaluate_cause_band with examples/mcp/evaluate_cause_band_degrading.json.
+Explain the trajectory diagnostics and predicted codes.
+```
+
+Manual payload:
 
 ```json
 {
@@ -199,14 +224,14 @@ CML-AUDIT-RANGE-CRITICAL_EXIT
 ```text
 Use the CML MCP server to audit this agent trace.
 First call health.
-Then call audit_trace.
+Then call audit_trace with examples/mcp/audit_trace_missing_parent.json.
 Explain the findings in plain English and mention whether the trace passed.
 ```
 
 For Cause Band:
 
 ```text
-Use the CML MCP server to evaluate this Cause Band sidecar.
+Use the CML MCP server to evaluate examples/mcp/evaluate_cause_band_degrading.json.
 Explain trajectory_direction, recovered_to_safe, oscillating, and predicted_codes.
 ```
 
