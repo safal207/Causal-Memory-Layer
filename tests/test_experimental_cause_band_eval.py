@@ -4,10 +4,12 @@ from pathlib import Path
 from cml import AuditConfig, AuditEngine
 from cml.experimental.cause_band import evaluate_fixture
 from cml.record import Actor, CausalRecord
+from scripts.run_experimental_cause_band_eval import extract_fixture_payload
 
 
 FIXTURE_PATH = Path("benchmarks/experimental/07_range_drift_intent.json")
 FIXTURE_DIR = Path("benchmarks/experimental")
+AGENT_EXAMPLE_PATH = Path("examples/agent_intent_drift_trace.json")
 
 
 def _load_fixture(name: str):
@@ -114,6 +116,37 @@ def test_experimental_cause_band_eval_detects_persistent_without_critical_fixtur
     assert result["oscillating"] is False
     assert result["max_consecutive_outside_safe"] == 3
     assert result["predicted_codes"] == [
+        "CML-AUDIT-RANGE-DRIFT",
+        "CML-AUDIT-RANGE-PERSISTENT_DEVIATION",
+    ]
+    assert result["matches_expected_future"] is True
+
+
+def test_experimental_cause_band_sidecar_adapter_preserves_top_level_fixture():
+    raw = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+
+    assert extract_fixture_payload(raw) is raw
+
+
+def test_experimental_cause_band_sidecar_adapter_evaluates_agent_example():
+    raw = json.loads(AGENT_EXAMPLE_PATH.read_text(encoding="utf-8"))
+
+    result = evaluate_fixture(extract_fixture_payload(raw))
+
+    assert result["case_id"] == "agent-intent-drift-sidecar-experimental"
+    assert result["bands"] == [
+        "safe_range",
+        "safe_range",
+        "warning_range",
+        "danger_range",
+        "critical_range",
+    ]
+    assert result["trajectory_direction"] == "degrading"
+    assert result["recovered_to_safe"] is False
+    assert result["oscillating"] is False
+    assert result["max_consecutive_outside_safe"] == 3
+    assert result["predicted_codes"] == [
+        "CML-AUDIT-RANGE-CRITICAL_EXIT",
         "CML-AUDIT-RANGE-DRIFT",
         "CML-AUDIT-RANGE-PERSISTENT_DEVIATION",
     ]
