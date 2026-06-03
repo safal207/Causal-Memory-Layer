@@ -95,6 +95,7 @@ https://safal207.github.io/Causal-Memory-Layer/
 - Cause Band concept: [`docs/research/CAUSE_BAND.md`](docs/research/CAUSE_BAND.md)
 - Cause Band trajectory walkthrough: [`docs/demo/CAUSE_BAND_TRAJECTORY_WALKTHROUGH.md`](docs/demo/CAUSE_BAND_TRAJECTORY_WALKTHROUGH.md)
 - Agent intent drift example: [`docs/demo/AGENT_INTENT_DRIFT_CAUSE_BAND_EXAMPLE.md`](docs/demo/AGENT_INTENT_DRIFT_CAUSE_BAND_EXAMPLE.md)
+- Dormant Causal Patterns: [`docs/research/DORMANT_CAUSAL_PATTERNS.md`](docs/research/DORMANT_CAUSAL_PATTERNS.md)
 - Temporal Causal Watchpoints: [`docs/research/TEMPORAL_CAUSAL_WATCHPOINTS.md`](docs/research/TEMPORAL_CAUSAL_WATCHPOINTS.md)
 - Experimental Cause Band audit flag: [`docs/experimental/CAUSE_BAND_AUDIT_FLAG.md`](docs/experimental/CAUSE_BAND_AUDIT_FLAG.md)
 - Quantum causal audit future direction: [`docs/research/QUANTUM_CAUSAL_AUDIT_FUTURE_DIRECTION.md`](docs/research/QUANTUM_CAUSAL_AUDIT_FUTURE_DIRECTION.md)
