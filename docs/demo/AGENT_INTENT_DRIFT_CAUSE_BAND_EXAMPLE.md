@@ -113,19 +113,32 @@ The important point is not the content of the embedded text. The important point
 requested task -> ambiguous context -> new goal candidate -> unverified action
 ```
 
-## How to use this example
+## How to run this example
 
-This file is not directly consumed by the current experimental evaluator because the evaluator expects a Cause Band fixture at the top level.
+The experimental evaluator can now read either:
 
-For now, the example is documentation-oriented: it shows how an agent trace and a Cause Band sidecar can live together.
+1. a top-level Cause Band fixture, or
+2. an example file containing `cause_band_sidecar`.
 
-A future adapter could extract:
+Run the example:
+
+```bash
+python scripts/run_experimental_cause_band_eval.py examples/agent_intent_drift_trace.json
+```
+
+Machine-readable output:
+
+```bash
+python scripts/run_experimental_cause_band_eval.py examples/agent_intent_drift_trace.json --json
+```
+
+Internally, the script extracts:
 
 ```text
 example.cause_band_sidecar
 ```
 
-and pass it to:
+and evaluates that sidecar with:
 
 ```python
 cml.experimental.cause_band.evaluate_fixture(...)
@@ -151,7 +164,7 @@ CML can audit not only broken causal links, but also intent drift inside valid-l
 
 Good follow-up work:
 
-1. Add an adapter that evaluates `cause_band_sidecar` from example files.
-2. Add a CLI option for sidecar extraction.
-3. Add an example with recovery after drift.
+1. Add an example with recovery after drift.
+2. Add an example with oscillation inside an agent workflow.
+3. Decide whether example sidecars should become a stable examples format.
 4. Keep all examples experimental until schema and severity semantics are stable.
