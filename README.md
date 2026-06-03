@@ -68,6 +68,8 @@ cml-mcp
 
 See [`docs/integrations/MCP_AGENT_AUDIT.md`](docs/integrations/MCP_AGENT_AUDIT.md) for local MCP client setup and available tools.
 
+For a short coding-assistant setup path, see [`docs/integrations/CURSOR_MCP_QUICKSTART.md`](docs/integrations/CURSOR_MCP_QUICKSTART.md).
+
 ## How CML differs
 
 | System type | Usually answers | CML adds |
@@ -105,6 +107,7 @@ https://safal207.github.io/Causal-Memory-Layer/
 - Funding / research evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
 - Docker walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
 - MCP agent-audit integration: [`docs/integrations/MCP_AGENT_AUDIT.md`](docs/integrations/MCP_AGENT_AUDIT.md)
+- Cursor MCP quickstart: [`docs/integrations/CURSOR_MCP_QUICKSTART.md`](docs/integrations/CURSOR_MCP_QUICKSTART.md)
 - Cause Band concept: [`docs/research/CAUSE_BAND.md`](docs/research/CAUSE_BAND.md)
 - Cause Band trajectory walkthrough: [`docs/demo/CAUSE_BAND_TRAJECTORY_WALKTHROUGH.md`](docs/demo/CAUSE_BAND_TRAJECTORY_WALKTHROUGH.md)
 - Agent intent drift example: [`docs/demo/AGENT_INTENT_DRIFT_CAUSE_BAND_EXAMPLE.md`](docs/demo/AGENT_INTENT_DRIFT_CAUSE_BAND_EXAMPLE.md)
