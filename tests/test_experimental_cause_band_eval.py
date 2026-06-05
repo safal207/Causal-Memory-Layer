@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from cml import AuditConfig, AuditEngine
-from cml.experimental.cause_band import evaluate_fixture
+from cml.experimental.cause_band import evaluate_fixture, load_fixture
 from cml.record import Actor, CausalRecord
 from scripts.run_experimental_cause_band_eval import extract_fixture_payload
 
@@ -189,3 +189,17 @@ def test_audit_config_parses_experimental_cause_band_yaml():
 
     assert config.enable_experimental_cause_band is True
     assert config.experimental_cause_band_fixture == FIXTURE_FILENAME
+
+
+def test_load_fixture_accepts_basename():
+    """Verify load_fixture resolves basename to benchmarks/experimental directory."""
+    payload = load_fixture(Path(FIXTURE_FILENAME))
+    assert isinstance(payload, dict)
+    assert payload.get("case_id") == "range-drift-intent-experimental"
+
+
+def test_load_fixture_accepts_repo_relative_path():
+    """Verify load_fixture accepts full repo-relative paths."""
+    payload = load_fixture(Path(str(FIXTURE_PATH)))
+    assert isinstance(payload, dict)
+    assert payload.get("case_id") == "range-drift-intent-experimental"
