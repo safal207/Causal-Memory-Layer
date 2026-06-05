@@ -23,8 +23,12 @@ DEFAULT_FIXTURE = Path("benchmarks/experimental/07_range_drift_intent.json")
 
 def resolve_fixture_path(path: Path) -> Path:
     base_dir = DEFAULT_FIXTURE.parent.resolve()
-    candidate = path if path.is_absolute() else (base_dir / path)
-    resolved = candidate.resolve()
+    if path.is_absolute():
+        raise SystemExit(f"Fixture path not allowed: {path}")
+    if any(part == ".." for part in path.parts):
+        raise SystemExit(f"Fixture path not allowed: {path}")
+    candidate = base_dir / path
+    resolved = candidate.resolve(strict=False)
     try:
         resolved.relative_to(base_dir)
     except ValueError as exc:
