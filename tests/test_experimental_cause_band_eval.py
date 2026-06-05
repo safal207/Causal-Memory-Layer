@@ -7,8 +7,9 @@ from cml.record import Actor, CausalRecord
 from scripts.run_experimental_cause_band_eval import extract_fixture_payload
 
 
-FIXTURE_PATH = Path("benchmarks/experimental/07_range_drift_intent.json")
 FIXTURE_DIR = Path("benchmarks/experimental")
+FIXTURE_FILENAME = "07_range_drift_intent.json"
+FIXTURE_PATH = FIXTURE_DIR / FIXTURE_FILENAME
 AGENT_EXAMPLE_PATH = Path("examples/agent_intent_drift_trace.json")
 
 
@@ -163,7 +164,7 @@ def test_audit_engine_default_does_not_emit_experimental_cause_band_findings():
 def test_audit_engine_emits_experimental_cause_band_findings_only_when_enabled():
     config = AuditConfig(
         enable_experimental_cause_band=True,
-        experimental_cause_band_fixture=str(FIXTURE_PATH),
+        experimental_cause_band_fixture=FIXTURE_FILENAME,
     )
 
     result = AuditEngine(config).run(_valid_records())
@@ -182,9 +183,9 @@ def test_audit_config_parses_experimental_cause_band_yaml():
         """
         experimental:
           enable_cause_band: true
-          cause_band_fixture: benchmarks/experimental/07_range_drift_intent.json
+          cause_band_fixture: 07_range_drift_intent.json
         """
     )
 
     assert config.enable_experimental_cause_band is True
-    assert config.experimental_cause_band_fixture == str(FIXTURE_PATH)
+    assert config.experimental_cause_band_fixture == FIXTURE_FILENAME
