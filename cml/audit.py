@@ -16,7 +16,12 @@ from typing import Optional
 from .record import CausalRecord, records_to_index
 from .chain import group_by_pid, ancestors
 from .ctag import CLASS
-from .experimental.cause_band import evaluate_fixture, load_fixture
+from .experimental.cause_band import (
+    DEFAULT_FIXTURE,
+    evaluate_fixture,
+    load_fixture,
+    resolve_fixture_path,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +149,9 @@ class AuditConfig:
                 )
             )
             if "cause_band_fixture" in experimental:
-                cfg.experimental_cause_band_fixture = experimental["cause_band_fixture"]
+                validated_fixture = resolve_fixture_path(Path(str(experimental["cause_band_fixture"])))
+                base_dir = DEFAULT_FIXTURE.parent.resolve()
+                cfg.experimental_cause_band_fixture = str(validated_fixture.relative_to(base_dir))
         for rule in raw.get("rules", []):
             rid = rule.get("id")
             enabled = rule.get("enabled", True)
