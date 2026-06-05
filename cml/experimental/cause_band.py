@@ -22,12 +22,34 @@ DEFAULT_FIXTURE = Path("benchmarks/experimental/07_range_drift_intent.json")
 
 
 def resolve_fixture_path(path: Path) -> Path:
+    """Resolve fixture path safely, preventing directory traversal and absolute paths.
+    
+    Accepts:
+    - Absolute path: rejected (security)
+    - Path with .. traversal: rejected (security)
+    - Full repo-relative path (e.g., 'benchmarks/experimental/07_*.json'): used as-is if exists
+    - Filename only (e.g., '07_range_drift_intent.json'): resolved within benchmarks/experimental/
+    """
     base_dir = DEFAULT_FIXTURE.parent.resolve()
+    
     if path.is_absolute():
         raise SystemExit(f"Fixture path not allowed: {path}")
     if any(part == ".." for part in path.parts):
         raise SystemExit(f"Fixture path not allowed: {path}")
-    candidate = base_dir / path
+    
+    # Try to use path as-is first (handles repo-relative full paths)
+    candidate = Path(path)
+    if candidate.exists():
+        resolved = candidate.resolve()
+        # Verify it's still within or under the safety zone
+        try:
+            resolved.relative_to(base_dir.parent)  # Allow within repo
+        except ValueError as exc:
+            raise SystemExit(f"Fixture path not allowed: {path}") from exc
+        return resolved
+    
+    # Fall back to treating it as a filename within base_dir
+    candidate = base_dir / path.name
     resolved = candidate.resolve(strict=False)
     try:
         resolved.relative_to(base_dir)
