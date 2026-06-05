@@ -7,8 +7,8 @@ from cml.record import Actor, CausalRecord
 from scripts.run_experimental_cause_band_eval import extract_fixture_payload
 
 
-FIXTURE_PATH = Path("benchmarks/experimental/07_range_drift_intent.json")
 FIXTURE_DIR = Path("benchmarks/experimental")
+FIXTURE_PATH = FIXTURE_DIR / "07_range_drift_intent.json"
 AGENT_EXAMPLE_PATH = Path("examples/agent_intent_drift_trace.json")
 
 
