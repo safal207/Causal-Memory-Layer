@@ -50,7 +50,10 @@ def resolve_fixture_path(path: Path) -> Path:
     
     # Fall back to treating it as a filename within base_dir
     candidate = base_dir / path.name
-    resolved = candidate.resolve(strict=False)
+    if not candidate.exists():
+        raise SystemExit(f"Fixture not found: {candidate}")
+    
+    resolved = candidate.resolve()
     try:
         resolved.relative_to(base_dir)
     except ValueError as exc:
