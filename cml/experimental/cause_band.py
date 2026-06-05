@@ -21,6 +21,17 @@ CRITICAL_EXIT = "CML-AUDIT-RANGE-CRITICAL_EXIT"
 DEFAULT_FIXTURE = Path("benchmarks/experimental/07_range_drift_intent.json")
 
 
+def resolve_fixture_path(path: Path) -> Path:
+    base_dir = DEFAULT_FIXTURE.parent.resolve()
+    candidate = path if path.is_absolute() else (base_dir / path)
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(base_dir)
+    except ValueError as exc:
+        raise SystemExit(f"Fixture path not allowed: {path}") from exc
+    return resolved
+
+
 def parse_duration_threshold(raw: Any, default: int = 3) -> int:
     if isinstance(raw, int) and raw > 0:
         return raw
@@ -34,14 +45,15 @@ def parse_duration_threshold(raw: Any, default: int = 3) -> int:
 
 
 def load_fixture(path: Path) -> dict[str, Any]:
+    safe_path = resolve_fixture_path(path)
     try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
+        raw = json.loads(safe_path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
-        raise SystemExit(f"Fixture not found: {path}") from exc
+        raise SystemExit(f"Fixture not found: {safe_path}") from exc
     except json.JSONDecodeError as exc:
-        raise SystemExit(f"Invalid JSON in {path}: {exc}") from exc
+        raise SystemExit(f"Invalid JSON in {safe_path}: {exc}") from exc
     if not isinstance(raw, dict):
-        raise SystemExit(f"Fixture must be a JSON object: {path}")
+        raise SystemExit(f"Fixture must be a JSON object: {safe_path}")
     return raw
 
 
