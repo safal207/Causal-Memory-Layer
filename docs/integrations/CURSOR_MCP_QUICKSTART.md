@@ -12,11 +12,30 @@ Get from zero to a useful local agent-audit workflow:
 
 ```text
 install CML with MCP extra
+-> run one-command local demo
 -> start cml-mcp
 -> connect Cursor or another MCP-compatible client
 -> ask the client to audit a trace
 -> receive CML findings / Cause Band diagnostics
 ```
+
+## One-command local demo
+
+Before configuring an MCP client, run the same demo payloads through the MCP core tool logic:
+
+```bash
+python scripts/run_mcp_demo_payloads.py
+```
+
+This prints:
+
+```text
+health
+audit_trace
+evaluate_cause_band
+```
+
+Use this to confirm the demo payloads and CML logic work before connecting Cursor or another MCP-compatible client.
 
 ## Demo payloads
 
