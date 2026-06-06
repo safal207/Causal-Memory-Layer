@@ -1,24 +1,31 @@
-from scripts.run_mcp_demo_payloads import run_demo
+import subprocess
+import sys
 
 
-def test_mcp_demo_payload_runner_returns_expected_results():
-    result = run_demo()
+def test_mcp_demo_payload_runner_command_returns_expected_results():
+    completed = subprocess.run(
+        [sys.executable, "scripts/run_mcp_demo_payloads.py"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
 
-    assert result["health"]["status"] == "ok"
-    assert "audit_trace" in result["health"]["tools"]
-    assert "evaluate_cause_band" in result["health"]["tools"]
+    output = completed.stdout
 
-    audit_result = result["audit_trace"]
-    assert audit_result["summary"]["passed"] is False
-    assert audit_result["findings"][0]["code"] == "CML-AUDIT-R1-MISSING_PARENT"
+    assert "## health" in output
+    assert '"status": "ok"' in output
+    assert '"audit_trace"' in output
+    assert '"evaluate_cause_band"' in output
 
-    cause_band_result = result["evaluate_cause_band"]
-    assert cause_band_result["case_id"] == "mcp-cause-band-degrading-demo"
-    assert cause_band_result["trajectory_direction"] == "degrading"
-    assert cause_band_result["recovered_to_safe"] is False
-    assert cause_band_result["oscillating"] is False
-    assert cause_band_result["predicted_codes"] == [
-        "CML-AUDIT-RANGE-CRITICAL_EXIT",
-        "CML-AUDIT-RANGE-DRIFT",
-        "CML-AUDIT-RANGE-PERSISTENT_DEVIATION",
-    ]
+    assert "## audit_trace" in output
+    assert '"passed": false' in output
+    assert "CML-AUDIT-R1-MISSING_PARENT" in output
+
+    assert "## evaluate_cause_band" in output
+    assert '"case_id": "mcp-cause-band-degrading-demo"' in output
+    assert '"trajectory_direction": "degrading"' in output
+    assert '"recovered_to_safe": false' in output
+    assert '"oscillating": false' in output
+    assert "CML-AUDIT-RANGE-CRITICAL_EXIT" in output
+    assert "CML-AUDIT-RANGE-DRIFT" in output
+    assert "CML-AUDIT-RANGE-PERSISTENT_DEVIATION" in output
