@@ -182,6 +182,23 @@ It focuses on:
 - Larger-grant expansion path: `docs/evidence/BENCHMARK_EXPANSION_PLAN_50K_100K.md`
 - External validation protocol: `docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md`
 
+## External reproducibility evidence
+
+External validation notes will be listed here as they are contributed.
+
+Current external validation tasks:
+
+- Full local validation path: [`#77`](https://github.com/safal207/Causal-Memory-Layer/issues/77)
+- MCP demo runner validation: [`#123`](https://github.com/safal207/Causal-Memory-Layer/issues/123)
+
+Validation note template:
+
+```text
+docs/evidence/external_validation/TEMPLATE_MCP_DEMO_RUNNER.md
+```
+
+This section is intentionally evidence-first: it should only list external notes after they are contributed. It does not claim production safety, compliance readiness, enforcement behavior, or stable Cause Band semantics.
+
 ## Repository map
 
 - `cml/`: core Python implementation
