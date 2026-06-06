@@ -4,17 +4,9 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 from cml.experimental.cause_band import DEFAULT_FIXTURE, evaluate_fixture, load_fixture, render_text
-
-
-def extract_fixture_payload(raw: dict[str, Any]) -> dict[str, Any]:
-    """Return a Cause Band fixture from either a fixture file or example sidecar."""
-    sidecar = raw.get("cause_band_sidecar")
-    if isinstance(sidecar, dict):
-        return sidecar
-    return raw
+from cml.experimental.cause_band_payload import extract_fixture_payload
 
 
 def main() -> int:
