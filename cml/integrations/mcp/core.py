@@ -4,8 +4,8 @@ from typing import Any
 
 from cml import AuditEngine
 from cml.experimental.cause_band import evaluate_fixture
+from cml.experimental.cause_band_payload import extract_fixture_payload
 from cml.record import CausalRecord
-from scripts.run_experimental_cause_band_eval import extract_fixture_payload
 
 
 def health() -> dict[str, Any]:
