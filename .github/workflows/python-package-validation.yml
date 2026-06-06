@@ -75,5 +75,16 @@ jobs:
           cml --help
           python - <<'PY'
           import cml
+          from cml.integrations.mcp import core
           print("cml import ok")
+          print(core.health())
           PY
+
+          set +e
+          cml-mcp > /tmp/cml-mcp.out 2>&1
+          status=$?
+          set -e
+          cat /tmp/cml-mcp.out
+          test "$status" -eq 2
+          grep -q "requires the optional MCP dependency" /tmp/cml-mcp.out
+          grep -q 'pip install "causal-memory-layer\[mcp\]"' /tmp/cml-mcp.out
