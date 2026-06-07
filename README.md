@@ -78,6 +78,14 @@ CML-AUDIT-R1-MISSING_PARENT
 
 The action may look operationally valid, but CML asks whether its causal parent exists.
 
+For an agent-workflow example, run the CrewAI-style causal audit demo:
+
+```bash
+python examples/crewai_style_causal_audit.py
+```
+
+See [`docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md`](docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md).
+
 ## Use CML when you need to audit
 
 - AI-agent tool calls and action chains.
@@ -141,10 +149,13 @@ https://safal207.github.io/Causal-Memory-Layer/
 - Non-claims: [`docs/NON_CLAIMS.md`](docs/NON_CLAIMS.md)
 - Portfolio relationship: [`docs/PORTFOLIO_RELATIONSHIP.md`](docs/PORTFOLIO_RELATIONSHIP.md)
 - Benchmark evidence: [`docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`](docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md)
+- Grant evidence pack: [`docs/evidence/GRANT_EVIDENCE_CML_0.4.0.md`](docs/evidence/GRANT_EVIDENCE_CML_0.4.0.md)
 - External validation protocol: [`docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md`](docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md)
 - Technical report outline: [`docs/research/TECHNICAL_REPORT_OUTLINE.md`](docs/research/TECHNICAL_REPORT_OUTLINE.md)
 - Funding / research evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
 - Docker walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
+- CrewAI-style causal audit demo: [`examples/crewai_style_causal_audit.py`](examples/crewai_style_causal_audit.py)
+- CrewAI-style integration note: [`docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md`](docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md)
 - MCP agent-audit integration: [`docs/integrations/MCP_AGENT_AUDIT.md`](docs/integrations/MCP_AGENT_AUDIT.md)
 - Cursor MCP quickstart: [`docs/integrations/CURSOR_MCP_QUICKSTART.md`](docs/integrations/CURSOR_MCP_QUICKSTART.md)
 - Cause Band concept: [`docs/research/CAUSE_BAND.md`](docs/research/CAUSE_BAND.md)
@@ -172,6 +183,7 @@ Current components include:
 - CLI commands for lineage validation and chain inspection;
 - API layer and store interface;
 - example logs and audit outputs;
+- CrewAI-style agent trace causal audit example;
 - tests for chain logic, audit rules, and CTAG behavior;
 - API smoke tests for health, audit, and CTAG decode;
 - deterministic safety-eval benchmark with fixtures and tracked results;
@@ -183,6 +195,7 @@ Key implementation entry points:
 - `cml/chain.py`
 - `cli/main.py`
 - `api/server.py`
+- `examples/crewai_style_causal_audit.py`
 - `tests/test_audit.py`
 - `tests/test_api_smoke.py`
 
@@ -216,6 +229,9 @@ It focuses on:
 - Production PyPI package: `pip install causal-memory-layer`
 - Production release: `causal-memory-layer==0.4.0`
 - Production PyPI install smoke test: [`pypi-install-smoke.yml`](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/pypi-install-smoke.yml)
+- Grant evidence pack: `docs/evidence/GRANT_EVIDENCE_CML_0.4.0.md`
+- CrewAI-style integration example: `examples/crewai_style_causal_audit.py`
+- CrewAI outreach issue: https://github.com/crewAIInc/crewAI/issues/6063
 - Deterministic benchmark fixtures with expected audit findings: `benchmarks/fixtures/`
 - Current tracked benchmark result: `6/6 matched`
 - Benchmark runner: `python scripts/run_safety_eval.py`
