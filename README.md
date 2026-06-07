@@ -2,6 +2,9 @@
 
 [![CI](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/ci.yml/badge.svg)](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/ci.yml)
 [![Package Validation](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/python-package-validation.yml/badge.svg)](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/python-package-validation.yml)
+[![PyPI version](https://img.shields.io/pypi/v/causal-memory-layer.svg)](https://pypi.org/project/causal-memory-layer/)
+[![Python versions](https://img.shields.io/pypi/pyversions/causal-memory-layer.svg)](https://pypi.org/project/causal-memory-layer/)
+[![Production PyPI Install Smoke Test](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/pypi-install-smoke.yml/badge.svg)](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/pypi-install-smoke.yml)
 ![Status](https://img.shields.io/badge/status-active-brightgreen)
 ![Audit](https://img.shields.io/badge/audit-causal%20lineage-blue)
 ![License](https://img.shields.io/badge/license-MIT-orange)
@@ -25,6 +28,33 @@ CML is an open-source causal audit layer for structured action traces, AI-agent 
 > A system may be functionally correct while being causally invalid.
 
 **Star this repo if you care about auditable AI agents, deterministic oversight, causal traces, and open-source AI safety infrastructure.**
+
+## Install
+
+Install from PyPI:
+
+```bash
+pip install causal-memory-layer
+```
+
+Check the CLI:
+
+```bash
+cml --help
+```
+
+Install the experimental MCP extra:
+
+```bash
+pip install "causal-memory-layer[mcp]"
+cml-mcp
+```
+
+Current production release:
+
+```bash
+pip install causal-memory-layer==0.4.0
+```
 
 ## 30-second demo
 
@@ -60,6 +90,15 @@ The action may look operationally valid, but CML asks whether its causal parent 
 ## Agent-audit MCP integration
 
 CML can also run as an experimental MCP tool server for AI-agent audit workflows.
+
+From PyPI:
+
+```bash
+pip install "causal-memory-layer[mcp]"
+cml-mcp
+```
+
+For local development:
 
 ```bash
 pip install -e ".[mcp]"
@@ -174,6 +213,9 @@ It focuses on:
 
 ## Evidence snapshot
 
+- Production PyPI package: `pip install causal-memory-layer`
+- Production release: `causal-memory-layer==0.4.0`
+- Production PyPI install smoke test: [`pypi-install-smoke.yml`](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/pypi-install-smoke.yml)
 - Deterministic benchmark fixtures with expected audit findings: `benchmarks/fixtures/`
 - Current tracked benchmark result: `6/6 matched`
 - Benchmark runner: `python scripts/run_safety_eval.py`
