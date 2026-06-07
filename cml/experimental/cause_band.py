@@ -23,7 +23,7 @@ DEFAULT_FIXTURE = Path("benchmarks/experimental/07_range_drift_intent.json")
 
 def resolve_fixture_path(path: Path) -> Path:
     """Resolve fixture path safely, preventing directory traversal and absolute paths.
-    
+
     Accepts:
     - Absolute path: rejected (security)
     - Path with .. traversal: rejected (security)
@@ -37,28 +37,27 @@ def resolve_fixture_path(path: Path) -> Path:
     if any(part == ".." for part in path.parts):
         raise SystemExit(f"Fixture path not allowed: {path}")
     
-    # Try to use path as-is first (handles repo-relative full paths)
-    candidate = Path(path)
-    if candidate.exists():
-        resolved = candidate.resolve()
-        # Verify it's still within or under the safety zone
-        try:
-            resolved.relative_to(base_dir.parent)  # Allow within repo
-        except ValueError as exc:
-            raise SystemExit(f"Fixture path not allowed: {path}") from exc
-        return resolved
+    # Normalize path separators for consistent comparison
+    path_str = str(path).replace("\\", "/")
+    base_dir_str = "benchmarks/experimental"
     
-    # Fall back to treating it as a filename within base_dir
-    candidate = base_dir / path.name
+    # Check if this is already a full repo-relative path
+    if path_str.startswith(base_dir_str + "/"):
+        candidate = path.resolve()
+    else:
+        # Treat as basename and prepend base_dir
+        candidate = (base_dir / path.name).resolve()
+    
+    # Ensure the resolved path is within base_dir
+    try:
+        candidate.relative_to(base_dir)
+    except ValueError as exc:
+        raise SystemExit(f"Fixture path not allowed: {path}") from exc
+    
     if not candidate.exists():
         raise SystemExit(f"Fixture not found: {candidate}")
     
-    resolved = candidate.resolve()
-    try:
-        resolved.relative_to(base_dir)
-    except ValueError as exc:
-        raise SystemExit(f"Fixture path not allowed: {path}") from exc
-    return resolved
+    return candidate
 
 
 def parse_duration_threshold(raw: Any, default: int = 3) -> int:
