@@ -27,6 +27,18 @@ CML is an open-source causal audit layer for structured action traces, AI-agent 
 
 > A system may be functionally correct while being causally invalid.
 
+## What problem this solves
+
+Modern agent systems can execute tools, call APIs, write files, and send messages faster than humans can review every step.
+
+Most logs tell you that an action happened; they do not prove that the action had a valid upstream approval, task, or responsibility path.
+
+CML adds a small audit primitive for this gap: it checks structured action traces for missing parent causes, ambiguous roots, and broken causal lineage.
+
+This is useful when an agent action succeeds operationally but should still be reviewed because its permission or responsibility chain is missing.
+
+The goal is not to replace observability, policy engines, or security tooling; it is to make causal validity inspectable.
+
 **Star this repo if you care about auditable AI agents, deterministic oversight, causal traces, and open-source AI safety infrastructure.**
 
 ## Install
