@@ -23,42 +23,26 @@ DEFAULT_FIXTURE = Path("benchmarks/experimental/07_range_drift_intent.json")
 
 def resolve_fixture_path(path: Path) -> Path:
     """Resolve fixture path safely, preventing directory traversal and absolute paths.
-    
-    Accepts:
-    - Absolute path: rejected (security)
-    - Path with .. traversal: rejected (security)
-    - Full repo-relative path (e.g., 'benchmarks/experimental/07_*.json'): used as-is if exists
-    - Filename only (e.g., '07_range_drift_intent.json'): resolved within benchmarks/experimental/
+
+    Accepts only paths under benchmarks/experimental/.
     """
     base_dir = DEFAULT_FIXTURE.parent.resolve()
-    
+
     if path.is_absolute():
         raise SystemExit(f"Fixture path not allowed: {path}")
     if any(part == ".." for part in path.parts):
         raise SystemExit(f"Fixture path not allowed: {path}")
-    
-    # Try to use path as-is first (handles repo-relative full paths)
-    candidate = Path(path)
-    if candidate.exists():
-        resolved = candidate.resolve()
-        # Verify it's still within or under the safety zone
-        try:
-            resolved.relative_to(base_dir.parent)  # Allow within repo
-        except ValueError as exc:
-            raise SystemExit(f"Fixture path not allowed: {path}") from exc
-        return resolved
-    
-    # Fall back to treating it as a filename within base_dir
-    candidate = base_dir / path.name
-    if not candidate.exists():
-        raise SystemExit(f"Fixture not found: {candidate}")
-    
-    resolved = candidate.resolve()
+
+    candidate = (base_dir / path).resolve()
     try:
-        resolved.relative_to(base_dir)
+        candidate.relative_to(base_dir)
     except ValueError as exc:
         raise SystemExit(f"Fixture path not allowed: {path}") from exc
-    return resolved
+
+    if not candidate.exists():
+        raise SystemExit(f"Fixture not found: {candidate}")
+
+    return candidate
 
 
 def parse_duration_threshold(raw: Any, default: int = 3) -> int:
