@@ -139,6 +139,21 @@ For a short coding-assistant setup path, see [`docs/integrations/CURSOR_MCP_QUIC
 | Policy checks | Is this allowed now? | Why was this specific action allowed in this trace? |
 | CML | Why was this action allowed? | Narrow audit primitive, not a full runtime safety stack. |
 
+## Audit codes
+
+CML findings are intentionally small and reviewable.
+
+| Code | Meaning | Why it matters |
+| :--- | :--- | :--- |
+| `CML-AUDIT-R1-MISSING_PARENT` | A record points to a `parent_cause` that does not exist in the trace. | The action may have succeeded, but its approval/task lineage is broken. |
+| `CML-AUDIT-R2-GAP_NOT_MARKED` | A record has no parent but is not clearly marked as an observed causal gap. | Reviewers cannot tell whether the missing parent is intentional or accidental. |
+| `CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN` | A network/send action follows secret access without a valid causal chain. | Useful for reviewing high-risk data-flow and exfiltration-like patterns. |
+| `CML-AUDIT-R4-AMBIGUOUS_ROOT` | A root event label looks malformed or ambiguous. | Root authority should be explicit, not guessed from a near-miss string. |
+
+These codes do not block execution or certify safety. They make causal-risk patterns visible for review.
+
+See [`docs/audit/FINDINGS_GLOSSARY.md`](docs/audit/FINDINGS_GLOSSARY.md) for more detail.
+
 ## Fast validation
 
 ```bash
