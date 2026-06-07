@@ -1,0 +1,45 @@
+name: Production PyPI Install Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/pypi-install-smoke.yml
+
+jobs:
+  pypi-install-smoke:
+    name: Install and smoke-test package from production PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install package from production PyPI
+        run: |
+          python -m pip install --upgrade pip
+          pip install causal-memory-layer==0.4.0
+
+      - name: Smoke test CLI and imports
+        run: |
+          cml --help
+          python - <<'PY'
+          import cml
+          from cml.integrations.mcp import core
+          print("cml import ok")
+          print(core.health())
+          PY
+
+      - name: Verify MCP optional dependency guard
+        run: |
+          set +e
+          cml-mcp > /tmp/cml-mcp.out 2>&1
+          status=$?
+          set -e
+          cat /tmp/cml-mcp.out
+          test "$status" -eq 2
+          grep -q "requires the optional MCP dependency" /tmp/cml-mcp.out
