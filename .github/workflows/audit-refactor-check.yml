@@ -1,0 +1,31 @@
+name: Audit Refactor Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  audit-refactor-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Run audit tests
+        run: |
+          pytest tests/test_audit.py tests/test_finding_context.py --tb=short
+
+      - name: Run deterministic safety benchmark
+        run: |
+          python scripts/run_safety_eval.py
