@@ -24,4 +24,5 @@ jobs:
 
       - name: Run benchmark
         run: |
-          python benchmarks/performance/run_large_trace_benchmark.py --sizes 1000 10000 50000 --repeats 3
+          python -m benchmarks.performance.run_large_trace_benchmark --sizes 1000 10000 50000 --repeats 3
+
