@@ -27,7 +27,6 @@ from .experimental.cause_band import (
 # ---------------------------------------------------------------------------
 # Severity
 # ---------------------------------------------------------------------------
-
 class Severity:
     OK   = "OK"
     WARN = "WARN"
@@ -48,7 +47,6 @@ class Severity:
 # ---------------------------------------------------------------------------
 # Finding
 # ---------------------------------------------------------------------------
-
 @dataclass
 class Finding:
     code:     str
@@ -56,6 +54,7 @@ class Finding:
     record_id: str
     message:  str
     chain_ids: list[str] = field(default_factory=list)
+    context: dict[str, object] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         d = {
@@ -66,13 +65,14 @@ class Finding:
         }
         if self.chain_ids:
             d["chain_ids"] = self.chain_ids
+        if self.context:
+            d["context"] = self.context
         return d
 
 
 # ---------------------------------------------------------------------------
 # Custom rules
 # ---------------------------------------------------------------------------
-
 @dataclass
 class CustomRule:
     """User-defined audit rule parsed from YAML ``custom_rules`` section."""
@@ -109,7 +109,6 @@ def _effective_class(record: CausalRecord) -> int:
 # ---------------------------------------------------------------------------
 # Audit configuration
 # ---------------------------------------------------------------------------
-
 @dataclass
 class AuditConfig:
     root_event_prefix: str = "root_event:"
@@ -123,6 +122,7 @@ class AuditConfig:
     custom_rules: list[CustomRule] = field(default_factory=list)
     enable_experimental_cause_band: bool = False
     experimental_cause_band_fixture: Optional[str] = None
+    include_context: bool = False
 
     @staticmethod
     def _apply_raw(cfg: "AuditConfig", raw: dict) -> "AuditConfig":
@@ -130,6 +130,8 @@ class AuditConfig:
             raise ValueError("Audit config root must be a mapping/object")
 
         cfg.root_event_prefix = raw.get("root_event_prefix", cfg.root_event_prefix)
+        if "include_context" in raw:
+            cfg.include_context = bool(raw["include_context"])
         s = raw.get("secret", {})
         if "classifications" in s:
             cfg.secret_classifications = s["classifications"]
@@ -220,7 +222,6 @@ class AuditConfig:
 # ---------------------------------------------------------------------------
 # Audit result
 # ---------------------------------------------------------------------------
-
 @dataclass
 class AuditResult:
     total:    int = 0
@@ -258,7 +259,6 @@ class AuditResult:
 # ---------------------------------------------------------------------------
 # Audit engine
 # ---------------------------------------------------------------------------
-
 class AuditEngine:
     def __init__(self, config: Optional[AuditConfig] = None):
         self.config = config or AuditConfig()
@@ -279,6 +279,14 @@ class AuditEngine:
             # ----------------------------------------------------------
             if r1_enabled and record.parent_cause is not None:
                 if record.parent_cause not in index:
+                    context = {}
+                    if cfg.include_context:
+                        context = {
+                            "missing_parent": record.parent_cause,
+                            "record_action": record.action,
+                            "record_permitted_by": record.permitted_by,
+                            "known_record_count": len(index),
+                        }
                     result.add(Finding(
                         code="CML-AUDIT-R1-MISSING_PARENT",
                         severity=Severity.FAIL,
@@ -287,6 +295,7 @@ class AuditEngine:
                             f"parent_cause '{record.parent_cause}' "
                             f"does not exist in the log."
                         ),
+                        context=context,
                     ))
 
             # ----------------------------------------------------------
@@ -313,6 +322,13 @@ class AuditEngine:
                 )
 
                 if r4_enabled and near_miss:
+                    context = {}
+                    if cfg.include_context:
+                        context = {
+                            "permitted_by": record.permitted_by,
+                            "expected_root_prefix": cfg.root_event_prefix,
+                            "suggested_root_form": f"{cfg.root_event_prefix}<cause>",
+                        }
                     result.add(Finding(
                         code="CML-AUDIT-R4-AMBIGUOUS_ROOT",
                         severity=Severity.WARN,
@@ -323,8 +339,16 @@ class AuditEngine:
                             f"required separator. Did you mean "
                             f"'{cfg.root_event_prefix}<cause>'?"
                         ),
+                        context=context,
                     ))
                 elif r2_enabled and not near_miss and record.permitted_by != "unobserved_parent":
+                    context = {}
+                    if cfg.include_context:
+                        context = {
+                            "parent_cause": None,
+                            "permitted_by": record.permitted_by,
+                            "expected_gap_marker": "unobserved_parent",
+                        }
                     result.add(Finding(
                         code="CML-AUDIT-R2-GAP_NOT_MARKED",
                         severity=Severity.WARN,
@@ -333,6 +357,7 @@ class AuditEngine:
                             f"Causal gap: parent_cause=null but permitted_by="
                             f"'{record.permitted_by}' (expected 'unobserved_parent')."
                         ),
+                        context=context,
                     ))
 
         # ------------------------------------------------------------------
@@ -355,6 +380,14 @@ class AuditEngine:
                         anc = ancestors(r.id, index) - {r.id}
                         linked = bool(anc & set(secret_ids))
                         if not linked:
+                            context = {}
+                            if cfg.include_context:
+                                context = {
+                                    "pid": pid,
+                                    "net_out_action": r.action,
+                                    "preceding_secret_ids": list(secret_ids),
+                                    "ancestor_ids": sorted(anc),
+                                }
                             result.add(Finding(
                                 code="CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN",
                                 severity=Severity.FAIL,
@@ -365,6 +398,7 @@ class AuditEngine:
                                     f"SECRET access(es): {secret_ids}."
                                 ),
                                 chain_ids=list(secret_ids),
+                                context=context,
                             ))
 
         # ------------------------------------------------------------------
@@ -411,11 +445,25 @@ class AuditEngine:
                             satisfied = True
                             break
                     if not satisfied:
+                        context = {}
+                        if cfg.include_context:
+                            context = {
+                                "rule_id": rule.id,
+                                "trigger_class": CLASS.name(rule.trigger_class),
+                                "ancestor_ids": sorted(_anc(record.id)),
+                            }
+                            if rule.require_ancestor_class is not None:
+                                context["required_ancestor_class"] = CLASS.name(rule.require_ancestor_class)
+                            if rule.require_ancestor_permitted_by_prefix is not None:
+                                context["required_ancestor_permitted_by_prefix"] = (
+                                    rule.require_ancestor_permitted_by_prefix
+                                )
                         result.add(Finding(
                             code=rule.code,
                             severity=rule_severity,
                             record_id=record.id,
                             message=f"Custom rule {rule.id}: {rule.description}",
+                            context=context,
                         ))
 
         # ------------------------------------------------------------------
@@ -425,6 +473,12 @@ class AuditEngine:
             cause_band_raw = load_fixture(Path(cfg.experimental_cause_band_fixture))
             cause_band_result = evaluate_fixture(cause_band_raw)
             for code in cause_band_result["predicted_codes"]:
+                context = {}
+                if cfg.include_context:
+                    context = {
+                        "experimental": True,
+                        "case_id": str(cause_band_result.get("case_id") or "experimental-cause-band"),
+                    }
                 result.add(Finding(
                     code=code,
                     severity=Severity.FAIL,
@@ -434,6 +488,7 @@ class AuditEngine:
                         f"{code}. This finding is non-normative and opt-in only."
                     ),
                     chain_ids=[str(band) for band in cause_band_result.get("bands", [])],
+                    context=context,
                 ))
 
         result.ok = max(0, result.total - result.warnings - result.failures)
