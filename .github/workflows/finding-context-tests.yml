@@ -1,0 +1,27 @@
+name: Finding Context Tests
+
+on:
+  workflow_dispatch:
+
+jobs:
+  finding-context-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Run finding context tests
+        run: |
+          pytest tests/test_finding_context.py tests/test_audit.py --tb=short
