@@ -264,232 +264,272 @@ class AuditEngine:
         self.config = config or AuditConfig()
 
     def run(self, records: list[CausalRecord]) -> AuditResult:
-        cfg = self.config
         index = records_to_index(records)
         result = AuditResult(total=len(records))
 
-        r1_enabled = cfg.rules_enabled.get("R1", True)
-        r2_enabled = cfg.rules_enabled.get("R2", True)
-        r3_enabled = cfg.rules_enabled.get("R3", True)
-        r4_enabled = cfg.rules_enabled.get("R4", True)
-
-        for record in records:
-            # ----------------------------------------------------------
-            # R1 — Reference Integrity
-            # ----------------------------------------------------------
-            if r1_enabled and record.parent_cause is not None:
-                if record.parent_cause not in index:
-                    context = {}
-                    if cfg.include_context:
-                        context = {
-                            "missing_parent": record.parent_cause,
-                            "record_action": record.action,
-                            "record_permitted_by": record.permitted_by,
-                            "known_record_count": len(index),
-                        }
-                    result.add(Finding(
-                        code="CML-AUDIT-R1-MISSING_PARENT",
-                        severity=Severity.FAIL,
-                        record_id=record.id,
-                        message=(
-                            f"parent_cause '{record.parent_cause}' "
-                            f"does not exist in the log."
-                        ),
-                        context=context,
-                    ))
-
-            # ----------------------------------------------------------
-            # R2 / R4 — Gap Marking & Root Identification (mutually exclusive)
-            #
-            # For null-parent non-root records:
-            #   R4 fires when permitted_by looks like a *near-miss* root label
-            #       (starts with the root prefix stem but lacks the separator).
-            #       Example: "root_event" instead of "root_event:system_boot".
-            #   R2 fires for all other unlabeled cases (arbitrary permitted_by
-            #       that is not "unobserved_parent" and not a near-miss root).
-            # ----------------------------------------------------------
-            if record.parent_cause is None and not cfg.is_root(record):
-                # Strip the last character (separator) to get the stem.
-                # Using slice instead of rstrip() which strips *characters*
-                # and would mangle multi-char separators like "::".
-                prefix_stem = cfg.root_event_prefix[:-1] if cfg.root_event_prefix else ""
-                near_miss = (
-                    bool(prefix_stem)
-                    and isinstance(record.permitted_by, str)
-                    and record.permitted_by != "unobserved_parent"
-                    and record.permitted_by.startswith(prefix_stem)
-                    and not record.permitted_by.startswith(cfg.root_event_prefix)
-                )
-
-                if r4_enabled and near_miss:
-                    context = {}
-                    if cfg.include_context:
-                        context = {
-                            "permitted_by": record.permitted_by,
-                            "expected_root_prefix": cfg.root_event_prefix,
-                            "suggested_root_form": f"{cfg.root_event_prefix}<cause>",
-                        }
-                    result.add(Finding(
-                        code="CML-AUDIT-R4-AMBIGUOUS_ROOT",
-                        severity=Severity.WARN,
-                        record_id=record.id,
-                        message=(
-                            f"Near-miss root label: permitted_by='{record.permitted_by}' "
-                            f"looks like '{cfg.root_event_prefix}' but is missing the "
-                            f"required separator. Did you mean "
-                            f"'{cfg.root_event_prefix}<cause>'?"
-                        ),
-                        context=context,
-                    ))
-                elif r2_enabled and not near_miss and record.permitted_by != "unobserved_parent":
-                    context = {}
-                    if cfg.include_context:
-                        context = {
-                            "parent_cause": None,
-                            "permitted_by": record.permitted_by,
-                            "expected_gap_marker": "unobserved_parent",
-                        }
-                    result.add(Finding(
-                        code="CML-AUDIT-R2-GAP_NOT_MARKED",
-                        severity=Severity.WARN,
-                        record_id=record.id,
-                        message=(
-                            f"Causal gap: parent_cause=null but permitted_by="
-                            f"'{record.permitted_by}' (expected 'unobserved_parent')."
-                        ),
-                        context=context,
-                    ))
-
-        # ------------------------------------------------------------------
-        # R3 — SECRET → NET_OUT Chain
-        # ------------------------------------------------------------------
-        if r3_enabled:
-            by_pid = group_by_pid(records)
-            for pid, pid_records in by_pid.items():
-                secret_ids: list[str] = []
-                for r in pid_records:
-                    if cfg.is_secret(r):
-                        secret_ids.append(r.id)
-
-                    if cfg.is_net_out(r) and secret_ids:
-                        # Precompute ancestor set once per NET_OUT (O(chain_depth))
-                        # instead of calling has_path per secret (O(S × depth)).
-                        # Exclude r.id itself: ancestors() includes the record
-                        # being tested, so a NET_OUT record that is also
-                        # classified SECRET would falsely match itself.
-                        anc = ancestors(r.id, index) - {r.id}
-                        linked = bool(anc & set(secret_ids))
-                        if not linked:
-                            context = {}
-                            if cfg.include_context:
-                                context = {
-                                    "pid": pid,
-                                    "net_out_action": r.action,
-                                    "preceding_secret_ids": list(secret_ids),
-                                    "ancestor_ids": sorted(anc),
-                                }
-                            result.add(Finding(
-                                code="CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN",
-                                severity=Severity.FAIL,
-                                record_id=r.id,
-                                message=(
-                                    f"NET_OUT '{r.action}' (pid={pid}) "
-                                    f"has no causal link to preceding "
-                                    f"SECRET access(es): {secret_ids}."
-                                ),
-                                chain_ids=list(secret_ids),
-                                context=context,
-                            ))
-
-        # ------------------------------------------------------------------
-        # Custom rules (R5+)
-        #
-        # Ancestor sets are computed once per record (keyed by id) and
-        # reused across all rules, reducing O(R × N × D) to O(N × D + R × N).
-        # The cache is built lazily — only triggered records pay the cost.
-        # ------------------------------------------------------------------
-        if cfg.custom_rules:
-            _anc_cache: dict[str, set[str]] = {}
-
-            def _anc(rid: str) -> set[str]:
-                if rid not in _anc_cache:
-                    _anc_cache[rid] = ancestors(rid, index) - {rid}
-                return _anc_cache[rid]
-
-            for rule in cfg.custom_rules:
-                rule_severity = Severity.normalize(rule.severity)
-                if not cfg.rules_enabled.get(rule.id, True):
-                    continue
-                for record in records:
-                    if _effective_class(record) != rule.trigger_class:
-                        continue
-                    satisfied = False
-                    for aid in _anc(record.id):
-                        anc = index.get(aid)
-                        if anc is None:
-                            continue
-                        cls_ok = (
-                            rule.require_ancestor_class is None
-                            or _effective_class(anc) == rule.require_ancestor_class
-                        )
-                        prefix_ok = (
-                            rule.require_ancestor_permitted_by_prefix is None
-                            or (
-                                isinstance(anc.permitted_by, str)
-                                and anc.permitted_by.startswith(
-                                    rule.require_ancestor_permitted_by_prefix
-                                )
-                            )
-                        )
-                        if cls_ok and prefix_ok:
-                            satisfied = True
-                            break
-                    if not satisfied:
-                        context = {}
-                        if cfg.include_context:
-                            context = {
-                                "rule_id": rule.id,
-                                "trigger_class": CLASS.name(rule.trigger_class),
-                                "ancestor_ids": sorted(_anc(record.id)),
-                            }
-                            if rule.require_ancestor_class is not None:
-                                context["required_ancestor_class"] = CLASS.name(rule.require_ancestor_class)
-                            if rule.require_ancestor_permitted_by_prefix is not None:
-                                context["required_ancestor_permitted_by_prefix"] = (
-                                    rule.require_ancestor_permitted_by_prefix
-                                )
-                        result.add(Finding(
-                            code=rule.code,
-                            severity=rule_severity,
-                            record_id=record.id,
-                            message=f"Custom rule {rule.id}: {rule.description}",
-                            context=context,
-                        ))
-
-        # ------------------------------------------------------------------
-        # Experimental Cause Band sidecar evaluation
-        # ------------------------------------------------------------------
-        if cfg.enable_experimental_cause_band and cfg.experimental_cause_band_fixture:
-            cause_band_raw = load_fixture(Path(cfg.experimental_cause_band_fixture))
-            cause_band_result = evaluate_fixture(cause_band_raw)
-            for code in cause_band_result["predicted_codes"]:
-                context = {}
-                if cfg.include_context:
-                    context = {
-                        "experimental": True,
-                        "case_id": str(cause_band_result.get("case_id") or "experimental-cause-band"),
-                    }
-                result.add(Finding(
-                    code=code,
-                    severity=Severity.FAIL,
-                    record_id=str(cause_band_result.get("case_id") or "experimental-cause-band"),
-                    message=(
-                        "Experimental Cause Band finding from sidecar fixture: "
-                        f"{code}. This finding is non-normative and opt-in only."
-                    ),
-                    chain_ids=[str(band) for band in cause_band_result.get("bands", [])],
-                    context=context,
-                ))
+        self._check_reference_integrity(records, index, result)
+        self._check_root_and_gap_marking(records, result)
+        self._check_secret_net_chain(records, index, result)
+        self._check_custom_rules(records, index, result)
+        self._check_experimental_cause_band(result)
 
         result.ok = max(0, result.total - result.warnings - result.failures)
         return result
+
+    def _check_reference_integrity(
+        self,
+        records: list[CausalRecord],
+        index: dict[str, CausalRecord],
+        result: AuditResult,
+    ) -> None:
+        """R1 — flag records that point to missing parent causes."""
+
+        cfg = self.config
+        if not cfg.rules_enabled.get("R1", True):
+            return
+
+        for record in records:
+            if record.parent_cause is None or record.parent_cause in index:
+                continue
+
+            context = {}
+            if cfg.include_context:
+                context = {
+                    "missing_parent": record.parent_cause,
+                    "record_action": record.action,
+                    "record_permitted_by": record.permitted_by,
+                    "known_record_count": len(index),
+                }
+            result.add(Finding(
+                code="CML-AUDIT-R1-MISSING_PARENT",
+                severity=Severity.FAIL,
+                record_id=record.id,
+                message=(
+                    f"parent_cause '{record.parent_cause}' "
+                    f"does not exist in the log."
+                ),
+                context=context,
+            ))
+
+    def _check_root_and_gap_marking(
+        self,
+        records: list[CausalRecord],
+        result: AuditResult,
+    ) -> None:
+        """R2/R4 — flag unmarked gaps and ambiguous root labels."""
+
+        cfg = self.config
+        r2_enabled = cfg.rules_enabled.get("R2", True)
+        r4_enabled = cfg.rules_enabled.get("R4", True)
+        prefix_stem = cfg.root_event_prefix[:-1] if cfg.root_event_prefix else ""
+
+        for record in records:
+            if record.parent_cause is not None or cfg.is_root(record):
+                continue
+
+            near_miss = (
+                bool(prefix_stem)
+                and isinstance(record.permitted_by, str)
+                and record.permitted_by != "unobserved_parent"
+                and record.permitted_by.startswith(prefix_stem)
+                and not record.permitted_by.startswith(cfg.root_event_prefix)
+            )
+
+            if r4_enabled and near_miss:
+                context = {}
+                if cfg.include_context:
+                    context = {
+                        "permitted_by": record.permitted_by,
+                        "expected_root_prefix": cfg.root_event_prefix,
+                        "suggested_root_form": f"{cfg.root_event_prefix}<cause>",
+                    }
+                result.add(Finding(
+                    code="CML-AUDIT-R4-AMBIGUOUS_ROOT",
+                    severity=Severity.WARN,
+                    record_id=record.id,
+                    message=(
+                        f"Near-miss root label: permitted_by='{record.permitted_by}' "
+                        f"looks like '{cfg.root_event_prefix}' but is missing the "
+                        f"required separator. Did you mean "
+                        f"'{cfg.root_event_prefix}<cause>'?"
+                    ),
+                    context=context,
+                ))
+            elif r2_enabled and not near_miss and record.permitted_by != "unobserved_parent":
+                context = {}
+                if cfg.include_context:
+                    context = {
+                        "parent_cause": None,
+                        "permitted_by": record.permitted_by,
+                        "expected_gap_marker": "unobserved_parent",
+                    }
+                result.add(Finding(
+                    code="CML-AUDIT-R2-GAP_NOT_MARKED",
+                    severity=Severity.WARN,
+                    record_id=record.id,
+                    message=(
+                        f"Causal gap: parent_cause=null but permitted_by="
+                        f"'{record.permitted_by}' (expected 'unobserved_parent')."
+                    ),
+                    context=context,
+                ))
+
+    def _check_secret_net_chain(
+        self,
+        records: list[CausalRecord],
+        index: dict[str, CausalRecord],
+        result: AuditResult,
+    ) -> None:
+        """R3 — flag NET_OUT actions after secret access without causal lineage."""
+
+        cfg = self.config
+        if not cfg.rules_enabled.get("R3", True):
+            return
+
+        by_pid = group_by_pid(records)
+        for pid, pid_records in by_pid.items():
+            secret_ids: list[str] = []
+            for record in pid_records:
+                if cfg.is_secret(record):
+                    secret_ids.append(record.id)
+
+                if not (cfg.is_net_out(record) and secret_ids):
+                    continue
+
+                # Precompute ancestor set once per NET_OUT (O(chain_depth))
+                # instead of calling has_path per secret (O(S × depth)).
+                # Exclude record.id itself: ancestors() includes the record
+                # being tested, so a NET_OUT record that is also classified
+                # SECRET would falsely match itself.
+                anc = ancestors(record.id, index) - {record.id}
+                linked = bool(anc & set(secret_ids))
+                if linked:
+                    continue
+
+                context = {}
+                if cfg.include_context:
+                    context = {
+                        "pid": pid,
+                        "net_out_action": record.action,
+                        "preceding_secret_ids": list(secret_ids),
+                        "ancestor_ids": sorted(anc),
+                    }
+                result.add(Finding(
+                    code="CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN",
+                    severity=Severity.FAIL,
+                    record_id=record.id,
+                    message=(
+                        f"NET_OUT '{record.action}' (pid={pid}) "
+                        f"has no causal link to preceding "
+                        f"SECRET access(es): {secret_ids}."
+                    ),
+                    chain_ids=list(secret_ids),
+                    context=context,
+                ))
+
+    def _check_custom_rules(
+        self,
+        records: list[CausalRecord],
+        index: dict[str, CausalRecord],
+        result: AuditResult,
+    ) -> None:
+        """R5+ — evaluate YAML/programmatic custom audit rules."""
+
+        cfg = self.config
+        if not cfg.custom_rules:
+            return
+
+        # Ancestor sets are computed once per record (keyed by id) and reused
+        # across all rules, reducing O(R × N × D) to O(N × D + R × N). The cache
+        # is built lazily — only triggered records pay the cost.
+        anc_cache: dict[str, set[str]] = {}
+
+        def _anc(record_id: str) -> set[str]:
+            if record_id not in anc_cache:
+                anc_cache[record_id] = ancestors(record_id, index) - {record_id}
+            return anc_cache[record_id]
+
+        for rule in cfg.custom_rules:
+            rule_severity = Severity.normalize(rule.severity)
+            if not cfg.rules_enabled.get(rule.id, True):
+                continue
+            for record in records:
+                if _effective_class(record) != rule.trigger_class:
+                    continue
+
+                satisfied = False
+                for ancestor_id in _anc(record.id):
+                    ancestor_record = index.get(ancestor_id)
+                    if ancestor_record is None:
+                        continue
+
+                    cls_ok = (
+                        rule.require_ancestor_class is None
+                        or _effective_class(ancestor_record) == rule.require_ancestor_class
+                    )
+                    prefix_ok = (
+                        rule.require_ancestor_permitted_by_prefix is None
+                        or (
+                            isinstance(ancestor_record.permitted_by, str)
+                            and ancestor_record.permitted_by.startswith(
+                                rule.require_ancestor_permitted_by_prefix
+                            )
+                        )
+                    )
+                    if cls_ok and prefix_ok:
+                        satisfied = True
+                        break
+
+                if satisfied:
+                    continue
+
+                context = {}
+                if cfg.include_context:
+                    context = {
+                        "rule_id": rule.id,
+                        "trigger_class": CLASS.name(rule.trigger_class),
+                        "ancestor_ids": sorted(_anc(record.id)),
+                    }
+                    if rule.require_ancestor_class is not None:
+                        context["required_ancestor_class"] = CLASS.name(
+                            rule.require_ancestor_class
+                        )
+                    if rule.require_ancestor_permitted_by_prefix is not None:
+                        context["required_ancestor_permitted_by_prefix"] = (
+                            rule.require_ancestor_permitted_by_prefix
+                        )
+                result.add(Finding(
+                    code=rule.code,
+                    severity=rule_severity,
+                    record_id=record.id,
+                    message=f"Custom rule {rule.id}: {rule.description}",
+                    context=context,
+                ))
+
+    def _check_experimental_cause_band(self, result: AuditResult) -> None:
+        """Run the opt-in experimental Cause Band sidecar evaluation."""
+
+        cfg = self.config
+        if not (cfg.enable_experimental_cause_band and cfg.experimental_cause_band_fixture):
+            return
+
+        cause_band_raw = load_fixture(Path(cfg.experimental_cause_band_fixture))
+        cause_band_result = evaluate_fixture(cause_band_raw)
+        for code in cause_band_result["predicted_codes"]:
+            context = {}
+            if cfg.include_context:
+                context = {
+                    "experimental": True,
+                    "case_id": str(cause_band_result.get("case_id") or "experimental-cause-band"),
+                }
+            result.add(Finding(
+                code=code,
+                severity=Severity.FAIL,
+                record_id=str(cause_band_result.get("case_id") or "experimental-cause-band"),
+                message=(
+                    "Experimental Cause Band finding from sidecar fixture: "
+                    f"{code}. This finding is non-normative and opt-in only."
+                ),
+                chain_ids=[str(band) for band in cause_band_result.get("bands", [])],
+                context=context,
+            ))
