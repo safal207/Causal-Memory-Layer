@@ -27,6 +27,18 @@ CML is an open-source causal audit layer for structured action traces, AI-agent 
 
 > A system may be functionally correct while being causally invalid.
 
+## What problem this solves
+
+Modern agent systems can execute tools, call APIs, write files, and send messages faster than humans can review every step.
+
+Most logs tell you that an action happened; they do not prove that the action had a valid upstream approval, task, or responsibility path.
+
+CML adds a small audit primitive for this gap: it checks structured action traces for missing parent causes, ambiguous roots, and broken causal lineage.
+
+This is useful when an agent action succeeds operationally but should still be reviewed because its permission or responsibility chain is missing.
+
+The goal is not to replace observability, policy engines, or security tooling; it is to make causal validity inspectable.
+
 **Star this repo if you care about auditable AI agents, deterministic oversight, causal traces, and open-source AI safety infrastructure.**
 
 ## Install
@@ -78,10 +90,27 @@ CML-AUDIT-R1-MISSING_PARENT
 
 The action may look operationally valid, but CML asks whether its causal parent exists.
 
+For an agent-workflow example, run the CrewAI-style causal audit demo:
+
+```bash
+python examples/crewai_style_causal_audit.py
+```
+
+See [`docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md`](docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md).
+
+For a cyber-agent approval-lineage example, run:
+
+```bash
+python examples/cyber_patch_to_poc_audit.py
+```
+
+See [`docs/demo/CYBER_AGENT_APPROVAL_AUDIT.md`](docs/demo/CYBER_AGENT_APPROVAL_AUDIT.md).
+
 ## Use CML when you need to audit
 
 - AI-agent tool calls and action chains.
 - Human approval handoffs.
+- Security-agent high-risk action approval lineage.
 - Automation workflows with high-trust actions.
 - Fintech or review-heavy decision paths.
 - Structured traces where responsibility lineage matters.
@@ -119,6 +148,21 @@ For a short coding-assistant setup path, see [`docs/integrations/CURSOR_MCP_QUIC
 | Policy checks | Is this allowed now? | Why was this specific action allowed in this trace? |
 | CML | Why was this action allowed? | Narrow audit primitive, not a full runtime safety stack. |
 
+## Audit codes
+
+CML findings are intentionally small and reviewable.
+
+| Code | Meaning | Why it matters |
+| :--- | :--- | :--- |
+| `CML-AUDIT-R1-MISSING_PARENT` | A record points to a `parent_cause` that does not exist in the trace. | The action may have succeeded, but its approval/task lineage is broken. |
+| `CML-AUDIT-R2-GAP_NOT_MARKED` | A record has no parent but is not clearly marked as an observed causal gap. | Reviewers cannot tell whether the missing parent is intentional or accidental. |
+| `CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN` | A network/send action follows secret access without a valid causal chain. | Useful for reviewing high-risk data-flow and exfiltration-like patterns. |
+| `CML-AUDIT-R4-AMBIGUOUS_ROOT` | A root event label looks malformed or ambiguous. | Root authority should be explicit, not guessed from a near-miss string. |
+
+These codes do not block execution or certify safety. They make causal-risk patterns visible for review.
+
+See [`docs/audit/FINDINGS_GLOSSARY.md`](docs/audit/FINDINGS_GLOSSARY.md) for more detail.
+
 ## Fast validation
 
 ```bash
@@ -141,10 +185,15 @@ https://safal207.github.io/Causal-Memory-Layer/
 - Non-claims: [`docs/NON_CLAIMS.md`](docs/NON_CLAIMS.md)
 - Portfolio relationship: [`docs/PORTFOLIO_RELATIONSHIP.md`](docs/PORTFOLIO_RELATIONSHIP.md)
 - Benchmark evidence: [`docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md`](docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md)
+- Grant evidence pack: [`docs/evidence/GRANT_EVIDENCE_CML_0.4.0.md`](docs/evidence/GRANT_EVIDENCE_CML_0.4.0.md)
 - External validation protocol: [`docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md`](docs/evidence/EXTERNAL_VALIDATION_PROTOCOL.md)
 - Technical report outline: [`docs/research/TECHNICAL_REPORT_OUTLINE.md`](docs/research/TECHNICAL_REPORT_OUTLINE.md)
 - Funding / research evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
 - Docker walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
+- CrewAI-style causal audit demo: [`examples/crewai_style_causal_audit.py`](examples/crewai_style_causal_audit.py)
+- CrewAI-style integration note: [`docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md`](docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md)
+- Cyber-agent approval audit demo: [`examples/cyber_patch_to_poc_audit.py`](examples/cyber_patch_to_poc_audit.py)
+- Cyber-agent approval audit walkthrough: [`docs/demo/CYBER_AGENT_APPROVAL_AUDIT.md`](docs/demo/CYBER_AGENT_APPROVAL_AUDIT.md)
 - MCP agent-audit integration: [`docs/integrations/MCP_AGENT_AUDIT.md`](docs/integrations/MCP_AGENT_AUDIT.md)
 - Cursor MCP quickstart: [`docs/integrations/CURSOR_MCP_QUICKSTART.md`](docs/integrations/CURSOR_MCP_QUICKSTART.md)
 - Cause Band concept: [`docs/research/CAUSE_BAND.md`](docs/research/CAUSE_BAND.md)
@@ -172,6 +221,8 @@ Current components include:
 - CLI commands for lineage validation and chain inspection;
 - API layer and store interface;
 - example logs and audit outputs;
+- CrewAI-style agent trace causal audit example;
+- cyber-agent approval-lineage causal audit example;
 - tests for chain logic, audit rules, and CTAG behavior;
 - API smoke tests for health, audit, and CTAG decode;
 - deterministic safety-eval benchmark with fixtures and tracked results;
@@ -183,7 +234,10 @@ Key implementation entry points:
 - `cml/chain.py`
 - `cli/main.py`
 - `api/server.py`
+- `examples/crewai_style_causal_audit.py`
+- `examples/cyber_patch_to_poc_audit.py`
 - `tests/test_audit.py`
+- `tests/test_cyber_patch_to_poc_demo.py`
 - `tests/test_api_smoke.py`
 
 ## Problem
@@ -216,6 +270,10 @@ It focuses on:
 - Production PyPI package: `pip install causal-memory-layer`
 - Production release: `causal-memory-layer==0.4.0`
 - Production PyPI install smoke test: [`pypi-install-smoke.yml`](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/pypi-install-smoke.yml)
+- Grant evidence pack: `docs/evidence/GRANT_EVIDENCE_CML_0.4.0.md`
+- CrewAI-style integration example: `examples/crewai_style_causal_audit.py`
+- Cyber-agent approval audit example: `examples/cyber_patch_to_poc_audit.py`
+- CrewAI outreach issue: https://github.com/crewAIInc/crewAI/issues/6063
 - Deterministic benchmark fixtures with expected audit findings: `benchmarks/fixtures/`
 - Current tracked benchmark result: `6/6 matched`
 - Benchmark runner: `python scripts/run_safety_eval.py`
