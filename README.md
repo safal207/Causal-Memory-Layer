@@ -98,10 +98,19 @@ python examples/crewai_style_causal_audit.py
 
 See [`docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md`](docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md).
 
+For an approval-lineage example, run:
+
+```bash
+python examples/agent_approval_lineage_audit.py
+```
+
+This demo shows how CML can flag a synthetic agent trace where a sensitive step lacks a valid policy or human approval ancestor.
+
 ## Use CML when you need to audit
 
 - AI-agent tool calls and action chains.
 - Human approval handoffs.
+- Approval-lineage checks for high-trust agent actions.
 - Automation workflows with high-trust actions.
 - Fintech or review-heavy decision paths.
 - Structured traces where responsibility lineage matters.
@@ -182,6 +191,7 @@ https://safal207.github.io/Causal-Memory-Layer/
 - Funding / research evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
 - Docker walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
 - CrewAI-style causal audit demo: [`examples/crewai_style_causal_audit.py`](examples/crewai_style_causal_audit.py)
+- Approval-lineage audit demo: [`examples/agent_approval_lineage_audit.py`](examples/agent_approval_lineage_audit.py)
 - CrewAI-style integration note: [`docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md`](docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md)
 - MCP agent-audit integration: [`docs/integrations/MCP_AGENT_AUDIT.md`](docs/integrations/MCP_AGENT_AUDIT.md)
 - Cursor MCP quickstart: [`docs/integrations/CURSOR_MCP_QUICKSTART.md`](docs/integrations/CURSOR_MCP_QUICKSTART.md)
@@ -211,7 +221,8 @@ Current components include:
 - API layer and store interface;
 - example logs and audit outputs;
 - CrewAI-style agent trace causal audit example;
-- tests for chain logic, audit rules, and CTAG behavior;
+- approval-lineage causal audit example;
+- tests for chain logic, audit rules, approval-lineage behavior, and CTAG behavior;
 - API smoke tests for health, audit, and CTAG decode;
 - deterministic safety-eval benchmark with fixtures and tracked results;
 - documentation for vCML semantics and audit rules.
@@ -223,7 +234,9 @@ Key implementation entry points:
 - `cli/main.py`
 - `api/server.py`
 - `examples/crewai_style_causal_audit.py`
+- `examples/agent_approval_lineage_audit.py`
 - `tests/test_audit.py`
+- `tests/test_agent_approval_lineage_demo.py`
 - `tests/test_api_smoke.py`
 
 ## Problem
@@ -258,6 +271,7 @@ It focuses on:
 - Production PyPI install smoke test: [`pypi-install-smoke.yml`](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/pypi-install-smoke.yml)
 - Grant evidence pack: `docs/evidence/GRANT_EVIDENCE_CML_0.4.0.md`
 - CrewAI-style integration example: `examples/crewai_style_causal_audit.py`
+- Approval-lineage demo: `examples/agent_approval_lineage_audit.py`
 - CrewAI outreach issue: https://github.com/crewAIInc/crewAI/issues/6063
 - Deterministic benchmark fixtures with expected audit findings: `benchmarks/fixtures/`
 - Current tracked benchmark result: `6/6 matched`
