@@ -27,36 +27,37 @@ def resolve_fixture_path(path: Path) -> Path:
     Accepts:
     - Absolute path: rejected (security)
     - Path with .. traversal: rejected (security)
-    - Full repo-relative path (e.g., 'benchmarks/experimental/07_*.json'): used as-is if exists
+    - Full repo-relative path (e.g., 'benchmarks/experimental/07_*.json'): resolved under benchmarks/experimental
     - Filename only (e.g., '07_range_drift_intent.json'): resolved within benchmarks/experimental/
     """
     base_dir = DEFAULT_FIXTURE.parent.resolve()
-    
+
     if path.is_absolute():
         raise SystemExit(f"Fixture path not allowed: {path}")
     if any(part == ".." for part in path.parts):
         raise SystemExit(f"Fixture path not allowed: {path}")
-    
+
     # Normalize path separators for consistent comparison
     path_str = str(path).replace("\\", "/")
     base_dir_str = "benchmarks/experimental"
-    
-    # Check if this is already a full repo-relative path
+
+    # If caller passed a repo-relative path, anchor it to base_dir.
     if path_str.startswith(base_dir_str + "/"):
-        candidate = path.resolve()
+        relative_part = path_str[len(base_dir_str) + 1 :]
+        candidate = (base_dir / Path(relative_part)).resolve()
     else:
         # Treat as basename and prepend base_dir
         candidate = (base_dir / path.name).resolve()
-    
+
     # Ensure the resolved path is within base_dir
     try:
         candidate.relative_to(base_dir)
     except ValueError as exc:
         raise SystemExit(f"Fixture path not allowed: {path}") from exc
-    
+
     if not candidate.exists():
         raise SystemExit(f"Fixture not found: {candidate}")
-    
+
     return candidate
 
 
