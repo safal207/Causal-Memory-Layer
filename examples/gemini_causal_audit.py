@@ -17,6 +17,7 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import hashlib
 from copy import deepcopy
 from typing import Any
 
@@ -48,6 +49,13 @@ def _digest(record: CausalRecord, key: str) -> str:
     return str(evidence.get(key, "missing"))
 
 
+def _opaque_signature_digest(index: int) -> str:
+    """Return a deterministic digest without retaining raw signature bytes."""
+
+    simulated = f"simulated-thought-signature-{index}".encode("utf-8")
+    return f"sha256:{hashlib.sha256(simulated).hexdigest()}"
+
+
 def attach_gemini_envelopes(
     records: list[CausalRecord],
 ) -> list[CausalRecord]:
@@ -58,7 +66,7 @@ def attach_gemini_envelopes(
     ``id``. When conversation history is managed manually, thought signatures
     attached to model response parts must be preserved opaquely and returned in
     their original parts. This demo records only preservation state and a
-    digest placeholder; it never exposes or interprets hidden reasoning.
+    deterministic digest; it never exposes or interprets hidden reasoning.
     """
 
     decorated = deepcopy(records)
@@ -85,7 +93,7 @@ def attach_gemini_envelopes(
                     "present": True,
                     "preserved_opaque": True,
                     "stored_raw": False,
-                    "digest": f"sha256:simulated-thought-signature-{index}",
+                    "digest": _opaque_signature_digest(index),
                 },
             },
             "user_part": {
