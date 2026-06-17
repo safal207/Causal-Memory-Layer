@@ -168,6 +168,42 @@ exec → secret access (open/read) → network egress (connect/send)
 
 ---
 
+## v0.8.1 — LLM Provider Interoperability (✅ milestone завершён)
+
+**Цель:**
+Показать, что CML может сохранять единую проверяемую каузальную модель поверх разных LLM tool-calling протоколов без изменения core schema.
+
+**Завершено:**
+
+- Provider-specific causal-audit mappings и детерминированные примеры для 7 экосистем:
+  - OpenAI
+  - Claude
+  - Gemini
+  - Grok / xAI
+  - Qwen
+  - Kimi
+  - DeepSeek
+- Единая матрица: `docs/integrations/LLM_PROVIDER_MATRIX.md`
+- Integration guides и regression tests для provider-native transport metadata
+- Чётко разделены:
+  - provider correlation IDs (`call_id`, `tool_use_id`, `functionCall.id`, `tool_call_id`)
+  - CML causal authorization (`parent_cause`, `permitted_by`, approval ancestry)
+- Для Kimi и Gemini reasoning-related state сохраняется только как безопасная handling metadata / digest, без публикации сырого reasoning
+
+**Границы milestone:**
+
+- Это SDK-independent deterministic mappings, а не официальные provider integrations или endorsements
+- Реальные model calls и tool execution в тестах не выполняются
+- Cause Band остаётся experimental и non-normative
+
+**Следующий технический шаг:**
+
+- executable LangGraph adapter с causal cursor, audited tool nodes и explicit branch joins
+- opt-in live SDK smoke tests через environment secrets
+
+
+---
+
 ## Принцип темпа
 
 Каждая версия должна:
