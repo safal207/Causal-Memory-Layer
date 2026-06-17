@@ -106,6 +106,25 @@ python examples/agent_approval_lineage_audit.py
 
 This demo shows how CML can flag a synthetic agent trace where a sensitive step lacks a valid policy or human approval ancestor.
 
+## For LLM Agents & Grok / xAI systems
+
+CML now includes a specialized example for modern tool-calling agents, including Grok/xAI-style loops, LangGraph, CrewAI, and custom ReAct patterns.
+
+### Try it now
+
+```bash
+python examples/grok_xai_causal_audit.py
+```
+
+The demo simulates a realistic chain—web search -> sandbox code execution -> file write -> external API call—with causal lineage, intent metadata, risk assessment, evidence bundles, and human-approval tracking.
+
+See:
+
+- [Grok/xAI Agent Integration Guide](docs/integrations/GROK_XAI_AGENT_INTEGRATION.md)
+- [Cause Band Concept](docs/research/CAUSE_BAND.md)
+
+> Cause Band is an experimental future direction for tracking multi-step intent drift. Its findings are non-normative and do not represent a production safety guarantee.
+
 ## Use CML when you need to audit
 
 - AI-agent tool calls and action chains.
