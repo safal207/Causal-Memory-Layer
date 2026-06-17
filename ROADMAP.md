@@ -158,9 +158,8 @@ exec → secret access (open/read) → network egress (connect/send)
 - Hosted Audit API инфра — Dockerfile + docker-compose.yml + deploy guide (`docs/deploy/README.md`)
 - CI с coverage gate (--cov-fail-under=45) + status badges в README
 
-**Остаток (требует финальной отмашки):**
+**Остаток:**
 
-- PyPI publikation — нужно создать Release tag (v0.4.0) и запустить workflow (требует trusted publisher setup на PyPI)
 - Hosted deploy — выбрать платформу (Fly.io / Render / Railway), связать секреты, развернуть
 - Compliance packs — docs написаны, автоматизации нет
 - Enterprise SDK (multi-tenant, SIEM integrations) — не реализован
