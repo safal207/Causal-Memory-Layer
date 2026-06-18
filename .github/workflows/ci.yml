@@ -25,6 +25,22 @@ jobs:
             --cov-report=xml \
             --cov-fail-under=45
 
+      - name: Run Causal Equilibrium conformance benchmark
+        run: |
+          python benchmarks/equilibrium/run.py \
+            --fixtures benchmarks/equilibrium/v1/fixtures.json \
+            --json-out artifacts/equilibrium/report.json \
+            --markdown-out artifacts/equilibrium/report.md \
+            --implementation-commit "$GITHUB_SHA"
+
+      - name: Upload equilibrium benchmark reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: equilibrium-benchmark-report
+          path: artifacts/equilibrium/
+          if-no-files-found: ignore
+
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@v7
