@@ -48,6 +48,29 @@
 
     <section class="section">
       <div class="wrap">
+        <div class="card dark">
+          <div class="grid two" style="align-items:center">
+            <div>
+              <div class="badge" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.14)">Public technical discussion</div>
+              <h2>CML is being explored against CrewAI agent-action traces.</h2>
+              <p>The open CrewAI Issue #6063 connects CML structural causality with deterministic action identity, optional integrity evidence, agent memory, and a concrete <span class="mono">ToolUsageFinishedEvent</span> listener path.</p>
+              <div class="actions">
+                <a class="btn secondary" href="https://github.com/crewAIInc/crewAI/issues/6063">Open CrewAI Issue #6063</a>
+                <a class="btn secondary" href="https://github.com/safal207/Causal-Memory-Layer/blob/main/docs/integrations/CREWAI_ACTION_REF.md">View CML implementation notes</a>
+              </div>
+            </div>
+            <div class="quote">
+              <div class="eyebrow" style="color:#cbd5e1">Current bridge</div>
+              <p class="mono">CrewAI event → deterministic action_ref → parent_action_ref → CML graph validation → optional signature / external anchor</p>
+              <p style="margin-bottom:0">Public design provenance, code, and deterministic tests are available. This is an experimental community discussion, not an official CrewAI endorsement or core integration.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
         <div class="eyebrow">Contributor impact</div>
         <h2>People are turning CML from artifact into community.</h2>
         <p class="sub">This board recognizes concrete project value: reproducibility, research clarity, documentation, reviewability, and trust signals. The score is a qualitative impact signal, not a competition.</p>
