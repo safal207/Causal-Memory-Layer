@@ -31,6 +31,12 @@ class EquilibriumSeverity(str, Enum):
     FAIL = "FAIL"
 
 
+_EQUILIBRIUM_SEVERITY_RANK = {
+    EquilibriumSeverity.FAIL: 0,
+    EquilibriumSeverity.WARN: 1,
+}
+
+
 @dataclass(frozen=True)
 class CausalEquilibriumSnapshot:
     """Material references used to evaluate one decision checkpoint.
@@ -103,6 +109,19 @@ def _missing(refs: Iterable[str], known_refs: set[str]) -> tuple[str, ...]:
     return tuple(sorted(set(refs) - known_refs))
 
 
+def _finding_sort_key(
+    finding: EquilibriumFinding,
+) -> tuple[str, int, tuple[str, ...], str]:
+    """Return the v1 canonical ordering key for equilibrium findings."""
+
+    return (
+        finding.code,
+        _EQUILIBRIUM_SEVERITY_RANK[finding.severity],
+        tuple(sorted(finding.refs)),
+        finding.message,
+    )
+
+
 def evaluate_causal_equilibrium(
     snapshot: CausalEquilibriumSnapshot,
     *,
@@ -115,6 +134,10 @@ def evaluate_causal_equilibrium(
     1. any ``FAIL`` finding -> ``UNSTABLE``;
     2. otherwise any ``WARN`` finding -> ``INDETERMINATE``;
     3. otherwise -> ``BALANCED``.
+
+    Findings are emitted in the canonical v1 order:
+    ``(code, severity_rank, refs_lexicographic, message)`` where ``FAIL`` has
+    rank 0 and ``WARN`` has rank 1.
     """
 
     known = set(known_refs)
@@ -213,16 +236,18 @@ def evaluate_causal_equilibrium(
             )
         )
 
-    findings.sort(
-        key=lambda item: (
-            item.code,
-            item.severity.value,
-            item.refs,
-            item.message,
+    normalized_findings = [
+        EquilibriumFinding(
+            code=finding.code,
+            severity=finding.severity,
+            message=finding.message,
+            refs=tuple(sorted(finding.refs)),
         )
-    )
+        for finding in findings
+    ]
+    normalized_findings.sort(key=_finding_sort_key)
 
-    severities = {finding.severity for finding in findings}
+    severities = {finding.severity for finding in normalized_findings}
     if EquilibriumSeverity.FAIL in severities:
         state = EquilibriumState.UNSTABLE
     elif EquilibriumSeverity.WARN in severities:
@@ -233,5 +258,5 @@ def evaluate_causal_equilibrium(
     return CausalEquilibriumResult(
         action_ref=snapshot.action_ref,
         state=state,
-        findings=tuple(findings),
+        findings=tuple(normalized_findings),
     )
