@@ -13,11 +13,46 @@ checks, or runtime enforcement.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import hashlib
 import json
+import re
 from typing import Any, Iterable, Mapping
 
 ACTION_REF_SCHEME = "draft-giskard-aeoess-action-ref-v1"
+RFC3339_MILLISECONDS_UTC = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"
+)
+
+
+def validate_rfc3339_milliseconds_utc(value: str) -> str:
+    """Validate the v1 timestamp shape and return it unchanged.
+
+    The action-ref-v1 preimage requires an RFC 3339 UTC string with exactly
+    millisecond precision, for example ``2026-06-18T10:40:00.123Z``.
+    """
+
+    if not isinstance(value, str) or not RFC3339_MILLISECONDS_UTC.fullmatch(value):
+        raise ValueError(
+            "timestamp must be RFC 3339 UTC with millisecond precision, "
+            "for example 2026-06-18T10:40:00.123Z"
+        )
+    try:
+        datetime.strptime(value, "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError as exc:
+        raise ValueError("timestamp contains an invalid calendar date or time") from exc
+    return value
+
+
+def format_rfc3339_milliseconds_utc(value: datetime) -> str:
+    """Normalize an aware datetime to the v1 UTC millisecond representation."""
+
+    if not isinstance(value, datetime):
+        raise TypeError("value must be a datetime")
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("datetime must be timezone-aware")
+    normalized = value.astimezone(timezone.utc).isoformat(timespec="milliseconds")
+    return normalized.replace("+00:00", "Z")
 
 
 @dataclass(frozen=True)
@@ -27,26 +62,23 @@ class ActionRefInput:
     agent_id: str
     action_type: str
     scope: str
-    timestamp_ms: int
+    timestamp: str
 
     def __post_init__(self) -> None:
         for field_name in ("agent_id", "action_type", "scope"):
             value = getattr(self, field_name)
             if not isinstance(value, str) or not value:
                 raise ValueError(f"{field_name} must be a non-empty string")
-        if isinstance(self.timestamp_ms, bool) or not isinstance(self.timestamp_ms, int):
-            raise TypeError("timestamp_ms must be an integer")
-        if self.timestamp_ms < 0:
-            raise ValueError("timestamp_ms must be non-negative")
+        validate_rfc3339_milliseconds_utc(self.timestamp)
 
-    def preimage(self) -> dict[str, str | int]:
+    def preimage(self) -> dict[str, str]:
         """Return the versioned four-field preimage."""
 
         return {
             "action_type": self.action_type,
             "agent_id": self.agent_id,
             "scope": self.scope,
-            "timestamp_ms": self.timestamp_ms,
+            "timestamp": self.timestamp,
         }
 
 
@@ -95,13 +127,12 @@ class ActionRefValidationResult:
         return not self.findings
 
 
-def canonical_action_ref_json(value: Mapping[str, str | int]) -> str:
+def canonical_action_ref_json(value: Mapping[str, str]) -> str:
     """Serialize the restricted action-ref-v1 preimage deterministically.
 
-    The v1 preimage contains only strings and one integer, so this compact,
-    sorted UTF-8 JSON representation avoids float and object-order ambiguity.
-    Consumers claiming full RFC 8785 compatibility should verify against a JCS
-    implementation and the draft's conformance vectors.
+    The v1 preimage contains four strings with ASCII field names. Compact,
+    sorted UTF-8 JSON therefore produces the same byte sequence as JCS/RFC 8785
+    for this restricted data shape.
     """
 
     return json.dumps(
@@ -114,7 +145,7 @@ def canonical_action_ref_json(value: Mapping[str, str | int]) -> str:
 
 
 def derive_action_ref(
-    *, agent_id: str, action_type: str, scope: str, timestamp_ms: int
+    *, agent_id: str, action_type: str, scope: str, timestamp: str
 ) -> str:
     """Derive a portable SHA-256 action reference from canonical metadata."""
 
@@ -122,7 +153,7 @@ def derive_action_ref(
         agent_id=agent_id,
         action_type=action_type,
         scope=scope,
-        timestamp_ms=timestamp_ms,
+        timestamp=timestamp,
     )
     canonical = canonical_action_ref_json(action_input.preimage())
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
