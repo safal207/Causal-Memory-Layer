@@ -86,5 +86,6 @@ The equilibrium evaluator does not:
 
 - Module: [`cml/experimental/equilibrium.py`](../../cml/experimental/equilibrium.py)
 - Tests: [`tests/test_equilibrium.py`](../../tests/test_equilibrium.py)
+- Example: [`examples/causal_equilibrium_point.py`](../../examples/causal_equilibrium_point.py)
 
 The API remains experimental and non-normative while the concept is evaluated against agent-memory and multi-session trace use cases.
