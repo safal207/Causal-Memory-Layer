@@ -62,6 +62,23 @@ No `FAIL` finding exists, but at least one `WARN` finding exists. This covers mi
 | `CML-EQ-03-CONSOLIDATION_IMBALANCE` | `FAIL` | Memory consolidation lost declared provenance references. |
 | `CML-EQ-04-INDETERMINATE_STATE` | `WARN` | The checkpoint lacks enough resolved material for a balanced state. |
 
+## Canonical findings order
+
+For portable conformance results, findings are emitted using this exact ascending key:
+
+```text
+(code, severity_rank, refs_lexicographic, message)
+```
+
+Severity ranks are explicit:
+
+```text
+FAIL = 0
+WARN = 1
+```
+
+References inside each finding are normalized lexicographically before sorting and output. The ordering rule is part of the experimental v1 contract rather than an implementation detail.
+
 ## Relationship to episodic memory
 
 Within one session, `parent_action_ref` records direct causal lineage. Across sessions, `recalled_memory_refs` records memory influence. The equilibrium checkpoint does not merge these concepts; it audits whether both layers remain explicit and resolvable.
