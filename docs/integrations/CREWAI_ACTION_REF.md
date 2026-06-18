@@ -13,8 +13,18 @@ This example connects CrewAI tool-completion events to deterministic action iden
 - [Listener sketch](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742109035)
 - [CML implementation follow-up](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742233073)
 - [Byte-level alignment feedback](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742345957)
+- [Digest confirmation and external conformance publication](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4743250506)
 
 These links preserve public design provenance. They do not imply an official CrewAI integration, endorsement, or roadmap commitment.
+
+## External conformance evidence
+
+An independent repository now publishes a CML-specific conformance vector:
+
+- [`argentum-core/examples/conformance/cml/vectors.json`](https://github.com/giskard09/argentum-core/blob/main/examples/conformance/cml/vectors.json)
+- [CML external validation note](../evidence/external_validation/2026-06-18-argentum-action-ref-conformance.md)
+
+The external vector identifies `safal207/Causal-Memory-Layer` as the implementer and confirms byte-identical derivation of the pinned baseline digest.
 
 ## Guarantee separation
 
