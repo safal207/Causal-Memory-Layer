@@ -8,57 +8,52 @@ This example connects CrewAI tool-completion events to deterministic action iden
 
 ## Public design discussion
 
-This experimental bridge grew out of an open technical discussion in the CrewAI repository:
-
-- [CrewAI Issue #6063 — Example proposal: optional causal audit for agent action traces](https://github.com/crewAIInc/crewAI/issues/6063)
+- [CrewAI Issue #6063](https://github.com/crewAIInc/crewAI/issues/6063)
 - [CML guarantee-separation proposal](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4741945546)
-- [`ToolUsageFinishedEvent` listener sketch from the discussion](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742109035)
-- [CML implementation follow-up with code and tests](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742233073)
+- [Listener sketch](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742109035)
+- [CML implementation follow-up](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742233073)
+- [Byte-level alignment feedback](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742345957)
 
-These links preserve the public design provenance and technical context. They do not imply an official CrewAI integration, endorsement, roadmap commitment, or inclusion in CrewAI core.
+These links preserve public design provenance. They do not imply an official CrewAI integration, endorsement, or roadmap commitment.
 
 ## Guarantee separation
 
-The integration keeps three guarantees separate:
-
 1. **Structural causality (CML):** parent references resolve and the graph is acyclic.
 2. **Identity stability (`action_ref`):** the same canonical metadata produces the same SHA-256 handle.
-3. **Authorship or tamper evidence (optional):** signatures, transparency logs, or other independently observed anchors.
-
-A reproducible hash is a portable identity. By itself, it does not prove that a backend did not rewrite both the event metadata and the hash after the fact.
+3. **Tamper evidence (optional):** signatures or independently observed anchors remain separate sidecars.
 
 ## Event mapping
-
-At the `ToolUsageFinishedEvent` boundary, the example derives:
 
 ```text
 action_ref = SHA-256(canonical JSON({
   action_type,
   agent_id,
   scope,
-  timestamp_ms
+  timestamp
 }))
 ```
 
-The emitted record contains:
+`timestamp` is RFC 3339 UTC with exactly millisecond precision, for example:
 
 ```text
-action_id
-action_ref
-action_ref_scheme
-parent_action_id
-parent_action_ref
-session_id
-task_id
-timestamp
-metadata
+2026-06-18T10:40:00.123Z
 ```
 
-`started_at` is converted to `timestamp_ms` so the identity is anchored to dispatch intent. `finished_at` is retained as metadata.
+The emitted record contains `action_ref`, `action_ref_scheme`, `parent_action_ref`, `session_id`, `task_id`, `timestamp`, and metadata.
 
-## Canonicalization scope
+## Baseline vector
 
-The dependency-free helper uses compact sorted UTF-8 JSON for the restricted v1 preimage: three strings and one integer. Before claiming full RFC 8785/JCS conformance in production, verify the implementation against the draft's external conformance vectors or use a dedicated JCS implementation.
+The restricted v1 preimage contains four strings with ASCII field names. Compact sorted UTF-8 JSON therefore produces the same byte sequence as JCS/RFC 8785 for this data shape.
+
+The pinned test vector uses:
+
+```text
+agent_id      = researcher-agent
+action_type   = tool_call
+scope         = search:task-42
+timestamp     = 2026-06-18T10:40:00.123Z
+expected hash = c6fb63e34b2d61446745d86dd90ececf4c321f15e5023f8ffb897e5b0a32a16b
+```
 
 ## Listener usage
 
@@ -69,16 +64,14 @@ records = []
 listener = ActionRefListener(sink=records.append)
 ```
 
-A real application can provide `parent_resolver` and `session_resolver` callbacks so the listener emits `parent_action_ref` and `session_id` from the surrounding crew context.
+A real application can provide `parent_resolver` and `session_resolver` callbacks.
 
 ## Deterministic checks
 
-The test suite fixes four properties:
-
-1. identical canonical metadata produces an identical `action_ref`;
-2. changed metadata produces a different `action_ref`;
-3. an unresolved `parent_action_ref` is reported as broken lineage;
-4. optional integrity sidecars do not alter the structural CML result.
+1. identical canonical metadata produces the pinned baseline reference;
+2. changed metadata produces a different reference;
+3. an unresolved parent is reported as broken lineage;
+4. integrity sidecars do not alter the structural result.
 
 ## Non-claims
 
