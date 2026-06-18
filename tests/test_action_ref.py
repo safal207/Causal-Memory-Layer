@@ -6,12 +6,16 @@ from cml.integrations.action_ref import (
 )
 
 
+BASELINE_TIMESTAMP = "2026-06-18T10:40:00.123Z"
+BASELINE_DIGEST = "c6fb63e34b2d61446745d86dd90ececf4c321f15e5023f8ffb897e5b0a32a16b"
+
+
 def _ref(*, scope: str = "search:task-42") -> str:
     return derive_action_ref(
         agent_id="researcher-agent",
         action_type="tool_call",
         scope=scope,
-        timestamp_ms=1781779200123,
+        timestamp=BASELINE_TIMESTAMP,
     )
 
 
@@ -20,7 +24,7 @@ def test_identical_canonical_metadata_produces_identical_action_ref() -> None:
     second = _ref()
 
     assert first == second
-    assert len(first) == 64
+    assert first == BASELINE_DIGEST
 
 
 def test_changed_metadata_produces_different_action_ref() -> None:
@@ -47,7 +51,7 @@ def test_integrity_sidecars_do_not_change_structural_result() -> None:
         agent_id="operator",
         action_type="crew_kickoff",
         scope="crew:demo",
-        timestamp_ms=1781779200000,
+        timestamp="2026-06-18T10:40:00.000Z",
     )
     child_ref = _ref()
 
