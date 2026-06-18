@@ -13,6 +13,7 @@ The fixtures are conformance tests, not performance benchmarks. They define the 
 - Contract: `cml-causal-equilibrium-conformance-v1`
 - Schema version: `cml-equilibrium-fixtures-v1`
 - Fixture file: [`v1/fixtures.json`](v1/fixtures.json)
+- Runner: [`run.py`](run.py)
 
 Each fixture contains:
 
@@ -67,10 +68,53 @@ The v1 set covers:
 
 The tests also reverse all set-like input lists and verify that the result does not change.
 
-## Run locally
+## Run the benchmark
+
+From the repository root:
 
 ```bash
-pytest -q tests/test_equilibrium_fixtures.py
+python benchmarks/equilibrium/run.py \
+  --fixtures benchmarks/equilibrium/v1/fixtures.json \
+  --json-out /tmp/equilibrium-report.json \
+  --markdown-out /tmp/equilibrium-report.md
+```
+
+The runner:
+
+- validates the fixture schema before evaluation;
+- sorts fixtures by `fixture_id`;
+- compares exact states and ordered findings;
+- writes deterministic JSON and Markdown reports;
+- records the tested Git commit;
+- prints the JSON report SHA-256 for external reproduction.
+
+Use `--implementation-commit VALUE` or the `CML_IMPLEMENTATION_COMMIT` environment variable to pin the commit identifier explicitly.
+
+Exit codes:
+
+| Code | Meaning |
+|---|---|
+| `0` | Every fixture matched exactly. |
+| `1` | At least one semantic result differed. Reports are still written. |
+| `2` | The fixture contract or CLI input was malformed. |
+
+A report contains aggregate counts plus, for every fixture:
+
+```text
+fixture_id
+expected_state
+actual_state
+expected_findings
+actual_findings
+passed
+```
+
+## Run tests
+
+```bash
+pytest -q \
+  tests/test_equilibrium_fixtures.py \
+  tests/test_equilibrium_benchmark_runner.py
 ```
 
 ## Rules for adding a fixture
