@@ -6,6 +6,17 @@ This example connects CrewAI tool-completion events to deterministic action iden
 - Listener: [`examples/crewai_action_ref_listener.py`](../../examples/crewai_action_ref_listener.py)
 - Contract tests: [`tests/test_action_ref.py`](../../tests/test_action_ref.py)
 
+## Public design discussion
+
+This experimental bridge grew out of an open technical discussion in the CrewAI repository:
+
+- [CrewAI Issue #6063 — Example proposal: optional causal audit for agent action traces](https://github.com/crewAIInc/crewAI/issues/6063)
+- [CML guarantee-separation proposal](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4741945546)
+- [`ToolUsageFinishedEvent` listener sketch from the discussion](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742109035)
+- [CML implementation follow-up with code and tests](https://github.com/crewAIInc/crewAI/issues/6063#issuecomment-4742233073)
+
+These links preserve the public design provenance and technical context. They do not imply an official CrewAI integration, endorsement, roadmap commitment, or inclusion in CrewAI core.
+
 ## Guarantee separation
 
 The integration keeps three guarantees separate:
