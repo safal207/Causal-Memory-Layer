@@ -2,7 +2,10 @@ import pytest
 
 from cml.experimental.equilibrium import (
     CausalEquilibriumSnapshot,
+    EquilibriumFinding,
+    EquilibriumSeverity,
     EquilibriumState,
+    _finding_sort_key,
     evaluate_causal_equilibrium,
 )
 
@@ -89,6 +92,44 @@ def test_empty_checkpoint_is_indeterminate() -> None:
     assert result.state is EquilibriumState.INDETERMINATE
     assert [finding.code for finding in result.findings] == [
         "CML-EQ-04-INDETERMINATE_STATE"
+    ]
+
+
+def test_multiple_same_code_findings_use_refs_lexicographic_order() -> None:
+    snapshot = CausalEquilibriumSnapshot(
+        action_ref="action-1",
+        supporting_refs=("z-support",),
+        unresolved_refs=("z-unresolved", "a-unresolved"),
+    )
+
+    result = evaluate_causal_equilibrium(snapshot, known_refs=set())
+
+    assert result.state is EquilibriumState.INDETERMINATE
+    assert [finding.refs for finding in result.findings] == [
+        ("a-unresolved", "z-unresolved"),
+        ("z-support",),
+    ]
+
+
+def test_canonical_sort_ranks_fail_before_warn_for_same_code() -> None:
+    findings = [
+        EquilibriumFinding(
+            code="CML-EQ-X",
+            severity=EquilibriumSeverity.WARN,
+            message="warn",
+        ),
+        EquilibriumFinding(
+            code="CML-EQ-X",
+            severity=EquilibriumSeverity.FAIL,
+            message="fail",
+        ),
+    ]
+
+    findings.sort(key=_finding_sort_key)
+
+    assert [finding.severity for finding in findings] == [
+        EquilibriumSeverity.FAIL,
+        EquilibriumSeverity.WARN,
     ]
 
 
