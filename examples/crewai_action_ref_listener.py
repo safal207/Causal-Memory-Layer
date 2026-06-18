@@ -1,25 +1,21 @@
-"""Optional CrewAI listener that emits CML-compatible action_ref records.
-
-This example keeps CrewAI as an optional dependency. It derives a deterministic
-identity at the ``ToolUsageFinishedEvent`` boundary, then hands a plain record
-to a caller-provided sink. It does not sign, anchor, persist, block, or enforce
-agent actions.
-
-Install CrewAI separately before running this listener in a CrewAI application.
-"""
+"""Optional CrewAI listener that emits CML-compatible action_ref records."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
 
-from cml.integrations.action_ref import ACTION_REF_SCHEME, derive_action_ref
+from cml.integrations.action_ref import (
+    ACTION_REF_SCHEME,
+    derive_action_ref,
+    format_rfc3339_milliseconds_utc,
+)
 
 try:
     from crewai.events.base_event_listener import BaseEventListener
     from crewai.events.event_bus import CrewAIEventsBus
     from crewai.events.types.tool_usage_events import ToolUsageFinishedEvent
-except ImportError:  # pragma: no cover - exercised only without optional CrewAI
+except ImportError:  # pragma: no cover
     BaseEventListener = object  # type: ignore[assignment,misc]
     CrewAIEventsBus = Any  # type: ignore[assignment,misc]
     ToolUsageFinishedEvent = Any  # type: ignore[assignment,misc]
@@ -40,11 +36,11 @@ def _event_agent_id(event: Any) -> str:
     )
 
 
-def _event_timestamp_ms(event: Any) -> int:
+def _event_timestamp(event: Any) -> str:
     started_at = getattr(event, "started_at", None)
-    if started_at is None or not hasattr(started_at, "timestamp"):
+    if started_at is None:
         raise ValueError("ToolUsageFinishedEvent.started_at is required")
-    return int(started_at.timestamp() * 1000)
+    return format_rfc3339_milliseconds_utc(started_at)
 
 
 def build_action_ref_record(
@@ -58,15 +54,13 @@ def build_action_ref_record(
     tool_name = str(getattr(event, "tool_name", None) or "unknown_tool")
     task_id = getattr(event, "task_id", None)
     scope = str(task_id or "default")
-    timestamp_ms = _event_timestamp_ms(event)
+    timestamp = _event_timestamp(event)
     action_ref = derive_action_ref(
         agent_id=_event_agent_id(event),
         action_type=tool_name,
         scope=scope,
-        timestamp_ms=timestamp_ms,
+        timestamp=timestamp,
     )
-
-    started_at = event.started_at
     finished_at = getattr(event, "finished_at", None)
     return {
         "action_id": action_ref,
@@ -76,7 +70,7 @@ def build_action_ref_record(
         "parent_action_ref": parent_action_ref,
         "session_id": session_id,
         "task_id": task_id,
-        "timestamp": started_at.isoformat(),
+        "timestamp": timestamp,
         "metadata": {
             "agent_id": _event_agent_id(event),
             "tool_name": tool_name,
@@ -89,8 +83,6 @@ def build_action_ref_record(
 if CREWAI_AVAILABLE:
 
     class ActionRefListener(BaseEventListener):
-        """Derive ``action_ref`` when CrewAI reports a finished tool call."""
-
         def __init__(
             self,
             sink: RecordSink = print,
@@ -124,11 +116,8 @@ if CREWAI_AVAILABLE:
 
 else:
 
-    class ActionRefListener:  # pragma: no cover - optional dependency guard
-        """Import guard with an actionable error when CrewAI is unavailable."""
-
+    class ActionRefListener:  # pragma: no cover
         def __init__(self, *_: Any, **__: Any) -> None:
             raise RuntimeError(
-                "CrewAI is not installed. Install CrewAI to use ActionRefListener; "
-                "the cml.integrations.action_ref helpers remain dependency-free."
+                "CrewAI is not installed. Install CrewAI to use ActionRefListener."
             )
