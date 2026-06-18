@@ -1,0 +1,392 @@
+{
+  "contract_id": "cml-causal-equilibrium-conformance-v1",
+  "schema_version": "cml-equilibrium-fixtures-v1",
+  "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+  "fixtures": [
+    {
+      "fixture_id": "eq_v1_001_balanced_full_context",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "All declared material, memory influence, and consolidation provenance resolve.",
+      "snapshot": {
+        "action_ref": "eq-v1-001-balanced-full-context",
+        "supporting_refs": [
+          "support-a"
+        ],
+        "counter_refs": [
+          "counter-a"
+        ],
+        "recalled_memory_refs": [
+          "memory-a"
+        ],
+        "unresolved_refs": [],
+        "consolidation_source_refs": [
+          "support-a",
+          "counter-a"
+        ],
+        "consolidation_preserved_refs": [
+          "counter-a",
+          "support-a"
+        ],
+        "require_counterevidence": true,
+        "metadata": {}
+      },
+      "known_refs": [
+        "counter-a",
+        "memory-a",
+        "support-a"
+      ],
+      "expected_state": "BALANCED",
+      "expected_findings": []
+    },
+    {
+      "fixture_id": "eq_v1_002_missing_required_counterevidence",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "Required counterevidence was not recorded.",
+      "snapshot": {
+        "action_ref": "eq-v1-002-missing-required-counterevidence",
+        "supporting_refs": [
+          "support-a"
+        ],
+        "counter_refs": [],
+        "recalled_memory_refs": [],
+        "unresolved_refs": [],
+        "consolidation_source_refs": [],
+        "consolidation_preserved_refs": [],
+        "require_counterevidence": true,
+        "metadata": {}
+      },
+      "known_refs": [
+        "support-a"
+      ],
+      "expected_state": "INDETERMINATE",
+      "expected_findings": [
+        {
+          "code": "CML-EQ-01-MISSING_COUNTEREVIDENCE",
+          "severity": "WARN",
+          "message": "The checkpoint requires counterevidence, but no counter_refs were recorded.",
+          "refs": []
+        }
+      ]
+    },
+    {
+      "fixture_id": "eq_v1_003_unresolved_recalled_memory",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "A declared recalled memory influence cannot be resolved.",
+      "snapshot": {
+        "action_ref": "eq-v1-003-unresolved-recalled-memory",
+        "supporting_refs": [
+          "support-a"
+        ],
+        "counter_refs": [],
+        "recalled_memory_refs": [
+          "memory-missing"
+        ],
+        "unresolved_refs": [],
+        "consolidation_source_refs": [],
+        "consolidation_preserved_refs": [],
+        "require_counterevidence": false,
+        "metadata": {}
+      },
+      "known_refs": [
+        "support-a"
+      ],
+      "expected_state": "UNSTABLE",
+      "expected_findings": [
+        {
+          "code": "CML-EQ-02-UNRESOLVED_MEMORY_INFLUENCE",
+          "severity": "FAIL",
+          "message": "One or more recalled memories influencing the action cannot be resolved.",
+          "refs": [
+            "memory-missing"
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": "eq_v1_004_unresolved_supporting_reference",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "A supporting material reference cannot be resolved.",
+      "snapshot": {
+        "action_ref": "eq-v1-004-unresolved-supporting-reference",
+        "supporting_refs": [
+          "support-missing"
+        ],
+        "counter_refs": [
+          "counter-a"
+        ],
+        "recalled_memory_refs": [],
+        "unresolved_refs": [],
+        "consolidation_source_refs": [],
+        "consolidation_preserved_refs": [],
+        "require_counterevidence": false,
+        "metadata": {}
+      },
+      "known_refs": [
+        "counter-a"
+      ],
+      "expected_state": "INDETERMINATE",
+      "expected_findings": [
+        {
+          "code": "CML-EQ-04-INDETERMINATE_STATE",
+          "severity": "WARN",
+          "message": "One or more material supporting or counter references cannot be resolved.",
+          "refs": [
+            "support-missing"
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": "eq_v1_005_unresolved_counter_reference",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "A counterevidence reference cannot be resolved.",
+      "snapshot": {
+        "action_ref": "eq-v1-005-unresolved-counter-reference",
+        "supporting_refs": [
+          "support-a"
+        ],
+        "counter_refs": [
+          "counter-missing"
+        ],
+        "recalled_memory_refs": [],
+        "unresolved_refs": [],
+        "consolidation_source_refs": [],
+        "consolidation_preserved_refs": [],
+        "require_counterevidence": false,
+        "metadata": {}
+      },
+      "known_refs": [
+        "support-a"
+      ],
+      "expected_state": "INDETERMINATE",
+      "expected_findings": [
+        {
+          "code": "CML-EQ-04-INDETERMINATE_STATE",
+          "severity": "WARN",
+          "message": "One or more material supporting or counter references cannot be resolved.",
+          "refs": [
+            "counter-missing"
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": "eq_v1_006_consolidation_provenance_preserved",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "Consolidation preserves every declared source reference.",
+      "snapshot": {
+        "action_ref": "eq-v1-006-consolidation-provenance-preserved",
+        "supporting_refs": [
+          "support-b",
+          "support-a"
+        ],
+        "counter_refs": [
+          "counter-a"
+        ],
+        "recalled_memory_refs": [],
+        "unresolved_refs": [],
+        "consolidation_source_refs": [
+          "support-b",
+          "counter-a",
+          "support-a"
+        ],
+        "consolidation_preserved_refs": [
+          "support-a",
+          "support-b",
+          "counter-a"
+        ],
+        "require_counterevidence": false,
+        "metadata": {}
+      },
+      "known_refs": [
+        "counter-a",
+        "support-a",
+        "support-b"
+      ],
+      "expected_state": "BALANCED",
+      "expected_findings": []
+    },
+    {
+      "fixture_id": "eq_v1_007_consolidation_provenance_lost",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "Consolidation omits one declared provenance reference.",
+      "snapshot": {
+        "action_ref": "eq-v1-007-consolidation-provenance-lost",
+        "supporting_refs": [
+          "support-a"
+        ],
+        "counter_refs": [
+          "counter-a"
+        ],
+        "recalled_memory_refs": [],
+        "unresolved_refs": [],
+        "consolidation_source_refs": [
+          "support-a",
+          "counter-a"
+        ],
+        "consolidation_preserved_refs": [
+          "support-a"
+        ],
+        "require_counterevidence": false,
+        "metadata": {}
+      },
+      "known_refs": [
+        "counter-a",
+        "support-a"
+      ],
+      "expected_state": "UNSTABLE",
+      "expected_findings": [
+        {
+          "code": "CML-EQ-03-CONSOLIDATION_IMBALANCE",
+          "severity": "FAIL",
+          "message": "Memory consolidation did not preserve all declared provenance references.",
+          "refs": [
+            "counter-a"
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": "eq_v1_008_explicit_unresolved_references",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "The producer explicitly records unresolved causal references.",
+      "snapshot": {
+        "action_ref": "eq-v1-008-explicit-unresolved-references",
+        "supporting_refs": [
+          "support-a"
+        ],
+        "counter_refs": [],
+        "recalled_memory_refs": [],
+        "unresolved_refs": [
+          "unknown-z",
+          "unknown-a"
+        ],
+        "consolidation_source_refs": [],
+        "consolidation_preserved_refs": [],
+        "require_counterevidence": false,
+        "metadata": {}
+      },
+      "known_refs": [
+        "support-a"
+      ],
+      "expected_state": "INDETERMINATE",
+      "expected_findings": [
+        {
+          "code": "CML-EQ-04-INDETERMINATE_STATE",
+          "severity": "WARN",
+          "message": "The producer recorded unresolved causal references.",
+          "refs": [
+            "unknown-a",
+            "unknown-z"
+          ]
+        }
+      ]
+    },
+    {
+      "fixture_id": "eq_v1_009_empty_checkpoint",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "The checkpoint records no material or recalled-memory references.",
+      "snapshot": {
+        "action_ref": "eq-v1-009-empty-checkpoint",
+        "supporting_refs": [],
+        "counter_refs": [],
+        "recalled_memory_refs": [],
+        "unresolved_refs": [],
+        "consolidation_source_refs": [],
+        "consolidation_preserved_refs": [],
+        "require_counterevidence": false,
+        "metadata": {}
+      },
+      "known_refs": [],
+      "expected_state": "INDETERMINATE",
+      "expected_findings": [
+        {
+          "code": "CML-EQ-04-INDETERMINATE_STATE",
+          "severity": "WARN",
+          "message": "The checkpoint contains no supporting, counter, or recalled-memory references.",
+          "refs": []
+        }
+      ]
+    },
+    {
+      "fixture_id": "eq_v1_010_multiple_findings_canonical_order",
+      "schema_version": "cml-equilibrium-fixtures-v1",
+      "findings_order": "code_asc,severity_fail_before_warn,refs_lexicographic_asc,message_asc",
+      "description": "Multiple simultaneous findings exercise code, refs, and message ordering.",
+      "snapshot": {
+        "action_ref": "eq-v1-010-multiple-findings-canonical-order",
+        "supporting_refs": [
+          "support-missing-z"
+        ],
+        "counter_refs": [
+          "counter-known"
+        ],
+        "recalled_memory_refs": [
+          "memory-missing-b",
+          "memory-missing-a"
+        ],
+        "unresolved_refs": [
+          "explicit-z",
+          "explicit-a"
+        ],
+        "consolidation_source_refs": [
+          "source-missing-b",
+          "source-missing-a"
+        ],
+        "consolidation_preserved_refs": [],
+        "require_counterevidence": false,
+        "metadata": {}
+      },
+      "known_refs": [
+        "counter-known"
+      ],
+      "expected_state": "UNSTABLE",
+      "expected_findings": [
+        {
+          "code": "CML-EQ-02-UNRESOLVED_MEMORY_INFLUENCE",
+          "severity": "FAIL",
+          "message": "One or more recalled memories influencing the action cannot be resolved.",
+          "refs": [
+            "memory-missing-a",
+            "memory-missing-b"
+          ]
+        },
+        {
+          "code": "CML-EQ-03-CONSOLIDATION_IMBALANCE",
+          "severity": "FAIL",
+          "message": "Memory consolidation did not preserve all declared provenance references.",
+          "refs": [
+            "source-missing-a",
+            "source-missing-b"
+          ]
+        },
+        {
+          "code": "CML-EQ-04-INDETERMINATE_STATE",
+          "severity": "WARN",
+          "message": "The producer recorded unresolved causal references.",
+          "refs": [
+            "explicit-a",
+            "explicit-z"
+          ]
+        },
+        {
+          "code": "CML-EQ-04-INDETERMINATE_STATE",
+          "severity": "WARN",
+          "message": "One or more material supporting or counter references cannot be resolved.",
+          "refs": [
+            "support-missing-z"
+          ]
+        }
+      ]
+    }
+  ]
+}

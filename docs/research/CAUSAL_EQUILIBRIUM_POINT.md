@@ -79,6 +79,18 @@ WARN = 1
 
 References inside each finding are normalized lexicographically before sorting and output. The ordering rule is part of the experimental v1 contract rather than an implementation detail.
 
+## Versioned conformance fixtures
+
+The v1 fixture set turns the experimental semantics into a portable contract:
+
+- [`benchmarks/equilibrium/v1/fixtures.json`](../../benchmarks/equilibrium/v1/fixtures.json)
+- [`benchmarks/equilibrium/README.md`](../../benchmarks/equilibrium/README.md)
+- [`tests/test_equilibrium_fixtures.py`](../../tests/test_equilibrium_fixtures.py)
+
+The set covers all three states, every current finding path, consolidation provenance, recalled-memory influence, an empty checkpoint, and multiple simultaneous findings. Tests also reverse the set-like input collections to verify that output does not depend on input order.
+
+A matching implementation demonstrates reproduction of this published experimental contract. It does not establish decision correctness.
+
 ## Relationship to episodic memory
 
 Within one session, `parent_action_ref` records direct causal lineage. Across sessions, `recalled_memory_refs` records memory influence. The equilibrium checkpoint does not merge these concepts; it audits whether both layers remain explicit and resolvable.
@@ -102,7 +114,8 @@ The equilibrium evaluator does not:
 ## Implementation
 
 - Module: [`cml/experimental/equilibrium.py`](../../cml/experimental/equilibrium.py)
-- Tests: [`tests/test_equilibrium.py`](../../tests/test_equilibrium.py)
+- Unit tests: [`tests/test_equilibrium.py`](../../tests/test_equilibrium.py)
+- Conformance tests: [`tests/test_equilibrium_fixtures.py`](../../tests/test_equilibrium_fixtures.py)
 - Example: [`examples/causal_equilibrium_point.py`](../../examples/causal_equilibrium_point.py)
 
 The API remains experimental and non-normative while the concept is evaluated against agent-memory and multi-session trace use cases.
