@@ -4,33 +4,327 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
   schedule:
     - cron: "0 4 * * 1"
+  workflow_dispatch:
 
-permissions:
-  contents: read
-  security-events: write
+permissions: {}
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
 
 jobs:
-  secret-scan:
+  dependency-sast:
+    name: Dependency and source audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          # gitleaks-action scans a commit range on pull_request events.
-          # A shallow checkout can miss the base/head SHAs and cause
-          # "unknown revision" failures.
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v3
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/security/exact-head.json
+
+      - name: Install security scanners
+        run: |
+          python -m pip install --upgrade "pip==26.1.2"
+          python -m pip install "pip-audit==2.10.1" "bandit==1.9.4"
+
+      - name: Run dependency and source scans
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          XDG_CACHE_HOME: ${{ runner.temp }}/cml-security-cache
+        run: |
+          set +e
+          python -m pip_audit . \
+            --strict \
+            --progress-spinner off \
+            --format json \
+            --output artifacts/security/pip-audit.json
+          audit_status=$?
+          python -m bandit \
+            -r cml cli api \
+            -ll -ii \
+            -f json \
+            -o artifacts/security/bandit.json
+          bandit_status=$?
+          set -e
+
+          AUDIT_STATUS="$audit_status" BANDIT_STATUS="$bandit_status" python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          statuses = {
+              "pip_audit": int(os.environ["AUDIT_STATUS"]),
+              "bandit": int(os.environ["BANDIT_STATUS"]),
+          }
+          Path("artifacts/security/scanner-results.json").write_text(
+              json.dumps({
+                  "schema_version": "cml-security-scan-results-v1",
+                  "tested_sha": os.environ["EXPECTED_SHA"],
+                  "exit_codes": statuses,
+                  "passed": all(status == 0 for status in statuses.values()),
+              }, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          test "$audit_status" -eq 0
+          test "$bandit_status" -eq 0
+
+      - name: Upload dependency and source evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-security-lane-dependency-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/security/
+          if-no-files-found: error
+          retention-days: 30
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout exact head with history
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/secret-scan/exact-head.json
+
+      - name: Scan repository for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Record secret-scan success
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          Path("artifacts/secret-scan/gitleaks.json").write_text(
+              json.dumps({
+                  "schema_version": "cml-gitleaks-result-v1",
+                  "tested_sha": os.environ["EXPECTED_SHA"],
+                  "passed": True,
+              }, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload secret-scan evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-security-lane-secret-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/secret-scan/
+          if-no-files-found: error
+          retention-days: 30
 
   codeql:
+    name: CodeQL
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+
     steps:
-      - uses: actions/checkout@v6
-      - uses: github/codeql-action/init@v4
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/codeql/exact-head.json
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4
         with:
           languages: python
-      - uses: github/codeql-action/autobuild@v4
-      - uses: github/codeql-action/analyze@v4
+
+      - name: Analyze with CodeQL
+        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4
+
+      - name: Record CodeQL success
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          Path("artifacts/codeql/codeql.json").write_text(
+              json.dumps({
+                  "schema_version": "cml-codeql-result-v1",
+                  "tested_sha": os.environ["EXPECTED_SHA"],
+                  "passed": True,
+              }, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload CodeQL evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-security-lane-codeql-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/codeql/
+          if-no-files-found: error
+          retention-days: 30
+
+  security-gate:
+    name: Security Gate
+    if: always()
+    needs: [dependency-sast, secret-scan, codeql]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/final/exact-head.json
+
+      - name: Record security lane results
+        env:
+          DEPENDENCY_RESULT: ${{ needs.dependency-sast.result }}
+          SECRET_RESULT: ${{ needs.secret-scan.result }}
+          CODEQL_RESULT: ${{ needs.codeql.result }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          lanes = {
+              "dependency_sast": os.environ["DEPENDENCY_RESULT"],
+              "secret_scan": os.environ["SECRET_RESULT"],
+              "codeql": os.environ["CODEQL_RESULT"],
+          }
+          Path("artifacts/final/security-gate-results.json").write_text(
+              json.dumps({
+                  "schema_version": "cml-security-gate-results-v1",
+                  "tested_sha": os.environ["EXPECTED_SHA"],
+                  "lanes": lanes,
+              }, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Require every security lane to succeed
+        env:
+          DEPENDENCY_RESULT: ${{ needs.dependency-sast.result }}
+          SECRET_RESULT: ${{ needs.secret-scan.result }}
+          CODEQL_RESULT: ${{ needs.codeql.result }}
+        run: |
+          test "$DEPENDENCY_RESULT" = "success"
+          test "$SECRET_RESULT" = "success"
+          test "$CODEQL_RESULT" = "success"
+
+      - name: Download exact-run security evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: cml-security-lane-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/collected
+          merge-multiple: false
+
+      - name: Build security evidence manifest
+        run: |
+          python -m scripts.ci.build_evidence_manifest \
+            --artifacts-root artifacts \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-repository "$SOURCE_REPOSITORY" \
+            --tested-sha "$EXPECTED_SHA" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --change-number "${{ github.event.pull_request.number || 0 }}" \
+            --workflow-ref "$GITHUB_WORKFLOW_REF" \
+            --require "final/exact-head.json" \
+            --require "final/security-gate-results.json" \
+            --require "collected/cml-security-lane-dependency-${{ github.run_id }}-${{ github.run_attempt }}/scanner-results.json" \
+            --require "collected/cml-security-lane-secret-${{ github.run_id }}-${{ github.run_attempt }}/gitleaks.json" \
+            --require "collected/cml-security-lane-codeql-${{ github.run_id }}-${{ github.run_attempt }}/codeql.json" \
+            --output artifacts/final/security-evidence-manifest.json
+
+      - name: Upload final security evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-security-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/final/
+          if-no-files-found: error
+          retention-days: 30
