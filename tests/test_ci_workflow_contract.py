@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.ci.verify_workflow_contract import verify_workflow, verify_workflows
+from scripts.ci.verify_workflow_contract import PINNED_ACTION, verify_workflow, verify_workflows
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = [
@@ -15,6 +15,14 @@ WORKFLOWS = [
 def test_required_workflows_satisfy_trust_contract():
     report = verify_workflows(WORKFLOWS)
     assert report["passed"] is True, report["violations"]
+
+
+def test_action_pin_pattern_is_segment_bounded():
+    sha = "a" * 40
+    assert PINNED_ACTION.fullmatch(f"actions/checkout@{sha}")
+    assert PINNED_ACTION.fullmatch(f"github/codeql-action/init@{sha}")
+    assert not PINNED_ACTION.fullmatch(f"github/codeql-action//init@{sha}")
+    assert not PINNED_ACTION.fullmatch("actions/checkout@v6")
 
 
 def _mutate(tmp_path: Path, source: Path, old: str, new: str) -> Path:

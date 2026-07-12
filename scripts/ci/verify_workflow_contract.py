@@ -12,7 +12,7 @@ import yaml
 
 from scripts.ci.assert_exact_head import write_json_atomic
 
-PINNED_ACTION = re.compile(r"^[^/@\s]+/[^@\s]+(?:/[^@\s]+)*@[0-9a-f]{40}$")
+PINNED_ACTION = re.compile(r"^[^/@\s]+/[^/@\s]+(?:/[^/@\s]+)*@[0-9a-f]{40}$")
 EXPECTED_SHA_EXPRESSION = "${{ github.event.pull_request.head.sha || github.sha }}"
 SOURCE_REPOSITORY_EXPRESSION = (
     "${{ github.event.pull_request.head.repo.full_name || github.repository }}"
