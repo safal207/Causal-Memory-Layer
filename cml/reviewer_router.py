@@ -881,12 +881,15 @@ class ReviewerPersonaRouter:
             if decision.fallback_reason
             else "NONE"
         )
-        if decision.fallback_hops == 1:
-            kind = "proxy"
-        elif decision.evidence_level == EvidenceLevel.DEGRADED:
+        if decision.evidence_level == EvidenceLevel.NATIVE:
+            kind = "native"
+        elif (
+            decision.evidence_level == EvidenceLevel.DEGRADED
+            and decision.fallback_hops == 0
+        ):
             kind = "degraded"
         else:
-            kind = "native"
+            kind = "proxy"
         return (
             "CML REVIEW EXECUTION CONTRACT\n"
             f"Exact head: {decision.head_sha}\n"
