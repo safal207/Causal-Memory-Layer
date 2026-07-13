@@ -115,7 +115,7 @@ def test_render_rejects_decision_without_request_provenance():
         router.render_execution_prompt(decision)
 
 
-def test_render_rejects_tampered_considered_evidence():
+def test_tampered_derived_evidence_is_replaced_by_canonical_route():
     router = ReviewerPersonaRouter(
         profiles=[profile()],
         providers=[
@@ -139,19 +139,90 @@ def test_render_rejects_tampered_considered_evidence():
         )
     )
     tampered_qodo = replace(valid.considered[1], score=0.10)
-    forged = replace(valid, considered=[valid.considered[0], tampered_qodo])
+    tampered = replace(
+        valid,
+        score=0.10,
+        considered=[valid.considered[0], tampered_qodo],
+    )
 
-    with pytest.raises(ReviewerRoutingError, match="recomputed"):
-        router.render_execution_prompt(forged)
+    canonical = router.validate_decision(tampered)
+    assert canonical == valid
+    assert router.render_execution_prompt(tampered) == router.render_execution_prompt(
+        valid
+    )
 
 
-def test_degraded_author_conflict_preserves_explicit_cause():
+def test_rounded_serialized_derived_evidence_can_be_rehydrated():
     router = ReviewerPersonaRouter(
         profiles=[profile()],
         providers=[
             ReviewerProvider(
                 provider_id="coderabbit",
-                status=ProviderStatus.DEGRADED,
+                status=ProviderStatus.RATE_LIMITED,
+                native_profiles=frozenset({"coderabbit-style"}),
+            ),
+            ReviewerProvider(
+                provider_id="qodo",
+                status=ProviderStatus.AVAILABLE,
+                compatibility={"coderabbit-style": 0.913579},
+                historical_quality=0.876543,
+                remaining_budget=0.765432,
+            ),
+        ],
+    )
+    valid = router.route(
+        ReviewRequest(
+            requested_reviewer="coderabbit",
+            profile_id="coderabbit-style",
+            head_sha=SHA,
+        )
+    )
+    payload = valid.to_dict()
+    reconstructed = RouteDecision(
+        requested_reviewer=payload["requested_reviewer"],
+        executed_by=payload["executed_by"],
+        profile_id=payload["profile"]["profile_id"],
+        profile_version=payload["profile"]["version"],
+        head_sha=payload["head_sha"],
+        native_review=payload["native_review"],
+        evidence_level=payload["evidence_level"],
+        fallback_reason=payload["fallback_reason"],
+        fallback_hops=payload["fallback_hops"],
+        score=payload["score"],
+        considered=[
+            CandidateAssessment(
+                provider_id=item["provider_id"],
+                status=item["status"],
+                compatibility=item["compatibility"],
+                evidence_level=item["evidence_level"],
+                score=item["score"],
+                eligible=item["eligible"],
+                rejection_reason=item["rejection_reason"],
+            )
+            for item in payload["considered"]
+        ],
+        request=valid.request,
+    )
+
+    assert reconstructed.score != valid.score
+    assert router.validate_decision(reconstructed) == valid
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        ProviderStatus.DEGRADED,
+        ProviderStatus.RATE_LIMITED,
+        ProviderStatus.UNAVAILABLE,
+    ],
+)
+def test_author_conflict_precedes_generic_provider_status(status: ProviderStatus):
+    router = ReviewerPersonaRouter(
+        profiles=[profile()],
+        providers=[
+            ReviewerProvider(
+                provider_id="coderabbit",
+                status=status,
                 compatibility={"coderabbit-style": 0.90},
             ),
             ReviewerProvider(
@@ -173,6 +244,33 @@ def test_degraded_author_conflict_preserves_explicit_cause():
 
     assert decision.executed_by == "qodo"
     assert decision.fallback_reason == FallbackReason.AUTHOR_CONFLICT
+
+
+def test_profile_incompatibility_precedes_generic_provider_status():
+    router = ReviewerPersonaRouter(
+        profiles=[profile()],
+        providers=[
+            ReviewerProvider(
+                provider_id="coderabbit",
+                status=ProviderStatus.RATE_LIMITED,
+                compatibility={"coderabbit-style": 0.50},
+            ),
+            ReviewerProvider(
+                provider_id="qodo",
+                status=ProviderStatus.AVAILABLE,
+                compatibility={"coderabbit-style": 0.90},
+            ),
+        ],
+    )
+    decision = router.route(
+        ReviewRequest(
+            requested_reviewer="coderabbit",
+            profile_id="coderabbit-style",
+            head_sha=SHA,
+        )
+    )
+
+    assert decision.fallback_reason == FallbackReason.PROFILE_INCOMPATIBLE
 
 
 def test_candidate_and_route_numeric_fields_fail_closed():
