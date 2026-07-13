@@ -722,10 +722,10 @@ class ReviewerPersonaRouter:
             rejection = FallbackReason.AUTHOR_CONFLICT.value
         elif compatibility < profile.minimum_compatibility:
             rejection = FallbackReason.PROFILE_INCOMPATIBLE.value
-        elif provider.status not in {
-            ProviderStatus.AVAILABLE,
-            ProviderStatus.DEGRADED,
-        }:
+        elif provider.status == ProviderStatus.DEGRADED:
+            if request.minimum_evidence != EvidenceLevel.DEGRADED:
+                rejection = FallbackReason.DEGRADED.value
+        elif provider.status != ProviderStatus.AVAILABLE:
             rejection = provider.status.value
         elif _RANK[level] < _RANK[request.minimum_evidence]:
             rejection = (
