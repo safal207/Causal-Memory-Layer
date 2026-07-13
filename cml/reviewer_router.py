@@ -715,18 +715,18 @@ class ReviewerPersonaRouter:
         compatibility = provider.compatibility_for(profile.profile_id)
         level = self._level(provider, profile, request, compatibility)
         rejection: str | None = None
-        if provider.status not in {
-            ProviderStatus.AVAILABLE,
-            ProviderStatus.DEGRADED,
-        }:
-            rejection = provider.status.value
-        elif (
+        if (
             request.require_independent
             and provider.provider_id == request.author_engine
         ):
             rejection = FallbackReason.AUTHOR_CONFLICT.value
         elif compatibility < profile.minimum_compatibility:
             rejection = FallbackReason.PROFILE_INCOMPATIBLE.value
+        elif provider.status not in {
+            ProviderStatus.AVAILABLE,
+            ProviderStatus.DEGRADED,
+        }:
+            rejection = provider.status.value
         elif _RANK[level] < _RANK[request.minimum_evidence]:
             rejection = (
                 f"{_EVIDENCE_REJECTION}{level.value}"
@@ -831,7 +831,8 @@ class ReviewerPersonaRouter:
         )
 
     @staticmethod
-    def _decision_signature(decision: RouteDecision) -> tuple[Any, ...]:
+    def _decision_claim_signature(decision: RouteDecision) -> tuple[Any, ...]:
+        """Return externally asserted claims; scores and assessments are derived."""
         return (
             decision.requested_reviewer,
             decision.executed_by,
@@ -842,8 +843,6 @@ class ReviewerPersonaRouter:
             decision.evidence_level,
             decision.fallback_reason,
             decision.fallback_hops,
-            decision.score,
-            decision.considered,
         )
 
     def validate_decision(self, decision: RouteDecision) -> RouteDecision:
@@ -861,11 +860,11 @@ class ReviewerPersonaRouter:
                 "decision fields do not match request provenance"
             )
         expected = self.route(request)
-        if self._decision_signature(decision) != self._decision_signature(
-            expected
-        ):
+        if self._decision_claim_signature(
+            decision
+        ) != self._decision_claim_signature(expected):
             raise ReviewerRoutingError(
-                "decision does not match the route recomputed from "
+                "decision claims do not match the route recomputed from "
                 "router configuration"
             )
         return expected
