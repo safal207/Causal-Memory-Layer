@@ -246,13 +246,19 @@ def test_author_conflict_precedes_generic_provider_status(status: ProviderStatus
     assert decision.fallback_reason == FallbackReason.AUTHOR_CONFLICT
 
 
-def test_profile_incompatibility_precedes_generic_provider_status():
+@pytest.mark.parametrize(
+    "status",
+    [ProviderStatus.DEGRADED, ProviderStatus.RATE_LIMITED],
+)
+def test_profile_incompatibility_precedes_generic_provider_status(
+    status: ProviderStatus,
+):
     router = ReviewerPersonaRouter(
         profiles=[profile()],
         providers=[
             ReviewerProvider(
                 provider_id="coderabbit",
-                status=ProviderStatus.RATE_LIMITED,
+                status=status,
                 compatibility={"coderabbit-style": 0.50},
             ),
             ReviewerProvider(
@@ -271,6 +277,60 @@ def test_profile_incompatibility_precedes_generic_provider_status():
     )
 
     assert decision.fallback_reason == FallbackReason.PROFILE_INCOMPATIBLE
+
+
+def test_degraded_status_precedes_evidence_threshold():
+    router = ReviewerPersonaRouter(
+        profiles=[profile()],
+        providers=[
+            ReviewerProvider(
+                provider_id="coderabbit",
+                status=ProviderStatus.DEGRADED,
+                compatibility={"coderabbit-style": 0.90},
+            ),
+            ReviewerProvider(
+                provider_id="qodo",
+                status=ProviderStatus.AVAILABLE,
+                compatibility={"coderabbit-style": 0.90},
+            ),
+        ],
+    )
+    decision = router.route(
+        ReviewRequest(
+            requested_reviewer="coderabbit",
+            profile_id="coderabbit-style",
+            head_sha=SHA,
+        )
+    )
+
+    assert decision.executed_by == "qodo"
+    assert decision.fallback_reason == FallbackReason.DEGRADED
+
+
+def test_degraded_provider_is_eligible_when_explicitly_allowed():
+    router = ReviewerPersonaRouter(
+        profiles=[profile()],
+        providers=[
+            ReviewerProvider(
+                provider_id="coderabbit",
+                status=ProviderStatus.DEGRADED,
+                compatibility={"coderabbit-style": 0.90},
+            )
+        ],
+    )
+    decision = router.route(
+        ReviewRequest(
+            requested_reviewer="coderabbit",
+            profile_id="coderabbit-style",
+            head_sha=SHA,
+            minimum_evidence=EvidenceLevel.DEGRADED,
+        )
+    )
+
+    assert decision.executed_by == "coderabbit"
+    assert decision.evidence_level == EvidenceLevel.DEGRADED
+    assert decision.fallback_reason is None
+    assert decision.fallback_hops == 0
 
 
 def test_candidate_and_route_numeric_fields_fail_closed():
