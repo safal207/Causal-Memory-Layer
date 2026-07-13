@@ -1,16 +1,19 @@
 """Fail-closed reviewer persona routing with explicit provider provenance."""
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from types import MappingProxyType
 from typing import Any
 
 import yaml
 
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _IDENT = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+_EVIDENCE_REJECTION = "EVIDENCE_BELOW_MINIMUM:"
 
 
 class ReviewerRoutingError(ValueError):
@@ -41,6 +44,7 @@ class FallbackReason(str, Enum):
     DEGRADED = "DEGRADED"
     AUTHOR_CONFLICT = "AUTHOR_CONFLICT"
     PROFILE_INCOMPATIBLE = "PROFILE_INCOMPATIBLE"
+    EVIDENCE_BELOW_MINIMUM = "EVIDENCE_BELOW_MINIMUM"
 
 
 _RANK = {
@@ -52,27 +56,29 @@ _RANK = {
 
 
 def _identifier(value: object, label: str) -> str:
-    result = str(value).strip().lower()
+    if not isinstance(value, str):
+        raise ReviewerRoutingError(f"{label} must be text")
+    result = value.strip().lower()
     if not _IDENT.fullmatch(result):
         raise ReviewerRoutingError(f"invalid {label}: {value!r}")
     return result
 
 
 def _probability(value: object, label: str) -> float:
-    # bool is a subclass of int; accepting it would let YAML yes/on become 1.0.
-    if isinstance(value, bool):
-        raise ReviewerRoutingError(f"{label} must be a number in [0, 1], not boolean")
-    try:
-        result = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ReviewerRoutingError(f"{label} must be a number in [0, 1]") from exc
-    if not 0 <= result <= 1:
-        raise ReviewerRoutingError(f"{label} must be in [0, 1]")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ReviewerRoutingError(
+            f"{label} must be a number in [0, 1], not {type(value).__name__}"
+        )
+    result = float(value)
+    if not math.isfinite(result) or not 0 <= result <= 1:
+        raise ReviewerRoutingError(f"{label} must be finite and in [0, 1]")
     return result
 
 
 def _sha(value: object) -> str:
-    result = str(value).strip().lower()
+    if not isinstance(value, str):
+        raise ReviewerRoutingError("head_sha must be text")
+    result = value.strip().lower()
     if not _SHA.fullmatch(result):
         raise ReviewerRoutingError(
             "head_sha must be a full 40-character hexadecimal commit SHA"
@@ -83,14 +89,18 @@ def _sha(value: object) -> str:
 def _enum(value: object, enum_type: type[Enum], label: str):
     if isinstance(value, enum_type):
         return value
+    if not isinstance(value, str):
+        raise ReviewerRoutingError(f"{label} must be text")
     try:
-        return enum_type(str(value).upper())
+        return enum_type(value.upper())
     except ValueError as exc:
         raise ReviewerRoutingError(f"unknown {label}: {value!r}") from exc
 
 
 def _printable_text(value: object, label: str) -> str:
-    result = str(value).strip()
+    if not isinstance(value, str):
+        raise ReviewerRoutingError(f"{label} must be text")
+    result = value.strip()
     if not result or any(ord(char) < 32 for char in result):
         raise ReviewerRoutingError(f"{label} must be printable text")
     return result
@@ -105,6 +115,34 @@ def _string_sequence(value: object, label: str) -> tuple[str, ...]:
     return result
 
 
+def _identifier_set(value: object, label: str) -> frozenset[str]:
+    if isinstance(value, (str, bytes)) or not isinstance(
+        value, (Sequence, set, frozenset)
+    ):
+        raise ReviewerRoutingError(f"{label} must be a list or set")
+    normalized: set[str] = set()
+    for raw in value:
+        item = _identifier(raw, label)
+        if item in normalized:
+            raise ReviewerRoutingError(f"duplicate normalized {label}: {item}")
+        normalized.add(item)
+    return frozenset(normalized)
+
+
+def _compatibility_mapping(value: object) -> Mapping[str, float]:
+    if not isinstance(value, Mapping):
+        raise ReviewerRoutingError("compatibility must be a mapping")
+    normalized: dict[str, float] = {}
+    for raw_profile, raw_score in value.items():
+        profile = _identifier(raw_profile, "compatibility profile")
+        if profile in normalized:
+            raise ReviewerRoutingError(
+                f"duplicate normalized compatibility profile: {profile}"
+            )
+        normalized[profile] = _probability(raw_score, "compatibility")
+    return MappingProxyType(dict(sorted(normalized.items())))
+
+
 @dataclass(frozen=True)
 class ReviewerProfile:
     profile_id: str
@@ -113,9 +151,15 @@ class ReviewerProfile:
     minimum_compatibility: float = 0.70
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "profile_id", _identifier(self.profile_id, "profile_id"))
-        object.__setattr__(self, "version", _printable_text(self.version, "profile version"))
-        object.__setattr__(self, "rubric", _string_sequence(self.rubric, "profile rubric"))
+        object.__setattr__(
+            self, "profile_id", _identifier(self.profile_id, "profile_id")
+        )
+        object.__setattr__(
+            self, "version", _printable_text(self.version, "profile version")
+        )
+        object.__setattr__(
+            self, "rubric", _string_sequence(self.rubric, "profile rubric")
+        )
         object.__setattr__(
             self,
             "minimum_compatibility",
@@ -133,22 +177,17 @@ class ReviewerProvider:
     remaining_budget: float = 1.0
 
     def __post_init__(self) -> None:
-        if not isinstance(self.compatibility, Mapping):
-            raise ReviewerRoutingError("compatibility must be a mapping")
-        if isinstance(self.native_profiles, (str, bytes)):
-            raise ReviewerRoutingError("native_profiles must be a list or set")
-
         provider_id = _identifier(self.provider_id, "provider_id")
-        native = frozenset(
-            _identifier(item, "native profile") for item in self.native_profiles
-        )
-        compatibility = {
-            _identifier(profile, "compatibility profile"): _probability(
-                score, "compatibility"
-            )
-            for profile, score in self.compatibility.items()
-        }
-        compatibility.update({profile: 1.0 for profile in native})
+        native = _identifier_set(self.native_profiles, "native profile")
+        compatibility = dict(_compatibility_mapping(self.compatibility))
+        for profile in native:
+            existing = compatibility.get(profile)
+            if existing is not None and existing != 1.0:
+                raise ReviewerRoutingError(
+                    f"native profile {profile} cannot declare compatibility "
+                    f"{existing}; expected 1.0"
+                )
+            compatibility[profile] = 1.0
 
         object.__setattr__(self, "provider_id", provider_id)
         object.__setattr__(
@@ -157,7 +196,11 @@ class ReviewerProvider:
             _enum(self.status, ProviderStatus, "provider status"),
         )
         object.__setattr__(self, "native_profiles", native)
-        object.__setattr__(self, "compatibility", dict(sorted(compatibility.items())))
+        object.__setattr__(
+            self,
+            "compatibility",
+            MappingProxyType(dict(sorted(compatibility.items()))),
+        )
         object.__setattr__(
             self,
             "historical_quality",
@@ -189,7 +232,9 @@ class ReviewRequest:
             "requested_reviewer",
             _identifier(self.requested_reviewer, "reviewer"),
         )
-        object.__setattr__(self, "profile_id", _identifier(self.profile_id, "profile_id"))
+        object.__setattr__(
+            self, "profile_id", _identifier(self.profile_id, "profile_id")
+        )
         object.__setattr__(self, "head_sha", _sha(self.head_sha))
         if self.author_engine is not None:
             object.__setattr__(
@@ -197,13 +242,20 @@ class ReviewRequest:
                 "author_engine",
                 _identifier(self.author_engine, "author_engine"),
             )
+        if not isinstance(self.require_independent, bool):
+            raise ReviewerRoutingError("require_independent must be boolean")
         object.__setattr__(
             self,
             "minimum_evidence",
             _enum(self.minimum_evidence, EvidenceLevel, "evidence level"),
         )
-        if self.max_fallback_hops not in (0, 1):
-            raise ReviewerRoutingError("v0.1 supports max_fallback_hops of 0 or 1 only")
+        if isinstance(self.max_fallback_hops, bool) or self.max_fallback_hops not in (
+            0,
+            1,
+        ):
+            raise ReviewerRoutingError(
+                "v0.1 supports max_fallback_hops of 0 or 1 only"
+            )
 
 
 @dataclass(frozen=True)
@@ -248,22 +300,49 @@ class RouteDecision:
             "requested_reviewer",
             _identifier(self.requested_reviewer, "reviewer"),
         )
-        object.__setattr__(self, "executed_by", _identifier(self.executed_by, "executor"))
-        object.__setattr__(self, "profile_id", _identifier(self.profile_id, "profile_id"))
+        object.__setattr__(
+            self, "executed_by", _identifier(self.executed_by, "executor")
+        )
+        object.__setattr__(
+            self, "profile_id", _identifier(self.profile_id, "profile_id")
+        )
+        object.__setattr__(
+            self,
+            "profile_version",
+            _printable_text(self.profile_version, "profile version"),
+        )
         object.__setattr__(self, "head_sha", _sha(self.head_sha))
         object.__setattr__(
             self,
             "evidence_level",
             _enum(self.evidence_level, EvidenceLevel, "evidence level"),
         )
+        if self.fallback_reason is not None:
+            object.__setattr__(
+                self,
+                "fallback_reason",
+                _enum(self.fallback_reason, FallbackReason, "fallback reason"),
+            )
         if self.native_review and self.requested_reviewer != self.executed_by:
-            raise ReviewerRoutingError("a proxy executor cannot be represented as a native review")
+            raise ReviewerRoutingError(
+                "a proxy executor cannot be represented as a native review"
+            )
         if self.native_review != (self.evidence_level == EvidenceLevel.NATIVE):
-            raise ReviewerRoutingError("NATIVE evidence and native_review must agree")
-        if self.fallback_hops not in (0, 1):
+            raise ReviewerRoutingError(
+                "NATIVE evidence and native_review must agree"
+            )
+        if isinstance(self.fallback_hops, bool) or self.fallback_hops not in (0, 1):
             raise ReviewerRoutingError("route supports at most one fallback hop")
         if (self.fallback_hops == 0) != (self.fallback_reason is None):
             raise ReviewerRoutingError("fallback hop and reason must agree")
+        if self.fallback_hops == 0 and self.executed_by != self.requested_reviewer:
+            raise ReviewerRoutingError(
+                "zero-hop route must execute on the requested reviewer"
+            )
+        if self.fallback_hops == 1 and self.executed_by == self.requested_reviewer:
+            raise ReviewerRoutingError(
+                "fallback route must change execution provider"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -304,19 +383,27 @@ class NormalizedReviewFinding:
     path: str | None = None
 
     def __post_init__(self) -> None:
-        code = str(self.code).strip().upper()
-        severity = str(self.severity).strip().upper()
+        code = _printable_text(self.code, "finding code").upper()
+        severity = _printable_text(self.severity, "finding severity").upper()
         if not re.fullmatch(r"[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+", code):
             raise ReviewerRoutingError("invalid finding code")
         if severity not in {"P0", "P1", "P2", "P3"}:
             raise ReviewerRoutingError("finding severity must be P0-P3")
         object.__setattr__(self, "code", code)
         object.__setattr__(self, "severity", severity)
-        object.__setattr__(self, "category", _identifier(self.category, "finding category"))
-        object.__setattr__(self, "executed_by", _identifier(self.executed_by, "executor"))
-        object.__setattr__(self, "profile_id", _identifier(self.profile_id, "profile_id"))
+        object.__setattr__(
+            self, "category", _identifier(self.category, "finding category")
+        )
+        object.__setattr__(
+            self, "executed_by", _identifier(self.executed_by, "executor")
+        )
+        object.__setattr__(
+            self, "profile_id", _identifier(self.profile_id, "profile_id")
+        )
         object.__setattr__(self, "head_sha", _sha(self.head_sha))
-        object.__setattr__(self, "confidence", _probability(self.confidence, "confidence"))
+        object.__setattr__(
+            self, "confidence", _probability(self.confidence, "confidence")
+        )
         for name in (
             "message",
             "failure_path",
@@ -330,9 +417,11 @@ class NormalizedReviewFinding:
                 _printable_text(getattr(self, name), f"finding {name}"),
             )
         if self.path is not None:
-            path = str(self.path).strip()
-            if not path or path.startswith("/") or ".." in path.split("/"):
-                raise ReviewerRoutingError("finding path must be repository-relative")
+            path = _printable_text(self.path, "finding path")
+            if path.startswith("/") or ".." in path.split("/"):
+                raise ReviewerRoutingError(
+                    "finding path must be repository-relative"
+                )
             object.__setattr__(self, "path", path)
 
     def to_dict(self) -> dict[str, Any]:
@@ -363,8 +452,12 @@ class ReviewerPersonaRouter:
         profiles: Sequence[ReviewerProfile],
         providers: Sequence[ReviewerProvider],
     ) -> None:
-        self._profiles = self._unique(profiles, lambda item: item.profile_id, "profile")
-        self._providers = self._unique(providers, lambda item: item.provider_id, "provider")
+        self._profiles = self._unique(
+            profiles, lambda item: item.profile_id, "profile"
+        )
+        self._providers = self._unique(
+            providers, lambda item: item.provider_id, "provider"
+        )
         if not self._profiles or not self._providers:
             raise ReviewerRoutingError("profiles and providers must be non-empty")
         unknown = sorted(
@@ -376,7 +469,9 @@ class ReviewerPersonaRouter:
             }
         )
         if unknown:
-            raise ReviewerRoutingError(f"providers reference unknown profiles: {unknown}")
+            raise ReviewerRoutingError(
+                f"providers reference unknown profiles: {unknown}"
+            )
 
     @staticmethod
     def _unique(items: Sequence[Any], key, label: str) -> dict[str, Any]:
@@ -384,7 +479,9 @@ class ReviewerPersonaRouter:
         for item in items:
             item_id = key(item)
             if item_id in result:
-                raise ReviewerRoutingError(f"duplicate reviewer {label}: {item_id}")
+                raise ReviewerRoutingError(
+                    f"duplicate reviewer {label}: {item_id}"
+                )
             result[item_id] = item
         return dict(sorted(result.items()))
 
@@ -400,7 +497,9 @@ class ReviewerPersonaRouter:
             raise ReviewerRoutingError("router config must be a mapping")
         raw_profiles = raw.get("profiles", [])
         raw_providers = raw.get("providers", [])
-        if not isinstance(raw_profiles, list) or not isinstance(raw_providers, list):
+        if not isinstance(raw_profiles, list) or not isinstance(
+            raw_providers, list
+        ):
             raise ReviewerRoutingError("profiles and providers must be lists")
 
         profiles: list[ReviewerProfile] = []
@@ -410,28 +509,28 @@ class ReviewerPersonaRouter:
                 ReviewerProfile(
                     profile_id=item.get("profile_id", ""),
                     version=item.get("version", ""),
-                    rubric=_string_sequence(item.get("rubric", ()), "profile rubric"),
-                    minimum_compatibility=item.get("minimum_compatibility", 0.70),
+                    rubric=_string_sequence(
+                        item.get("rubric", ()), "profile rubric"
+                    ),
+                    minimum_compatibility=item.get(
+                        "minimum_compatibility", 0.70
+                    ),
                 )
             )
 
         providers: list[ReviewerProvider] = []
         for raw_provider in raw_providers:
             item = cls._require_mapping(raw_provider, "provider")
-            compatibility = item.get("compatibility", {})
-            if not isinstance(compatibility, Mapping):
-                raise ReviewerRoutingError("compatibility must be a mapping")
-            native_profiles = item.get("native_profiles", ())
-            if isinstance(native_profiles, (str, bytes)) or not isinstance(
-                native_profiles, Sequence
-            ):
-                raise ReviewerRoutingError("native_profiles must be a list")
             providers.append(
                 ReviewerProvider(
                     provider_id=item.get("provider_id", ""),
                     status=item.get("status", ""),
-                    native_profiles=frozenset(native_profiles),
-                    compatibility=compatibility,
+                    native_profiles=_identifier_set(
+                        item.get("native_profiles", ()), "native profile"
+                    ),
+                    compatibility=_compatibility_mapping(
+                        item.get("compatibility", {})
+                    ),
                     historical_quality=item.get("historical_quality", 1.0),
                     remaining_budget=item.get("remaining_budget", 1.0),
                 )
@@ -440,6 +539,9 @@ class ReviewerPersonaRouter:
 
     @classmethod
     def from_yaml_string(cls, text: str) -> "ReviewerPersonaRouter":
+        if not isinstance(text, str):
+            raise ReviewerRoutingError("router YAML must be text")
+
         class UniqueKeyLoader(yaml.SafeLoader):
             pass
 
@@ -447,6 +549,13 @@ class ReviewerPersonaRouter:
             result = {}
             for key_node, value_node in node.value:
                 key = loader.construct_object(key_node, deep=deep)
+                if not isinstance(key, str):
+                    raise yaml.constructor.ConstructorError(
+                        "while constructing a mapping",
+                        node.start_mark,
+                        f"mapping key must be text, got {type(key).__name__}",
+                        key_node.start_mark,
+                    )
                 if key in result:
                     raise yaml.constructor.ConstructorError(
                         "while constructing a mapping",
@@ -463,9 +572,13 @@ class ReviewerPersonaRouter:
         )
         try:
             payload = yaml.load(text, Loader=UniqueKeyLoader) or {}
-        except yaml.YAMLError as exc:
-            raise ReviewerRoutingError(f"cannot parse router YAML: {exc}") from exc
-        return cls.from_dict(payload)
+            return cls.from_dict(payload)
+        except ReviewerRoutingError:
+            raise
+        except (yaml.YAMLError, TypeError, ValueError) as exc:
+            raise ReviewerRoutingError(
+                f"cannot parse router YAML: {exc}"
+            ) from exc
 
     @staticmethod
     def _level(
@@ -489,7 +602,9 @@ class ReviewerPersonaRouter:
 
     @staticmethod
     def _score(provider: ReviewerProvider, compatibility: float) -> float:
-        availability = 1.0 if provider.status == ProviderStatus.AVAILABLE else 0.60
+        availability = (
+            1.0 if provider.status == ProviderStatus.AVAILABLE else 0.60
+        )
         return (
             compatibility
             * provider.historical_quality
@@ -506,15 +621,21 @@ class ReviewerPersonaRouter:
         compatibility = provider.compatibility_for(profile.profile_id)
         level = self._level(provider, profile, request, compatibility)
         rejection: str | None = None
-        if provider.status not in {ProviderStatus.AVAILABLE, ProviderStatus.DEGRADED}:
+        if provider.status not in {
+            ProviderStatus.AVAILABLE,
+            ProviderStatus.DEGRADED,
+        }:
             rejection = provider.status.value
-        elif request.require_independent and provider.provider_id == request.author_engine:
+        elif (
+            request.require_independent
+            and provider.provider_id == request.author_engine
+        ):
             rejection = FallbackReason.AUTHOR_CONFLICT.value
         elif compatibility < profile.minimum_compatibility:
             rejection = FallbackReason.PROFILE_INCOMPATIBLE.value
         elif _RANK[level] < _RANK[request.minimum_evidence]:
             rejection = (
-                f"EVIDENCE_BELOW_MINIMUM:{level.value}"
+                f"{_EVIDENCE_REJECTION}{level.value}"
                 f"<{request.minimum_evidence.value}"
             )
         return CandidateAssessment(
@@ -543,13 +664,19 @@ class ReviewerPersonaRouter:
             return status_reason
         if assessment.rejection_reason == FallbackReason.AUTHOR_CONFLICT.value:
             return FallbackReason.AUTHOR_CONFLICT
+        if assessment.rejection_reason and assessment.rejection_reason.startswith(
+            _EVIDENCE_REJECTION
+        ):
+            return FallbackReason.EVIDENCE_BELOW_MINIMUM
         return FallbackReason.PROFILE_INCOMPATIBLE
 
     def route(self, request: ReviewRequest) -> RouteDecision:
         profile = self._profiles.get(request.profile_id)
         requested = self._providers.get(request.requested_reviewer)
         if profile is None:
-            raise ReviewerRoutingError(f"unknown reviewer profile: {request.profile_id}")
+            raise ReviewerRoutingError(
+                f"unknown reviewer profile: {request.profile_id}"
+            )
         if requested is None:
             raise ReviewerRoutingError(
                 f"unknown requested reviewer: {request.requested_reviewer}"
@@ -576,7 +703,8 @@ class ReviewerPersonaRouter:
             ]
             if not candidates:
                 details = {
-                    item.provider_id: item.rejection_reason for item in assessments
+                    item.provider_id: item.rejection_reason
+                    for item in assessments
                 }
                 raise ReviewerRoutingError(
                     f"no eligible reviewer provider for exact head "
@@ -614,10 +742,28 @@ class ReviewerPersonaRouter:
             raise ReviewerRoutingError(
                 f"unknown decision profile: {decision.profile_id}"
             )
+        if decision.profile_version != profile.version:
+            raise ReviewerRoutingError(
+                "decision profile version does not match router configuration"
+            )
+        if decision.requested_reviewer not in self._providers:
+            raise ReviewerRoutingError(
+                "decision requested reviewer is unknown to this router"
+            )
+        if decision.executed_by not in self._providers:
+            raise ReviewerRoutingError(
+                "decision executor is unknown to this router"
+            )
+
         rubric = "\n".join(
-            f"{index}. {item}" for index, item in enumerate(profile.rubric, 1)
+            f"{index}. {item}"
+            for index, item in enumerate(profile.rubric, 1)
         )
-        reason = decision.fallback_reason.value if decision.fallback_reason else "NONE"
+        reason = (
+            decision.fallback_reason.value
+            if decision.fallback_reason
+            else "NONE"
+        )
         kind = "native" if decision.native_review else "proxy"
         return (
             "CML REVIEW EXECUTION CONTRACT\n"
