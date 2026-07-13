@@ -6,7 +6,7 @@ from cml.reviewer_router import ReviewerPersonaRouter, ReviewerRoutingError
 
 
 def test_yaml_boolean_probability_is_rejected():
-    with pytest.raises(ReviewerRoutingError, match="not boolean"):
+    with pytest.raises(ReviewerRoutingError, match="not bool"):
         ReviewerPersonaRouter.from_yaml_string(
             """
 profiles:
@@ -47,7 +47,7 @@ providers:
 
 
 def test_direct_boolean_quality_is_rejected():
-    with pytest.raises(ReviewerRoutingError, match="not boolean"):
+    with pytest.raises(ReviewerRoutingError, match="not bool"):
         ReviewerPersonaRouter.from_dict(
             {
                 "profiles": [
