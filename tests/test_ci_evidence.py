@@ -65,6 +65,15 @@ def test_evidence_manifest_fails_on_missing_required_file(tmp_path: Path):
         manifest_for(root, required=("missing/*.xml",))
 
 
+def test_evidence_manifest_rejects_directory_for_required_file(tmp_path: Path):
+    root = tmp_path / "evidence"
+    (root / "lane-a" / "coverage.xml").mkdir(parents=True)
+    write_json_atomic(root / "exact-head.json", build_report(expected_sha=SHA, actual_sha=SHA))
+
+    with pytest.raises(EvidenceError, match="matched no files eligible for hashing"):
+        manifest_for(root, required=("lane-a/coverage.xml",))
+
+
 def test_evidence_manifest_rejects_symlinks(tmp_path: Path):
     root = tmp_path / "evidence"
     root.mkdir()
