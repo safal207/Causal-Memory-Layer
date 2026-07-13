@@ -331,6 +331,60 @@ def test_degraded_provider_is_eligible_when_explicitly_allowed():
     assert decision.evidence_level == EvidenceLevel.DEGRADED
     assert decision.fallback_reason is None
     assert decision.fallback_hops == 0
+    assert "Route kind: degraded" in router.render_execution_prompt(decision)
+
+
+def test_native_zero_hop_renders_native_route_kind():
+    router = ReviewerPersonaRouter(
+        profiles=[profile()],
+        providers=[
+            ReviewerProvider(
+                provider_id="coderabbit",
+                status=ProviderStatus.AVAILABLE,
+                native_profiles=frozenset({"coderabbit-style"}),
+            )
+        ],
+    )
+    decision = router.route(
+        ReviewRequest(
+            requested_reviewer="coderabbit",
+            profile_id="coderabbit-style",
+            head_sha=SHA,
+        )
+    )
+
+    assert decision.native_review is True
+    assert decision.fallback_hops == 0
+    assert "Route kind: native" in router.render_execution_prompt(decision)
+
+
+def test_fallback_execution_renders_proxy_route_kind():
+    router = ReviewerPersonaRouter(
+        profiles=[profile()],
+        providers=[
+            ReviewerProvider(
+                provider_id="coderabbit",
+                status=ProviderStatus.RATE_LIMITED,
+                native_profiles=frozenset({"coderabbit-style"}),
+            ),
+            ReviewerProvider(
+                provider_id="qodo",
+                status=ProviderStatus.AVAILABLE,
+                compatibility={"coderabbit-style": 0.90},
+            ),
+        ],
+    )
+    decision = router.route(
+        ReviewRequest(
+            requested_reviewer="coderabbit",
+            profile_id="coderabbit-style",
+            head_sha=SHA,
+        )
+    )
+
+    assert decision.executed_by == "qodo"
+    assert decision.fallback_hops == 1
+    assert "Route kind: proxy" in router.render_execution_prompt(decision)
 
 
 def test_candidate_and_route_numeric_fields_fail_closed():
