@@ -1,0 +1,120 @@
+name: CML Trust Root Gate
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: cml-trust-root-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify protected CI contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout protected base trust root
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: trust-root
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout untrusted subject as data only
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: subject
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Verify exact head and protected file identities
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python trust-root/.github/trust-root/scripts/verify_subject.py \
+            --trusted-root trust-root \
+            --subject-root subject \
+            --expected-head "${{ github.event.pull_request.head.sha }}" \
+            --repository "$GITHUB_REPOSITORY" \
+            --pull-number "${{ github.event.pull_request.number }}" \
+            --output trust-root-verification.json
+
+      - name: Upload trust-root evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-trust-root-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: trust-root-verification.json
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish trusted head status
+    if: always()
+    needs: [verify]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+
+    steps:
+      - name: Publish immutable-context commit status
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.request
+
+          sha = os.environ["HEAD_SHA"].strip().lower()
+          if not re.fullmatch(r"[0-9a-f]{40}", sha):
+              raise SystemExit("invalid pull request head SHA")
+          passed = os.environ["VERIFY_RESULT"] == "success"
+          payload = {
+              "state": "success" if passed else "failure",
+              "context": "CML Trust Root Gate",
+              "description": (
+                  "Protected CI contract verified from base trust root"
+                  if passed
+                  else "Protected CI contract rejected; inspect trusted gate"
+              ),
+              "target_url": os.environ["RUN_URL"],
+          }
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/statuses/{sha}",
+              data=json.dumps(payload).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "cml-trust-root-gate",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status not in (200, 201):
+                  raise SystemExit(f"status publication failed: HTTP {response.status}")
+          PY
