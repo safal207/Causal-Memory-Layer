@@ -4,47 +4,265 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cml-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
 
 jobs:
-  test:
+  tests:
+    name: Python ${{ matrix.python-version }} tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          python-version: "3.11"
-      - name: Install package and test dependencies
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Prove exact-head checkout
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
-      - name: Run tests with coverage
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output "artifacts/tests/python-${{ matrix.python-version }}/exact-head.json"
+
+      - name: Install package and test tooling
         run: |
-          pytest \
+          python -m pip install --upgrade "pip==26.1.2"
+          python -m pip install -e ".[dev]" "ruff==0.15.21"
+
+      - name: Run critical static checks
+        run: python -m ruff check --select E9,F63,F7,F82 cml cli api scripts tests
+
+      - name: Run tests and coverage gate
+        run: |
+          python -m pytest \
+            --junitxml="artifacts/tests/python-${{ matrix.python-version }}/junit.xml" \
             --cov=cml --cov=cli --cov=api \
             --cov-report=term-missing \
-            --cov-report=xml \
-            --cov-fail-under=45
+            --cov-report="xml:artifacts/tests/python-${{ matrix.python-version }}/coverage.xml" \
+            --cov-fail-under=70
 
-      - name: Run Causal Equilibrium conformance benchmark
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-ci-lane-tests-py${{ matrix.python-version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/tests/python-${{ matrix.python-version }}/
+          if-no-files-found: error
+          retention-days: 30
+
+  contracts:
+    name: Determinism, mutation, and large-trace contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Prove exact-head checkout
         run: |
-          python benchmarks/equilibrium/run.py \
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/contracts/exact-head.json
+
+      - name: Install contract dependencies
+        run: |
+          python -m pip install --upgrade "pip==26.1.2"
+          python -m pip install -e ".[dev]"
+
+      - name: Verify required workflow trust contract
+        run: |
+          python -m scripts.ci.verify_workflow_contract \
+            .github/workflows/ci.yml \
+            .github/workflows/python-package-validation.yml \
+            .github/workflows/security.yml \
+            --output artifacts/contracts/workflow-contract.json
+
+      - name: Run CI contract mutation tests
+        run: python -m pytest tests/test_ci_evidence.py tests/test_ci_workflow_contract.py
+
+      - name: Prove hash-seed-independent safety output
+        run: |
+          mkdir -p artifacts/contracts/hashseed-1 artifacts/contracts/hashseed-777
+          PYTHONHASHSEED=1 python scripts/run_safety_eval.py \
+            --markdown-out artifacts/contracts/hashseed-1/safety.md \
+            > artifacts/contracts/hashseed-1/safety.txt
+          PYTHONHASHSEED=777 python scripts/run_safety_eval.py \
+            --markdown-out artifacts/contracts/hashseed-777/safety.md \
+            > artifacts/contracts/hashseed-777/safety.txt
+          cmp artifacts/contracts/hashseed-1/safety.md artifacts/contracts/hashseed-777/safety.md
+          cmp artifacts/contracts/hashseed-1/safety.txt artifacts/contracts/hashseed-777/safety.txt
+
+      - name: Prove deterministic Causal Equilibrium output
+        run: |
+          PYTHONHASHSEED=1 python benchmarks/equilibrium/run.py \
             --fixtures benchmarks/equilibrium/v1/fixtures.json \
-            --json-out artifacts/equilibrium/report.json \
-            --markdown-out artifacts/equilibrium/report.md \
-            --implementation-commit "$GITHUB_SHA"
+            --json-out artifacts/contracts/hashseed-1/equilibrium.json \
+            --markdown-out artifacts/contracts/hashseed-1/equilibrium.md \
+            --implementation-commit "$EXPECTED_SHA" \
+            | tee artifacts/contracts/hashseed-1/equilibrium.txt
+          PYTHONHASHSEED=777 python benchmarks/equilibrium/run.py \
+            --fixtures benchmarks/equilibrium/v1/fixtures.json \
+            --json-out artifacts/contracts/hashseed-777/equilibrium.json \
+            --markdown-out artifacts/contracts/hashseed-777/equilibrium.md \
+            --implementation-commit "$EXPECTED_SHA" \
+            | tee artifacts/contracts/hashseed-777/equilibrium.txt
+          cmp artifacts/contracts/hashseed-1/equilibrium.json artifacts/contracts/hashseed-777/equilibrium.json
+          cmp artifacts/contracts/hashseed-1/equilibrium.md artifacts/contracts/hashseed-777/equilibrium.md
+          cmp artifacts/contracts/hashseed-1/equilibrium.txt artifacts/contracts/hashseed-777/equilibrium.txt
 
-      - name: Upload equilibrium benchmark reports
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: equilibrium-benchmark-report
-          path: artifacts/equilibrium/
-          if-no-files-found: ignore
+      - name: Run bounded large-trace reliability evidence
+        run: |
+          python -m benchmarks.performance.run_large_trace_benchmark \
+            --sizes 1000 10000 \
+            --repeats 1 \
+            > artifacts/contracts/large-trace.md
 
-      - name: Upload coverage artifact
+      - name: Upload contract evidence
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: coverage-xml
-          path: coverage.xml
-          if-no-files-found: ignore
+          name: cml-ci-lane-contracts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/contracts/
+          if-no-files-found: error
+          retention-days: 30
+
+  gate:
+    name: CML CI Gate
+    if: always()
+    needs: [tests, contracts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/final/exact-head.json
+
+      - name: Record required lane results
+        env:
+          TESTS_RESULT: ${{ needs.tests.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/final/gate-results.json")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          payload = {
+              "schema_version": "cml-ci-gate-results-v1",
+              "tested_sha": os.environ["EXPECTED_SHA"],
+              "lanes": {
+                  "tests": os.environ["TESTS_RESULT"],
+                  "contracts": os.environ["CONTRACTS_RESULT"],
+              },
+          }
+          path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Require every lane to succeed
+        env:
+          TESTS_RESULT: ${{ needs.tests.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+        run: |
+          test "$TESTS_RESULT" = "success"
+          test "$CONTRACTS_RESULT" = "success"
+
+      - name: Download exact-run lane evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: cml-ci-lane-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/collected
+          merge-multiple: false
+
+      - name: Build exact-head evidence manifest
+        run: |
+          python -m scripts.ci.build_evidence_manifest \
+            --artifacts-root artifacts \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-repository "$SOURCE_REPOSITORY" \
+            --tested-sha "$EXPECTED_SHA" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --change-number "${{ github.event.pull_request.number || 0 }}" \
+            --workflow-ref "$GITHUB_WORKFLOW_REF" \
+            --require "final/exact-head.json" \
+            --require "final/gate-results.json" \
+            --require "collected/cml-ci-lane-tests-py3.10-${{ github.run_id }}-${{ github.run_attempt }}/coverage.xml" \
+            --require "collected/cml-ci-lane-tests-py3.11-${{ github.run_id }}-${{ github.run_attempt }}/coverage.xml" \
+            --require "collected/cml-ci-lane-tests-py3.12-${{ github.run_id }}-${{ github.run_attempt }}/coverage.xml" \
+            --require "collected/cml-ci-lane-contracts-${{ github.run_id }}-${{ github.run_attempt }}/workflow-contract.json" \
+            --require "collected/cml-ci-lane-contracts-${{ github.run_id }}-${{ github.run_attempt }}/hashseed-1/equilibrium.json" \
+            --output artifacts/final/evidence-manifest.json
+
+      - name: Upload final CI evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-ci-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/final/
+          if-no-files-found: error
+          retention-days: 30
