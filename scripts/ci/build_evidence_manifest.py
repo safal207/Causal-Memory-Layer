@@ -78,15 +78,27 @@ def _collect_files(root: Path, *, excluded: Path | None = None) -> list[dict[str
     return entries
 
 
-def _verify_required_patterns(root: Path, patterns: Iterable[str]) -> None:
+def _verify_required_patterns(
+    root: Path,
+    patterns: Iterable[str],
+    artifacts: Iterable[dict[str, Any]],
+) -> None:
+    collected_paths = {str(artifact["path"]) for artifact in artifacts}
     for raw_pattern in patterns:
         pattern = _require_text(raw_pattern, label="required evidence pattern")
         pattern_path = PurePosixPath(pattern)
         if pattern_path.is_absolute() or ".." in pattern_path.parts:
             raise EvidenceError(f"required evidence pattern escapes the artifacts root: {pattern}")
-        matches = [candidate for candidate in root.glob(pattern) if candidate.exists()]
-        if not matches:
-            raise EvidenceError(f"required evidence pattern matched no files: {pattern}")
+
+        matched_paths = {
+            candidate.relative_to(root).as_posix()
+            for candidate in root.glob(pattern)
+            if candidate.is_file() and not candidate.is_symlink()
+        }
+        if not matched_paths.intersection(collected_paths):
+            raise EvidenceError(
+                f"required evidence pattern matched no files eligible for hashing: {pattern}"
+            )
 
 
 def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -168,8 +180,8 @@ def build_manifest(
     root = artifacts_root.resolve()
     excluded = output_path.resolve() if output_path is not None else None
     normalized_sha = normalize_sha(tested_sha, label="tested SHA")
-    _verify_required_patterns(root, required_patterns)
     artifacts = _collect_files(root, excluded=excluded)
+    _verify_required_patterns(root, required_patterns, artifacts)
     _verify_json_bindings(root, artifacts, tested_sha=normalized_sha)
     return {
         "schema_version": "cml-ci-evidence-manifest-v1",
