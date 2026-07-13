@@ -123,6 +123,22 @@ def load_protected_manifest(trusted_root: Path) -> dict[str, str]:
     return normalized
 
 
+def changed_paths_from_api_items(payload: Any) -> tuple[str, ...]:
+    if not isinstance(payload, list):
+        raise TrustRootError("GitHub pull request files response must be a list")
+    changed: list[str] = []
+    for item in payload:
+        if not isinstance(item, dict) or not isinstance(item.get("filename"), str):
+            raise TrustRootError("GitHub pull request files response is malformed")
+        changed.append(item["filename"])
+        previous = item.get("previous_filename")
+        if previous is not None:
+            if not isinstance(previous, str):
+                raise TrustRootError("GitHub previous filename must be text")
+            changed.append(previous)
+    return tuple(changed)
+
+
 def fetch_changed_files(*, repository: str, pull_number: int, token: str) -> tuple[str, ...]:
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
         raise TrustRootError("repository has an invalid format")
@@ -150,12 +166,7 @@ def fetch_changed_files(*, repository: str, pull_number: int, token: str) -> tup
                 payload = json.load(response)
         except Exception as exc:
             raise TrustRootError(f"cannot read pull request file list: {exc}") from exc
-        if not isinstance(payload, list):
-            raise TrustRootError("GitHub pull request files response must be a list")
-        for item in payload:
-            if not isinstance(item, dict) or not isinstance(item.get("filename"), str):
-                raise TrustRootError("GitHub pull request files response is malformed")
-            changed.append(item["filename"])
+        changed.extend(changed_paths_from_api_items(payload))
         if len(payload) < 100:
             break
         page += 1
@@ -190,7 +201,9 @@ def verify_subject(
                     "message": "protected trust-root files require a dedicated bootstrap review",
                 }
             )
-        elif path.startswith(WORKFLOW_PREFIX) and path not in approved_workflows:
+        elif path in protected_files:
+            continue
+        elif path.startswith(WORKFLOW_PREFIX):
             findings.append(
                 {
                     "code": "CML-TRUST-ROOT-UNAPPROVED-WORKFLOW-CHANGE",
