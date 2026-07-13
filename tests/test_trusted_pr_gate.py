@@ -145,3 +145,38 @@ def test_import_shadowing_path_is_rejected(tmp_path: Path):
     )
     assert result["passed"] is False
     assert result["findings"][0]["code"] == "CML-TRUST-ROOT-IMPORT-SHADOWING"
+
+
+def test_approved_script_change_is_identity_checked_not_shadow_rejected(tmp_path: Path):
+    trusted, subject, head = build_fixture(tmp_path)
+    relative = "scripts/ci/build_evidence_manifest.py"
+    content = b"print('trusted')\n"
+    path = subject / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    manifest = trusted / ".github/trust-root/protected_files.json"
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["files"][relative] = git_blob_id(content)
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    result = verify_subject.verify_subject(
+        trusted_root=trusted,
+        subject_root=subject,
+        expected_head=head,
+        changed_files=(relative,),
+    )
+    assert result["passed"] is True
+
+
+def test_renamed_protected_previous_filename_is_exposed():
+    paths = verify_subject.changed_paths_from_api_items(
+        [
+            {
+                "filename": "docs/renamed.yml",
+                "previous_filename": ".github/workflows/trusted-pr-gate.yml",
+            }
+        ]
+    )
+    assert paths == (
+        "docs/renamed.yml",
+        ".github/workflows/trusted-pr-gate.yml",
+    )
