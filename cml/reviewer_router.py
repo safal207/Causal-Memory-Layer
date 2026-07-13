@@ -13,6 +13,7 @@ import yaml
 
 _SHA = re.compile(r"^[0-9a-f]{40}$")
 _IDENT = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
+_WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
 _EVIDENCE_REJECTION = "EVIDENCE_BELOW_MINIMUM:"
 
 
@@ -52,6 +53,14 @@ _RANK = {
     EvidenceLevel.PROXY: 2,
     EvidenceLevel.PROXY_HIGH: 3,
     EvidenceLevel.NATIVE: 4,
+}
+
+_STATUS_FALLBACK = {
+    ProviderStatus.RATE_LIMITED: FallbackReason.RATE_LIMITED,
+    ProviderStatus.UNAVAILABLE: FallbackReason.UNAVAILABLE,
+    ProviderStatus.AUTH_FAILED: FallbackReason.AUTH_FAILED,
+    ProviderStatus.TIMED_OUT: FallbackReason.TIMED_OUT,
+    ProviderStatus.DEGRADED: FallbackReason.DEGRADED,
 }
 
 
@@ -143,6 +152,25 @@ def _compatibility_mapping(value: object) -> Mapping[str, float]:
     return MappingProxyType(dict(sorted(normalized.items())))
 
 
+def _finding_path(value: object) -> str:
+    path = _printable_text(value, "finding path")
+    if (
+        "\\" in path
+        or path.startswith("/")
+        or path.startswith("//")
+        or _WINDOWS_DRIVE.match(path)
+    ):
+        raise ReviewerRoutingError(
+            "finding path must be repository-relative POSIX path"
+        )
+    parts = path.split("/")
+    if any(part in {"", ".", ".."} for part in parts):
+        raise ReviewerRoutingError(
+            "finding path must be repository-relative POSIX path"
+        )
+    return path
+
+
 @dataclass(frozen=True)
 class ReviewerProfile:
     profile_id: str
@@ -188,7 +216,6 @@ class ReviewerProvider:
                     f"{existing}; expected 1.0"
                 )
             compatibility[profile] = 1.0
-
         object.__setattr__(self, "provider_id", provider_id)
         object.__setattr__(
             self,
@@ -257,6 +284,17 @@ class ReviewRequest:
                 "v0.1 supports max_fallback_hops of 0 or 1 only"
             )
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "requested_reviewer": self.requested_reviewer,
+            "profile_id": self.profile_id,
+            "head_sha": self.head_sha,
+            "author_engine": self.author_engine,
+            "require_independent": self.require_independent,
+            "minimum_evidence": self.minimum_evidence.value,
+            "max_fallback_hops": self.max_fallback_hops,
+        }
+
 
 @dataclass(frozen=True)
 class CandidateAssessment:
@@ -267,6 +305,41 @@ class CandidateAssessment:
     score: float
     eligible: bool
     rejection_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "provider_id", _identifier(self.provider_id, "provider_id")
+        )
+        object.__setattr__(
+            self,
+            "status",
+            _enum(self.status, ProviderStatus, "provider status"),
+        )
+        object.__setattr__(
+            self,
+            "compatibility",
+            _probability(self.compatibility, "compatibility"),
+        )
+        object.__setattr__(
+            self,
+            "evidence_level",
+            _enum(self.evidence_level, EvidenceLevel, "evidence level"),
+        )
+        object.__setattr__(
+            self, "score", _probability(self.score, "candidate score")
+        )
+        if not isinstance(self.eligible, bool):
+            raise ReviewerRoutingError("candidate eligible must be boolean")
+        if self.rejection_reason is not None:
+            object.__setattr__(
+                self,
+                "rejection_reason",
+                _printable_text(self.rejection_reason, "rejection reason"),
+            )
+        if self.eligible != (self.rejection_reason is None):
+            raise ReviewerRoutingError(
+                "candidate eligibility and rejection reason must agree"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -293,6 +366,7 @@ class RouteDecision:
     fallback_hops: int
     score: float
     considered: tuple[CandidateAssessment, ...]
+    request: ReviewRequest | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -312,6 +386,8 @@ class RouteDecision:
             _printable_text(self.profile_version, "profile version"),
         )
         object.__setattr__(self, "head_sha", _sha(self.head_sha))
+        if not isinstance(self.native_review, bool):
+            raise ReviewerRoutingError("native_review must be boolean")
         object.__setattr__(
             self,
             "evidence_level",
@@ -323,6 +399,11 @@ class RouteDecision:
                 "fallback_reason",
                 _enum(self.fallback_reason, FallbackReason, "fallback reason"),
             )
+        if isinstance(self.fallback_hops, bool) or self.fallback_hops not in (0, 1):
+            raise ReviewerRoutingError("route supports at most one fallback hop")
+        object.__setattr__(
+            self, "score", _probability(self.score, "route score")
+        )
         if self.native_review and self.requested_reviewer != self.executed_by:
             raise ReviewerRoutingError(
                 "a proxy executor cannot be represented as a native review"
@@ -331,8 +412,27 @@ class RouteDecision:
             raise ReviewerRoutingError(
                 "NATIVE evidence and native_review must agree"
             )
-        if isinstance(self.fallback_hops, bool) or self.fallback_hops not in (0, 1):
-            raise ReviewerRoutingError("route supports at most one fallback hop")
+        if isinstance(self.considered, (str, bytes)) or not isinstance(
+            self.considered, Sequence
+        ):
+            raise ReviewerRoutingError(
+                "considered must be a sequence of assessments"
+            )
+        considered = tuple(self.considered)
+        if not considered or any(
+            not isinstance(item, CandidateAssessment) for item in considered
+        ):
+            raise ReviewerRoutingError(
+                "considered must contain candidate assessments"
+            )
+        provider_ids = [item.provider_id for item in considered]
+        if len(provider_ids) != len(set(provider_ids)):
+            raise ReviewerRoutingError("considered contains duplicate providers")
+        object.__setattr__(self, "considered", considered)
+        if self.request is not None and not isinstance(self.request, ReviewRequest):
+            raise ReviewerRoutingError(
+                "request provenance must be a ReviewRequest"
+            )
         if (self.fallback_hops == 0) != (self.fallback_reason is None):
             raise ReviewerRoutingError("fallback hop and reason must agree")
         if self.fallback_hops == 0 and self.executed_by != self.requested_reviewer:
@@ -362,6 +462,7 @@ class RouteDecision:
             "fallback_hops": self.fallback_hops,
             "score": round(self.score, 6),
             "considered": [item.to_dict() for item in self.considered],
+            "request": self.request.to_dict() if self.request else None,
             "merge_authority": False,
         }
 
@@ -417,12 +518,7 @@ class NormalizedReviewFinding:
                 _printable_text(getattr(self, name), f"finding {name}"),
             )
         if self.path is not None:
-            path = _printable_text(self.path, "finding path")
-            if path.startswith("/") or ".." in path.split("/"):
-                raise ReviewerRoutingError(
-                    "finding path must be repository-relative"
-                )
-            object.__setattr__(self, "path", path)
+            object.__setattr__(self, "path", _finding_path(self.path))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -501,7 +597,6 @@ class ReviewerPersonaRouter:
             raw_providers, list
         ):
             raise ReviewerRoutingError("profiles and providers must be lists")
-
         profiles: list[ReviewerProfile] = []
         for raw_profile in raw_profiles:
             item = cls._require_mapping(raw_profile, "profile")
@@ -517,7 +612,6 @@ class ReviewerPersonaRouter:
                     ),
                 )
             )
-
         providers: list[ReviewerProvider] = []
         for raw_provider in raw_providers:
             item = cls._require_mapping(raw_provider, "provider")
@@ -653,22 +747,24 @@ class ReviewerPersonaRouter:
         provider: ReviewerProvider,
         assessment: CandidateAssessment,
     ) -> FallbackReason:
-        status_reason = {
-            ProviderStatus.RATE_LIMITED: FallbackReason.RATE_LIMITED,
-            ProviderStatus.UNAVAILABLE: FallbackReason.UNAVAILABLE,
-            ProviderStatus.AUTH_FAILED: FallbackReason.AUTH_FAILED,
-            ProviderStatus.TIMED_OUT: FallbackReason.TIMED_OUT,
-            ProviderStatus.DEGRADED: FallbackReason.DEGRADED,
-        }.get(provider.status)
+        explicit = assessment.rejection_reason
+        if explicit == FallbackReason.AUTHOR_CONFLICT.value:
+            return FallbackReason.AUTHOR_CONFLICT
+        if explicit == FallbackReason.PROFILE_INCOMPATIBLE.value:
+            return FallbackReason.PROFILE_INCOMPATIBLE
+        if explicit and explicit.startswith(_EVIDENCE_REJECTION):
+            return FallbackReason.EVIDENCE_BELOW_MINIMUM
+        if explicit:
+            for status, fallback in _STATUS_FALLBACK.items():
+                if explicit == status.value:
+                    return fallback
+            raise ReviewerRoutingError(f"unknown rejection cause: {explicit}")
+        status_reason = _STATUS_FALLBACK.get(provider.status)
         if status_reason is not None:
             return status_reason
-        if assessment.rejection_reason == FallbackReason.AUTHOR_CONFLICT.value:
-            return FallbackReason.AUTHOR_CONFLICT
-        if assessment.rejection_reason and assessment.rejection_reason.startswith(
-            _EVIDENCE_REJECTION
-        ):
-            return FallbackReason.EVIDENCE_BELOW_MINIMUM
-        return FallbackReason.PROFILE_INCOMPATIBLE
+        raise ReviewerRoutingError(
+            "ineligible reviewer has no fallback cause"
+        )
 
     def route(self, request: ReviewRequest) -> RouteDecision:
         profile = self._profiles.get(request.profile_id)
@@ -681,7 +777,6 @@ class ReviewerPersonaRouter:
             raise ReviewerRoutingError(
                 f"unknown requested reviewer: {request.requested_reviewer}"
             )
-
         assessments = tuple(
             self._assess(provider, profile, request)
             for provider in self._providers.values()
@@ -690,7 +785,6 @@ class ReviewerPersonaRouter:
         selected = by_id[requested.provider_id]
         reason: FallbackReason | None = None
         hops = 0
-
         if not selected.eligible:
             if request.max_fallback_hops == 0:
                 raise ReviewerRoutingError(
@@ -720,7 +814,6 @@ class ReviewerPersonaRouter:
             )[0]
             reason = self._reason(requested, by_id[requested.provider_id])
             hops = 1
-
         native = selected.evidence_level == EvidenceLevel.NATIVE
         return RouteDecision(
             requested_reviewer=request.requested_reviewer,
@@ -734,27 +827,52 @@ class ReviewerPersonaRouter:
             fallback_hops=hops,
             score=selected.score,
             considered=assessments,
+            request=request,
         )
 
-    def render_execution_prompt(self, decision: RouteDecision) -> str:
-        profile = self._profiles.get(decision.profile_id)
-        if profile is None:
-            raise ReviewerRoutingError(
-                f"unknown decision profile: {decision.profile_id}"
-            )
-        if decision.profile_version != profile.version:
-            raise ReviewerRoutingError(
-                "decision profile version does not match router configuration"
-            )
-        if decision.requested_reviewer not in self._providers:
-            raise ReviewerRoutingError(
-                "decision requested reviewer is unknown to this router"
-            )
-        if decision.executed_by not in self._providers:
-            raise ReviewerRoutingError(
-                "decision executor is unknown to this router"
-            )
+    @staticmethod
+    def _decision_signature(decision: RouteDecision) -> tuple[Any, ...]:
+        return (
+            decision.requested_reviewer,
+            decision.executed_by,
+            decision.profile_id,
+            decision.profile_version,
+            decision.head_sha,
+            decision.native_review,
+            decision.evidence_level,
+            decision.fallback_reason,
+            decision.fallback_hops,
+            decision.score,
+            decision.considered,
+        )
 
+    def validate_decision(self, decision: RouteDecision) -> RouteDecision:
+        if not isinstance(decision, RouteDecision):
+            raise ReviewerRoutingError("decision must be a RouteDecision")
+        if decision.request is None:
+            raise ReviewerRoutingError("decision lacks request provenance")
+        request = decision.request
+        if (
+            request.requested_reviewer != decision.requested_reviewer
+            or request.profile_id != decision.profile_id
+            or request.head_sha != decision.head_sha
+        ):
+            raise ReviewerRoutingError(
+                "decision fields do not match request provenance"
+            )
+        expected = self.route(request)
+        if self._decision_signature(decision) != self._decision_signature(
+            expected
+        ):
+            raise ReviewerRoutingError(
+                "decision does not match the route recomputed from "
+                "router configuration"
+            )
+        return expected
+
+    def render_execution_prompt(self, decision: RouteDecision) -> str:
+        decision = self.validate_decision(decision)
+        profile = self._profiles[decision.profile_id]
         rubric = "\n".join(
             f"{index}. {item}"
             for index, item in enumerate(profile.rubric, 1)
