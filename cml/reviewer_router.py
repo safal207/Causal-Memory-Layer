@@ -33,6 +33,10 @@ _RUBRIC_NEUTRAL_REVIEW_VERBS = frozenset(
 _RUBRIC_IDENTITY_ACTIONS = frozenset(
     {
         "act",
+        "acting",
+        "adopt",
+        "adopted",
+        "adopting",
         "are",
         "as",
         "assert",
@@ -48,6 +52,8 @@ _RUBRIC_IDENTITY_ACTIONS = frozenset(
         "pretend",
         "represent",
         "report",
+        "serve",
+        "serving",
         "treat",
     }
 )
@@ -81,12 +87,64 @@ _RUBRIC_AUTHORITY_ACTIONS = frozenset(
     }
 )
 _RUBRIC_IDENTITY_TERMS = frozenset(
-    {"approval", "authority", "reviewer", "status", "verdict"}
+    {"approval", "authority", "identity", "reviewer", "status", "verdict"}
 )
 _RUBRIC_AUTHORITY_TERMS = frozenset(
     {"approval", "authority", "permission", "right", "rights"}
 )
 _RUBRIC_MERGE_TERMS = frozenset({"merge", "merged", "merging"})
+_RUBRIC_RELATIONSHIP_TERMS = frozenset({"as", "behalf", "under", "with"})
+_RUBRIC_SAFE_SUBJECT_MARKERS = frozenset(
+    {
+        "behavior",
+        "behaviour",
+        "boundaries",
+        "boundary",
+        "bypass",
+        "bypasses",
+        "check",
+        "checks",
+        "code",
+        "condition",
+        "conditions",
+        "correctness",
+        "enforcement",
+        "failure",
+        "failures",
+        "flow",
+        "flows",
+        "guard",
+        "guards",
+        "handling",
+        "implementation",
+        "logic",
+        "output",
+        "outputs",
+        "path",
+        "paths",
+        "performance",
+        "policies",
+        "policy",
+        "race",
+        "races",
+        "reliability",
+        "result",
+        "results",
+        "routing",
+        "rule",
+        "rules",
+        "scheduling",
+        "security",
+        "selection",
+        "state",
+        "states",
+        "test",
+        "tests",
+        "transition",
+        "transitions",
+        "validation",
+    }
+)
 
 
 class ReviewerRoutingError(ValueError):
@@ -228,29 +286,34 @@ def _review_rubric(value: object) -> tuple[str, ...]:
         first_alpha = next((token for token in tokens if token.isalpha()), "")
         neutral_review = first_alpha in _RUBRIC_NEUTRAL_REVIEW_VERBS
 
-        reviewer_subject = "reviewer" in token_set
-        native_identity = (
-            "native" in token_set
-            and bool(token_set & _RUBRIC_IDENTITY_TERMS)
+        identity_sensitive = bool(
+            token_set & {"identity", "native", "reviewer", "status", "verdict"}
         )
-        identity_subject = reviewer_subject or native_identity
+        authority_sensitive = bool(
+            token_set & (_RUBRIC_AUTHORITY_TERMS | _RUBRIC_MERGE_TERMS)
+        )
+        sensitive = identity_sensitive or authority_sensitive
+
         identity_action = bool(token_set & _RUBRIC_IDENTITY_ACTIONS)
+        authority_action = bool(token_set & _RUBRIC_AUTHORITY_ACTIONS)
+        relationship_action = bool(token_set & _RUBRIC_RELATIONSHIP_TERMS) or (
+            "identity" in token_set
+            and bool(token_set & {"in", "into", "of"})
+        )
+        technical_subject = bool(token_set & _RUBRIC_SAFE_SUBJECT_MARKERS)
+        safe_sensitive_subject = (
+            neutral_review
+            and technical_subject
+            and not identity_action
+            and not authority_action
+            and not relationship_action
+        )
 
-        has_merge = bool(token_set & _RUBRIC_MERGE_TERMS)
-        has_authority = bool(token_set & _RUBRIC_AUTHORITY_TERMS)
-        has_authority_action = bool(token_set & _RUBRIC_AUTHORITY_ACTIONS)
-
-        if identity_subject and (identity_action or not neutral_review):
+        if sensitive and not safe_sensitive_subject:
             raise ReviewerRoutingError(
                 "profile rubric cannot define reviewer identity, native approval, "
-                "or merge authority; those rules belong to the execution contract"
-            )
-        if has_merge and (
-            has_authority_action or (has_authority and not neutral_review)
-        ):
-            raise ReviewerRoutingError(
-                "profile rubric cannot define reviewer identity, native approval, "
-                "or merge authority; those rules belong to the execution contract"
+                "or merge authority; sensitive terms must use the safe technical "
+                "review-subject grammar"
             )
     return result
 
