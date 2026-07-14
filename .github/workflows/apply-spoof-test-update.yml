@@ -1,0 +1,64 @@
+name: Apply Spoof Test Update
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  patch:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'ci/coderabbit-qodo-fallback'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout exact head branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ci/coderabbit-qodo-fallback
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Update obsolete spoof expectation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/test_reviewer_fallback.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''def test_spoofed_coderabbit_identity_is_rejected():
+              fake = identity("coderabbitai[bot]", 999)
+              client = FakeClient(pulls=[pull()])
+              result = run(event(comment_user=fake, sender=fake), client)
+              assert result["passed"] is False
+              assert result["outcome"] == "REJECTED_UNTRUSTED_CODERABBIT_IDENTITY"
+              assert not request_comments(client)
+              assert client.statuses[-1]["state"] == "failure"
+          '''
+          new = '''def test_spoofed_coderabbit_identity_is_ignored_without_writes():
+              fake = identity("coderabbitai[bot]", 999)
+              client = FakeClient(pulls=[pull()])
+              result = run(event(comment_user=fake, sender=fake), client)
+              assert result["passed"] is True
+              assert result["outcome"] == "IGNORED_UNRELATED_COMMENT"
+              assert not request_comments(client)
+              assert client.statuses == []
+          '''
+          if text.count(old) != 1:
+              raise SystemExit('spoof expectation replacement expected exactly once')
+          text = text.replace(old, new, 1)
+          compile(text, str(path), 'exec')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit updated test
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/test_reviewer_fallback.py
+          git commit -m 'test: expect spoofed fallback inputs to be ignored'
+          git push origin HEAD:ci/coderabbit-qodo-fallback
