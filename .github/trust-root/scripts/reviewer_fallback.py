@@ -410,7 +410,8 @@ def _find_request_comment(
     candidates = [
         comment
         for comment in comments
-        if REQUEST_MARKER_PREFIX in str(comment.get("body", ""))
+        if _trusted_actions_comment(comment)
+        and REQUEST_MARKER_PREFIX in str(comment.get("body", ""))
     ]
     matches: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for comment in candidates:
@@ -1230,7 +1231,12 @@ def process_event(
             now=now,
         )
 
-    if _rate_limit_marker_present(body):
+    is_coderabbit = _matches_identity(
+        comment.get("user"), login=CODE_RABBIT_LOGIN, user_id=CODE_RABBIT_ID
+    ) and _matches_identity(
+        event.get("sender"), login=CODE_RABBIT_LOGIN, user_id=CODE_RABBIT_ID
+    )
+    if is_coderabbit and _rate_limit_marker_present(body):
         return _handle_coderabbit(
             event,
             client,
