@@ -4,7 +4,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/reviewer-fallback.yml"
-HELPER = ROOT / ".github/trust-root/scripts/reviewer_fallback.py"
+CORE = ROOT / ".github/trust-root/scripts/reviewer_fallback.py"
+ENTRYPOINT = ROOT / ".github/trust-root/scripts/reviewer_fallback_entrypoint.py"
 
 
 def test_reviewer_fallback_workflow_is_trusted_default_branch_only():
@@ -46,14 +47,18 @@ def test_reviewer_fallback_workflow_filters_to_trusted_provider_signals():
     assert "coderabbitai[bot]" in text
     assert "qodo-code-review[bot]" in text
     assert "Review limit reached" in text
-    assert ".github/trust-root/scripts/reviewer_fallback.py" in text
+    assert ".github/trust-root/scripts/reviewer_fallback_entrypoint.py" in text
+    assert "python .github/trust-root/scripts/reviewer_fallback.py" not in text
 
 
-def test_reviewer_fallback_helper_authenticates_run_scoped_artifacts():
-    text = HELPER.read_text(encoding="utf-8")
-    assert 'WORKFLOW_NAME = "CML Reviewer Fallback"' in text
-    assert 'WORKFLOW_PATH = ".github/workflows/reviewer-fallback.yml"' in text
-    assert "load_fallback_artifact" in text
-    assert "cml-reviewer-fallback-pr" in text
-    assert "DUPLICATE_QODO_RESULT_NOOP" in text
-    assert "SUPERSEDED_QODO_REVIEW" in text
+def test_reviewer_fallback_entrypoint_authenticates_and_never_publishes_success():
+    core_text = CORE.read_text(encoding="utf-8")
+    entrypoint = ENTRYPOINT.read_text(encoding="utf-8")
+    assert 'WORKFLOW_NAME = "CML Reviewer Fallback"' in core_text
+    assert 'WORKFLOW_PATH = ".github/workflows/reviewer-fallback.yml"' in core_text
+    assert "load_fallback_artifact" in entrypoint
+    assert "workflow artifact pagination exceeded the safe bound" in entrypoint
+    assert "REJECTED_EDITED_QODO_RESULT" in entrypoint
+    assert "exactly one structured reviewed-commit field" in entrypoint
+    assert 'if head_sha is None or evidence.get("passed") is True:' in entrypoint
+    assert 'state = "success"' not in entrypoint
