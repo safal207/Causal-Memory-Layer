@@ -38,7 +38,6 @@ _RUBRIC_IDENTITY_ACTIONS = frozenset(
         "adopted",
         "adopting",
         "are",
-        "as",
         "assert",
         "be",
         "become",
@@ -59,6 +58,9 @@ _RUBRIC_IDENTITY_ACTIONS = frozenset(
 )
 _RUBRIC_AUTHORITY_ACTIONS = frozenset(
     {
+        "accept",
+        "accepted",
+        "accepting",
         "allow",
         "allowed",
         "allowing",
@@ -70,8 +72,17 @@ _RUBRIC_AUTHORITY_ACTIONS = frozenset(
         "authorize",
         "authorized",
         "authorizing",
+        "certify",
+        "certified",
+        "certifying",
         "claim",
         "declare",
+        "emit",
+        "emitted",
+        "emitting",
+        "endorse",
+        "endorsed",
+        "endorsing",
         "exercise",
         "give",
         "given",
@@ -79,21 +90,48 @@ _RUBRIC_AUTHORITY_ACTIONS = frozenset(
         "grant",
         "granted",
         "granting",
+        "issue",
+        "issued",
+        "issuing",
         "permit",
         "permitted",
         "permitting",
+        "produce",
+        "produced",
+        "producing",
+        "provide",
+        "provided",
+        "providing",
+        "publish",
+        "published",
+        "publishing",
+        "recommend",
+        "recommended",
+        "recommending",
         "represent",
+        "return",
+        "returned",
+        "returning",
+        "sign",
+        "signed",
+        "signing",
+        "submit",
+        "submitted",
+        "submitting",
         "use",
     }
 )
 _RUBRIC_IDENTITY_TERMS = frozenset(
-    {"approval", "authority", "identity", "reviewer", "status", "verdict"}
+    {"approval", "authority", "identity", "native", "reviewer", "status", "verdict"}
 )
 _RUBRIC_AUTHORITY_TERMS = frozenset(
     {"approval", "authority", "permission", "right", "rights"}
 )
 _RUBRIC_MERGE_TERMS = frozenset({"merge", "merged", "merging"})
-_RUBRIC_RELATIONSHIP_TERMS = frozenset({"as", "behalf", "under", "with"})
+_RUBRIC_SENSITIVE_TERMS = (
+    _RUBRIC_IDENTITY_TERMS | _RUBRIC_AUTHORITY_TERMS | _RUBRIC_MERGE_TERMS
+)
+_RUBRIC_ADOPTION_TARGETS = _RUBRIC_SENSITIVE_TERMS | frozenset({"requested"})
 _RUBRIC_SAFE_SUBJECT_MARKERS = frozenset(
     {
         "behavior",
@@ -125,6 +163,7 @@ _RUBRIC_SAFE_SUBJECT_MARKERS = frozenset(
         "performance",
         "policies",
         "policy",
+        "propagation",
         "race",
         "races",
         "reliability",
@@ -263,19 +302,56 @@ def _normalized_rubric_text(value: str) -> str:
         raise ReviewerRoutingError(
             "profile rubric cannot contain hidden Unicode control characters"
         )
-    if any(
-        (char.isalpha() and ord(char) > 127)
-        or unicodedata.category(char).startswith("M")
-        for char in normalized
-    ):
+    if any(ord(char) > 127 for char in normalized):
         raise ReviewerRoutingError(
-            "profile rubric cannot contain non-ASCII letters or combining marks"
+            "profile rubric cannot contain non-ASCII letters or combining marks, "
+            "punctuation, or symbols"
         )
     return normalized.casefold()
 
 
 def _rubric_tokens(value: str) -> tuple[str, ...]:
     return tuple(re.findall(r"[a-z0-9]+", _normalized_rubric_text(value)))
+
+
+def _contains_token_phrase(
+    tokens: tuple[str, ...], phrase: tuple[str, ...]
+) -> bool:
+    width = len(phrase)
+    return any(
+        tokens[index : index + width] == phrase
+        for index in range(len(tokens) - width + 1)
+    )
+
+
+def _has_adoption_relationship(tokens: tuple[str, ...]) -> bool:
+    if _contains_token_phrase(tokens, ("on", "behalf", "of")):
+        return True
+    if _contains_token_phrase(tokens, ("in", "the", "identity", "of")):
+        return True
+    if _contains_token_phrase(tokens, ("in", "identity", "of")):
+        return True
+    for index, token in enumerate(tokens):
+        if token not in {"as", "under", "with"}:
+            continue
+        following = frozenset(tokens[index + 1 : index + 6])
+        if following & _RUBRIC_ADOPTION_TARGETS:
+            return True
+    return False
+
+
+def _sensitive_terms_have_technical_context(
+    tokens: tuple[str, ...],
+) -> bool:
+    for index, token in enumerate(tokens):
+        if token not in _RUBRIC_SENSITIVE_TERMS:
+            continue
+        lower = max(0, index - 2)
+        upper = min(len(tokens), index + 5)
+        context = frozenset(tokens[lower:upper])
+        if not context & _RUBRIC_SAFE_SUBJECT_MARKERS:
+            return False
+    return True
 
 
 def _review_rubric(value: object) -> tuple[str, ...]:
@@ -285,30 +361,23 @@ def _review_rubric(value: object) -> tuple[str, ...]:
         token_set = frozenset(tokens)
         first_alpha = next((token for token in tokens if token.isalpha()), "")
         neutral_review = first_alpha in _RUBRIC_NEUTRAL_REVIEW_VERBS
-
-        identity_sensitive = bool(
-            token_set & {"identity", "native", "reviewer", "status", "verdict"}
-        )
-        authority_sensitive = bool(
-            token_set & (_RUBRIC_AUTHORITY_TERMS | _RUBRIC_MERGE_TERMS)
-        )
-        sensitive = identity_sensitive or authority_sensitive
-
+        sensitive = bool(token_set & _RUBRIC_SENSITIVE_TERMS)
         identity_action = bool(token_set & _RUBRIC_IDENTITY_ACTIONS)
         authority_action = bool(token_set & _RUBRIC_AUTHORITY_ACTIONS)
-        relationship_action = bool(token_set & _RUBRIC_RELATIONSHIP_TERMS) or (
-            "identity" in token_set
-            and bool(token_set & {"in", "into", "of"})
-        )
-        technical_subject = bool(token_set & _RUBRIC_SAFE_SUBJECT_MARKERS)
+
+        if authority_action:
+            raise ReviewerRoutingError(
+                "profile rubric cannot define reviewer identity, native approval, "
+                "or merge authority; sensitive terms must use the safe technical "
+                "review-subject grammar"
+            )
+
         safe_sensitive_subject = (
             neutral_review
-            and technical_subject
+            and _sensitive_terms_have_technical_context(tokens)
             and not identity_action
-            and not authority_action
-            and not relationship_action
+            and not _has_adoption_relationship(tokens)
         )
-
         if sensitive and not safe_sensitive_subject:
             raise ReviewerRoutingError(
                 "profile rubric cannot define reviewer identity, native approval, "
