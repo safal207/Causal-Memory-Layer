@@ -19,6 +19,7 @@ The core is safe when imported directly or executed through its own CLI. It intr
 - only canonical CodeRabbit/Qodo identities reach provider handlers;
 - untrusted rate-limit text is ignored before write-capable API calls;
 - untrusted request-marker comments are skipped before marker parsing;
+- malformed or unauthenticated Actions-authored markers are skipped without blocking legitimate fallback processing;
 - Qodo `edited` events cannot complete a lifecycle;
 - exactly one structured reviewed-commit occurrence is required;
 - artifact pagination exhaustion fails explicitly;
@@ -60,12 +61,13 @@ Before requesting Qodo, the workflow:
 2. validates the full current head SHA;
 3. scans the complete issue-comment history;
 4. discards non-Actions request-marker comments before parsing marker syntax;
-5. authenticates any trusted prior request through the exact successful workflow run and its run-scoped evidence artifact;
-6. serializes deliveries by pull-request number;
-7. re-fetches the pull request immediately before posting;
-8. rejects changed state, base, or head.
+5. skips malformed or unauthenticated Actions-authored candidates instead of letting unrelated workflow comments deny service;
+6. authenticates a valid prior request through the exact successful workflow run and its run-scoped evidence artifact;
+7. serializes deliveries by pull-request number;
+8. re-fetches the pull request immediately before posting;
+9. rejects changed state, base, or head.
 
-A malformed marker from an untrusted commenter cannot block legitimate fallback processing. A malformed marker from the trusted Actions identity still fails closed because it claims to participate in the authenticated lifecycle.
+A malformed marker from any unrelated commenter or workflow cannot block legitimate fallback processing. If more than one fully authenticated request exists for the same exact head, the verifier still fails closed as an ambiguous lifecycle.
 
 The request marker binds repository, pull request, exact head, run ID, and run attempt. The request also states:
 
@@ -141,7 +143,12 @@ The comment and artifact are evidence only. They do not authorize merge.
 
 ## YAML security policy
 
-Bandit B506 cannot distinguish the repository's duplicate-key loader derived from `yaml.SafeLoader`. The security workflow explicitly loads a protected `.bandit` policy, while a protected AST regression resolves module aliases and imported `load` functions and rejects every production load unless its loader is proven to derive from `SafeLoader`.
+Bandit B506 cannot distinguish the repository's duplicate-key loader derived from `yaml.SafeLoader`. The security workflow explicitly loads a protected `.bandit` policy, while a protected AST regression:
+
+- resolves PyYAML module aliases and imported function aliases;
+- requires `load` and `load_all` to use exactly one loader proven to derive from `SafeLoader`;
+- strictly forbids `unsafe_load`, `unsafe_load_all`, `full_load`, and `full_load_all`;
+- permits `safe_load` and `safe_load_all`.
 
 ## Bootstrap boundary
 
