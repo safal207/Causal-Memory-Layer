@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/reviewer-fallback.yml"
+HELPER = ROOT / ".github/trust-root/scripts/reviewer_fallback.py"
 
 
 def test_reviewer_fallback_workflow_is_trusted_default_branch_only():
@@ -20,6 +21,7 @@ def test_reviewer_fallback_workflow_is_trusted_default_branch_only():
 def test_reviewer_fallback_workflow_has_least_privilege_and_serialization():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "\npermissions: {}\n" in text
+    assert "actions: read" in text
     assert "contents: read" in text
     assert "pull-requests: read" in text
     assert "issues: write" in text
@@ -45,3 +47,13 @@ def test_reviewer_fallback_workflow_filters_to_trusted_provider_signals():
     assert "qodo-code-review[bot]" in text
     assert "Review limit reached" in text
     assert ".github/trust-root/scripts/reviewer_fallback.py" in text
+
+
+def test_reviewer_fallback_helper_authenticates_run_scoped_artifacts():
+    text = HELPER.read_text(encoding="utf-8")
+    assert 'WORKFLOW_NAME = "CML Reviewer Fallback"' in text
+    assert 'WORKFLOW_PATH = ".github/workflows/reviewer-fallback.yml"' in text
+    assert "load_fallback_artifact" in text
+    assert "cml-reviewer-fallback-pr" in text
+    assert "DUPLICATE_QODO_RESULT_NOOP" in text
+    assert "SUPERSEDED_QODO_REVIEW" in text
