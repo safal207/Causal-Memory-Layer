@@ -42,11 +42,12 @@ def test_reviewer_fallback_workflow_pins_actions_and_exact_attempt_evidence():
     assert "if-no-files-found: error" in text
 
 
-def test_reviewer_fallback_workflow_filters_to_trusted_provider_signals():
+def test_reviewer_fallback_workflow_runs_only_for_canonical_provider_logins():
     text = WORKFLOW.read_text(encoding="utf-8")
-    assert "coderabbitai[bot]" in text
-    assert "qodo-code-review[bot]" in text
-    assert "Review limit reached" in text
+    assert "github.event.comment.user.login == 'coderabbitai[bot]'" in text
+    assert "github.event.comment.user.login == 'qodo-code-review[bot]'" in text
+    assert "contains(github.event.comment.body" not in text
+    assert "Review limit reached" not in text
     assert ".github/trust-root/scripts/reviewer_fallback_entrypoint.py" in text
     assert "python .github/trust-root/scripts/reviewer_fallback.py" not in text
 
@@ -60,6 +61,8 @@ def test_reviewer_fallback_core_is_intrinsically_strict():
     assert "exactly one structured reviewed-commit field" in core_text
     assert 'if head_sha is None or evidence.get("passed") is True:' in core_text
     assert 'state = "success"' not in core_text
+    assert "is_coderabbit = _matches_identity(" in core_text
+    assert "if _trusted_actions_comment(comment)" in core_text
 
 
 def test_reviewer_fallback_entrypoint_is_a_thin_delegate_without_monkey_patches():
