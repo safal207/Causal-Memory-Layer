@@ -17,10 +17,7 @@ jobs:
       github.event.issue.pull_request != null &&
       (
         github.event.comment.user.login == 'coderabbitai[bot]' ||
-        github.event.comment.user.login == 'qodo-code-review[bot]' ||
-        contains(github.event.comment.body, 'Review limit reached') ||
-        contains(github.event.comment.body, 'review rate limit') ||
-        contains(github.event.comment.body, 'couldn''t start this review')
+        github.event.comment.user.login == 'qodo-code-review[bot]'
       )
     runs-on: ubuntu-latest
     timeout-minutes: 10
