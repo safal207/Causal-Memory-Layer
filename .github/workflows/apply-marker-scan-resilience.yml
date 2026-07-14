@@ -23,42 +23,23 @@ jobs:
           fetch-depth: 1
           persist-credentials: true
 
-      - name: Apply assert-checked marker scan patch
+      - name: Apply structurally bounded marker scan patch
         run: |
           python - <<'PY'
           from pathlib import Path
 
           path = Path('.github/trust-root/scripts/reviewer_fallback.py')
-          text = path.read_text(encoding='utf-8')
-          if 'try:\n            marker = _parse_request_marker' in text:
+          lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
+          start_marker = '    for comment in candidates:\n'
+          end_marker = '    if len(matches) > 1:\n'
+          if any('try:' in line for line in lines[lines.index(start_marker):lines.index(end_marker)]):
               print('marker scan resilience already applied')
               raise SystemExit(0)
-
-          old_parse = (
-              '    for comment in candidates:\n'
-              '        marker = _parse_request_marker(comment.get("body"))\n'
-          )
-          new_parse = (
-              '    for comment in candidates:\n'
-              '        try:\n'
-              '            marker = _parse_request_marker(comment.get("body"))\n'
-              '        except FallbackError:\n'
-              '            continue\n'
-          )
-          if text.count(old_parse) != 1:
-              raise SystemExit('marker parse replacement expected exactly once')
-          text = text.replace(old_parse, new_parse, 1)
-
-          old_validate = '''            artifact = _validate_request_comment(
-                  client,
-                  comment,
-                  repository=repository,
-                  pull_number=pull_number,
-                  head_sha=head_sha,
-              )
-              matches.append((comment, artifact))
-          '''
-          new_validate = '''            try:
+          start = lines.index(start_marker)
+          end = lines.index(end_marker, start)
+          replacement = '''    for comment in candidates:
+              try:
+                  marker = _parse_request_marker(comment.get("body"))
                   artifact = _validate_request_comment(
                       client,
                       comment,
@@ -68,12 +49,15 @@ jobs:
                   )
               except FallbackError:
                   continue
-              matches.append((comment, artifact))
-          '''
-          if text.count(old_validate) != 1:
-              raise SystemExit('marker validation replacement expected exactly once')
-          text = text.replace(old_validate, new_validate, 1)
-
+              if (
+                  marker["repository"] == repository
+                  and marker["pull_number"] == pull_number
+                  and marker["head_sha"] == head_sha
+              ):
+                  matches.append((comment, artifact))
+          '''.splitlines(keepends=True)
+          lines[start:end] = replacement
+          text = ''.join(lines)
           compile(text, str(path), 'exec')
           path.write_text(text, encoding='utf-8')
           PY
