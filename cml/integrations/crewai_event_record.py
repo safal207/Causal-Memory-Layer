@@ -183,6 +183,26 @@ def _finding(
     )
 
 
+def _snapshot_sort_key(event: CrewAIEventSnapshot) -> tuple[Any, ...]:
+    """Return an input-order-independent key for duplicate canonicalization."""
+
+    sequence = event.emission_sequence
+    sequence_key: tuple[int, int | str]
+    if isinstance(sequence, int) and not isinstance(sequence, bool):
+        sequence_key = (0, sequence)
+    else:
+        sequence_key = (1, repr(sequence))
+    return (
+        event.event_id,
+        event.event_type,
+        event.parent_event_id or "",
+        event.previous_event_id or "",
+        event.triggered_by_event_id or "",
+        event.started_event_id or "",
+        sequence_key,
+    )
+
+
 def validate_crewai_event_record(value: Any) -> CrewAIEventRecordValidationResult:
     """Validate CrewAI's existing event graph without changing execution.
 
@@ -193,21 +213,28 @@ def validate_crewai_event_record(value: Any) -> CrewAIEventRecordValidationResul
 
     events = snapshots_from_crewai_event_record(value)
     findings: list[CrewAIEventRecordFinding] = []
-    by_id: dict[str, CrewAIEventSnapshot] = {}
+    grouped_by_id: dict[str, list[CrewAIEventSnapshot]] = {}
 
     for event in events:
-        if event.event_id in by_id:
+        grouped_by_id.setdefault(event.event_id, []).append(event)
+
+    by_id: dict[str, CrewAIEventSnapshot] = {}
+    for event_id in sorted(grouped_by_id):
+        variants = sorted(grouped_by_id[event_id], key=_snapshot_sort_key)
+        by_id[event_id] = variants[0]
+        for duplicate in variants[1:]:
             findings.append(
                 _finding(
                     code="CML-CREWAI-DUPLICATE-EVENT-ID",
-                    event=event,
-                    message=f"duplicate event_id: {event.event_id}",
+                    event=duplicate,
+                    message=f"duplicate event_id: {event_id}",
                 )
             )
-            continue
-        by_id[event.event_id] = event
 
-    for event in by_id.values():
+    # Local reference and lifecycle checks run across every variant so a
+    # non-canonical duplicate cannot hide a structural defect. Graph-wide
+    # checks use the deterministic canonical snapshot selected above.
+    for event in sorted(events, key=_snapshot_sort_key):
         for field_name in REFERENCE_FIELDS:
             referenced_id = getattr(event, field_name)
             if referenced_id is None or referenced_id in by_id:
@@ -258,9 +285,9 @@ def validate_crewai_event_record(value: Any) -> CrewAIEventRecordValidationResul
                         )
                     )
 
-    sequence_owner: dict[int, CrewAIEventSnapshot] = {}
+    sequence_groups: dict[int, list[CrewAIEventSnapshot]] = {}
     valid_sequences: dict[str, int] = {}
-    for event in by_id.values():
+    for event in sorted(by_id.values(), key=_snapshot_sort_key):
         sequence = event.emission_sequence
         if not isinstance(sequence, int) or isinstance(sequence, bool) or sequence <= 0:
             findings.append(
@@ -273,24 +300,26 @@ def validate_crewai_event_record(value: Any) -> CrewAIEventRecordValidationResul
             )
             continue
         valid_sequences[event.event_id] = sequence
-        if sequence in sequence_owner:
-            first = sequence_owner[sequence]
+        sequence_groups.setdefault(sequence, []).append(event)
+
+    for sequence in sorted(sequence_groups):
+        owners = sorted(sequence_groups[sequence], key=lambda item: item.event_id)
+        canonical_owner = owners[0]
+        for duplicate_owner in owners[1:]:
             findings.append(
                 _finding(
                     code="CML-CREWAI-SEQUENCE-VIOLATION",
-                    event=event,
+                    event=duplicate_owner,
                     field="emission_sequence",
-                    referenced_event_id=first.event_id,
+                    referenced_event_id=canonical_owner.event_id,
                     message=(
                         f"emission_sequence {sequence} is already used by "
-                        f"{first.event_id}"
+                        f"{canonical_owner.event_id}"
                     ),
                 )
             )
-        else:
-            sequence_owner[sequence] = event
 
-    for event in by_id.values():
+    for event in sorted(by_id.values(), key=lambda item: item.event_id):
         current_sequence = valid_sequences.get(event.event_id)
         if current_sequence is None:
             continue
@@ -316,16 +345,30 @@ def validate_crewai_event_record(value: Any) -> CrewAIEventRecordValidationResul
     state: dict[str, int] = {}
     reported_edges: set[tuple[str, str, str]] = set()
 
-    def visit(event_id: str) -> None:
-        state[event_id] = 1
-        event = by_id[event_id]
-        for field_name in REFERENCE_FIELDS:
+    for start_id in sorted(by_id):
+        if state.get(start_id, 0) != 0:
+            continue
+        state[start_id] = 1
+        stack: list[tuple[str, int]] = [(start_id, 0)]
+
+        while stack:
+            event_id, field_index = stack[-1]
+            if field_index >= len(REFERENCE_FIELDS):
+                state[event_id] = 2
+                stack.pop()
+                continue
+
+            field_name = REFERENCE_FIELDS[field_index]
+            stack[-1] = (event_id, field_index + 1)
+            event = by_id[event_id]
             referenced_id = getattr(event, field_name)
             if referenced_id is None or referenced_id not in by_id:
                 continue
+
             referenced_state = state.get(referenced_id, 0)
             if referenced_state == 0:
-                visit(referenced_id)
+                state[referenced_id] = 1
+                stack.append((referenced_id, 0))
             elif referenced_state == 1:
                 edge = (event_id, field_name, referenced_id)
                 if edge not in reported_edges:
@@ -342,19 +385,15 @@ def validate_crewai_event_record(value: Any) -> CrewAIEventRecordValidationResul
                         )
                     )
                     reported_edges.add(edge)
-        state[event_id] = 2
 
-    for event_id in sorted(by_id):
-        if state.get(event_id, 0) == 0:
-            visit(event_id)
-
-    findings.sort(
+    unique_findings = sorted(
+        set(findings),
         key=lambda item: (
             item.code,
             item.event_id,
             item.field or "",
             item.referenced_event_id or "",
             item.message,
-        )
+        ),
     )
-    return CrewAIEventRecordValidationResult(findings=tuple(findings))
+    return CrewAIEventRecordValidationResult(findings=tuple(unique_findings))
