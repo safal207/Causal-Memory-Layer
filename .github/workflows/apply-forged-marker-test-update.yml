@@ -1,0 +1,73 @@
+name: Apply Forged Marker Test Update
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  patch:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'ci/coderabbit-qodo-fallback'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout exact head branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ci/coderabbit-qodo-fallback
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Update obsolete forged-marker expectation
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          path = Path('tests/test_reviewer_fallback.py')
+          text = path.read_text(encoding='utf-8')
+          pattern = re.compile(
+              r'^def test_forged_actions_request_marker_without_artifact_fails_closed\(\):\n.*?'
+              r'(?=^def test_qodo_unavailable_records_provider_evidence_unavailable\(\):)',
+              flags=re.MULTILINE | re.DOTALL,
+          )
+          replacement = '''def test_forged_actions_request_marker_without_artifact_is_skipped():
+              forged = {
+                  "id": 555,
+                  "body": (
+                      "/qodo review\\n\\n"
+                      + rf._request_marker(REPO, 77, HEAD, 999, 1)
+                      + "\\n"
+                  ),
+                  "user": identity(rf.ACTIONS_LOGIN, rf.ACTIONS_ID),
+                  "created_at": NOW,
+              }
+              client = FakeClient(comments=[forged])
+              result = run(event(), client)
+              assert result["passed"] is True
+              assert result["outcome"] == "QODO_REQUESTED_EXACT_HEAD"
+              assert result["qodo_request_comment_id"] != 555
+              assert len(request_comments(client)) == 2
+
+
+          '''
+          matches = pattern.findall(text)
+          if len(matches) != 1:
+              raise SystemExit(f'forged-marker test replacement expected once, got {len(matches)}')
+          text = pattern.sub(replacement, text, count=1)
+          compile(text, str(path), 'exec')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit updated regression
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add tests/test_reviewer_fallback.py
+          git commit -m 'test: skip unauthenticated Actions fallback markers'
+          git push origin HEAD:ci/coderabbit-qodo-fallback
