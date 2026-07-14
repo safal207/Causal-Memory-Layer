@@ -34,55 +34,27 @@ jobs:
               print('untrusted-input hardening already applied')
               raise SystemExit(0)
 
-          replacements = [
-              (
-                  '''    candidates = [
-                      comment
-                      for comment in comments
-                      if REQUEST_MARKER_PREFIX in str(comment.get("body", ""))
-                  ]
-          ''',
-                  '''    candidates = [
-                      comment
-                      for comment in comments
-                      if _trusted_actions_comment(comment)
-                      and REQUEST_MARKER_PREFIX in str(comment.get("body", ""))
-                  ]
-          ''',
-              ),
-              (
-                  '''    if _rate_limit_marker_present(body):
-                      return _handle_coderabbit(
-                          event,
-                          client,
-                          evidence,
-                          repository=repository,
-                          pull_number=pull_number,
-                          now=now,
-                      )
-          ''',
-                  '''    is_coderabbit = _matches_identity(
-                      comment.get("user"), login=CODE_RABBIT_LOGIN, user_id=CODE_RABBIT_ID
-                  ) and _matches_identity(
-                      event.get("sender"), login=CODE_RABBIT_LOGIN, user_id=CODE_RABBIT_ID
-                  )
-                  if is_coderabbit and _rate_limit_marker_present(body):
-                      return _handle_coderabbit(
-                          event,
-                          client,
-                          evidence,
-                          repository=repository,
-                          pull_number=pull_number,
-                          now=now,
-                      )
-          ''',
-              ),
-          ]
+          old_candidate = '        if REQUEST_MARKER_PREFIX in str(comment.get("body", ""))\n'
+          new_candidate = (
+              '        if _trusted_actions_comment(comment)\n'
+              '        and REQUEST_MARKER_PREFIX in str(comment.get("body", ""))\n'
+          )
+          if text.count(old_candidate) != 1:
+              raise SystemExit('trusted candidate replacement expected exactly once')
+          text = text.replace(old_candidate, new_candidate, 1)
 
-          for index, (old, new) in enumerate(replacements, start=1):
-              if text.count(old) != 1:
-                  raise SystemExit(f'replacement {index} expected exactly once')
-              text = text.replace(old, new, 1)
+          old_route = '    if _rate_limit_marker_present(body):\n'
+          new_route = (
+              '    is_coderabbit = _matches_identity(\n'
+              '        comment.get("user"), login=CODE_RABBIT_LOGIN, user_id=CODE_RABBIT_ID\n'
+              '    ) and _matches_identity(\n'
+              '        event.get("sender"), login=CODE_RABBIT_LOGIN, user_id=CODE_RABBIT_ID\n'
+              '    )\n'
+              '    if is_coderabbit and _rate_limit_marker_present(body):\n'
+          )
+          if text.count(old_route) != 1:
+              raise SystemExit('trusted routing replacement expected exactly once')
+          text = text.replace(old_route, new_route, 1)
 
           compile(text, str(path), 'exec')
           path.write_text(text, encoding='utf-8')
