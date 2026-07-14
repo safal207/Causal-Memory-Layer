@@ -67,6 +67,8 @@ def test_non_ascii_token_separators_fail_closed(rubric):
         "Review merge handling with race conditions.",
         "Review native approval validation as a security condition.",
         "Review identity propagation under failure conditions.",
+        "Review with focus on merge logic.",
+        "Review merge logic as requested.",
         "1. Review merge authority checks for bypasses.",
         "2) Audit native approval validation.",
         "003 - Verify merge permission enforcement.",
