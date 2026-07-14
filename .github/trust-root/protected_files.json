@@ -1,10 +1,10 @@
 {
   "files": {
     ".bandit": "5568293d2e15266a57eb51cc81b0bef223c2b269",
-    ".github/trust-root/scripts/reviewer_fallback.py": "8fd8b674978fe0731d94c228897eeae50bd54a31",
+    ".github/trust-root/scripts/reviewer_fallback.py": "0953d8ffeb17456a2af9d59e88ba5610c342831b",
     ".github/workflows/ci.yml": "ae103606ca5b4b99609ee48c2f867e6bde1d55ec",
     ".github/workflows/python-package-validation.yml": "13bd15e4010a1cc04f64b972a69c8da07f0e58a7",
-    ".github/workflows/reviewer-fallback.yml": "361b14ee40c0f8bab7232c52cad74fa4ae3d28cf",
+    ".github/workflows/reviewer-fallback.yml": "757c90098e222235cfcaefd2ae0e4e2bb7fa8791",
     ".github/workflows/security.yml": "cfcc265ec2d8b9a64a2e7c9f0318642430f81830",
     "scripts/__init__.py": "d56731c22992899563e9b2de8181d91a0521d1f1",
     "scripts/ci/__init__.py": "17a59c5b36ff247772104003737ad1a5b619ad77",
@@ -13,9 +13,9 @@
     "scripts/ci/verify_workflow_contract.py": "85ef8222b10cd1731372fd9e58a586046f214cc0",
     "tests/test_ci_evidence.py": "2d080fc4c728f1d8d98c01311839c8cd456b2f90",
     "tests/test_ci_workflow_contract.py": "8e928b8504c1b0db6efddfc6ea9e64a99d066bf6",
-    "tests/test_reviewer_fallback.py": "8b1bed9e8d93275ab055d911425e97430a0a7bf2",
-    "tests/test_reviewer_fallback_workflow_contract.py": "8aaf75742bd590ef16e6b045e885adcdfa733878",
-    "tests/test_yaml_loader_security.py": "3545ecd3040035e7e9d3b17323644b8e04907604"
+    "tests/test_reviewer_fallback.py": "8d7ddfee14e011d11f0cbc9228f788c1e32c6610",
+    "tests/test_reviewer_fallback_workflow_contract.py": "35fec803aafa1300684b1c74fba5b682d73a705e",
+    "tests/test_yaml_loader_security.py": "9ad22454505e17b2e75fe57672e3d0f3a3c67c83"
   },
   "schema_version": "cml-trust-root-files-v1"
 }
