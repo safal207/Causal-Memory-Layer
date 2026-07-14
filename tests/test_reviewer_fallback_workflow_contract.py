@@ -51,14 +51,22 @@ def test_reviewer_fallback_workflow_filters_to_trusted_provider_signals():
     assert "python .github/trust-root/scripts/reviewer_fallback.py" not in text
 
 
-def test_reviewer_fallback_entrypoint_authenticates_and_never_publishes_success():
+def test_reviewer_fallback_core_is_intrinsically_strict():
     core_text = CORE.read_text(encoding="utf-8")
-    entrypoint = ENTRYPOINT.read_text(encoding="utf-8")
     assert 'WORKFLOW_NAME = "CML Reviewer Fallback"' in core_text
     assert 'WORKFLOW_PATH = ".github/workflows/reviewer-fallback.yml"' in core_text
-    assert "load_fallback_artifact" in entrypoint
-    assert "workflow artifact pagination exceeded the safe bound" in entrypoint
-    assert "REJECTED_EDITED_QODO_RESULT" in entrypoint
-    assert "exactly one structured reviewed-commit field" in entrypoint
-    assert 'if head_sha is None or evidence.get("passed") is True:' in entrypoint
-    assert 'state = "success"' not in entrypoint
+    assert "workflow artifact pagination exceeded the safe bound" in core_text
+    assert "REJECTED_EDITED_QODO_RESULT" in core_text
+    assert "exactly one structured reviewed-commit field" in core_text
+    assert 'if head_sha is None or evidence.get("passed") is True:' in core_text
+    assert 'state = "success"' not in core_text
+
+
+def test_reviewer_fallback_entrypoint_is_a_thin_delegate_without_monkey_patches():
+    entrypoint = ENTRYPOINT.read_text(encoding="utf-8")
+    assert "core.main()" in entrypoint
+    assert "CORE_SPEC.loader.exec_module(core)" in entrypoint
+    assert "core._extract_reviewed_sha =" not in entrypoint
+    assert "core._publish_commit_status =" not in entrypoint
+    assert "core.GitHubApi =" not in entrypoint
+    assert "def process_event(" not in entrypoint
