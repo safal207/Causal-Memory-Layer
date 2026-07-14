@@ -9,6 +9,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -19,21 +20,9 @@ MANIFEST_SCHEMA = "cml-trust-root-files-v1"
 PROTECTED_EXACT = {".github/workflows/trusted-pr-gate.yml"}
 PROTECTED_PREFIXES = (".github/trust-root/",)
 WORKFLOW_PREFIX = ".github/workflows/"
-DANGEROUS_IMPORT_ROOTS = {
-    "argparse",
-    "collections",
-    "dataclasses",
-    "hashlib",
-    "json",
-    "os",
-    "pathlib",
-    "re",
+DANGEROUS_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {
     "scripts",
     "sitecustomize",
-    "subprocess",
-    "tempfile",
-    "typing",
-    "urllib",
     "usercustomize",
     "yaml",
 }
@@ -260,12 +249,18 @@ def verify_subject(
             parts = PurePosixPath(path).parts
             root_part = parts[0] if parts else ""
             module_root = root_part.removesuffix(".py")
-            if module_root in DANGEROUS_IMPORT_ROOTS:
+            is_top_level_path = len(parts) == 1
+            introduces_top_level_root = (
+                len(parts) > 1 and bool(root_part) and not (base_root / root_part).exists()
+            )
+            if module_root in DANGEROUS_IMPORT_ROOTS and (
+                is_top_level_path or introduces_top_level_root
+            ):
                 findings.append(
                     {
                         "code": "CML-TRUST-ROOT-IMPORT-SHADOWING",
                         "path": path,
-                        "message": "changed root path could shadow modules used by protected CI helpers",
+                        "message": "changed top-level path could shadow imports used by protected CI helpers",
                     }
                 )
 
