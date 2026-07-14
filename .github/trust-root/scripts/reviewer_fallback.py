@@ -415,12 +415,8 @@ def _find_request_comment(
     ]
     matches: list[tuple[dict[str, Any], dict[str, Any]]] = []
     for comment in candidates:
-        marker = _parse_request_marker(comment.get("body"))
-        if (
-            marker["repository"] == repository
-            and marker["pull_number"] == pull_number
-            and marker["head_sha"] == head_sha
-        ):
+        try:
+            marker = _parse_request_marker(comment.get("body"))
             artifact = _validate_request_comment(
                 client,
                 comment,
@@ -428,6 +424,13 @@ def _find_request_comment(
                 pull_number=pull_number,
                 head_sha=head_sha,
             )
+        except FallbackError:
+            continue
+        if (
+            marker["repository"] == repository
+            and marker["pull_number"] == pull_number
+            and marker["head_sha"] == head_sha
+        ):
             matches.append((comment, artifact))
     if len(matches) > 1:
         raise FallbackError("multiple authenticated Qodo requests exist for the exact head")
