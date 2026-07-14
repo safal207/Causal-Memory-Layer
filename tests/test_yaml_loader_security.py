@@ -74,5 +74,7 @@ def test_every_yaml_load_uses_a_safe_loader_subclass():
 
 def test_bandit_b506_exception_is_bound_to_semantic_regression():
     config = (ROOT / ".bandit").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github/workflows/security.yml").read_text(encoding="utf-8")
     assert "skips = B506" in config
     assert "test_yaml_loader_security.py" in config
+    assert "python -m bandit \\\n            --ini .bandit \\" in workflow
