@@ -133,7 +133,10 @@ _AUTHORITY_TERMS = frozenset(
 _MERGE_TERMS = frozenset({"merge", "merged", "merging"})
 _SENSITIVE_TERMS = _IDENTITY_TERMS | _AUTHORITY_TERMS | _MERGE_TERMS
 _PROTECTED_CONCLUSION_TARGETS = _SENSITIVE_TERMS
-_ADOPTION_TARGETS = _SENSITIVE_TERMS | frozenset({"requested"})
+# Adoption is about assuming reviewer identity or authority. The word `merge`
+# and a standalone `requested` describe ordinary technical work and are not
+# adoption targets by themselves.
+_ADOPTION_TARGETS = _IDENTITY_TERMS | _AUTHORITY_TERMS
 
 _SAFE_SUBJECT_MARKERS = frozenset(
     {
