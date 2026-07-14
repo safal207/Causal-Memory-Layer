@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / ".github/trust-root/scripts/reviewer_fallback.py"
+MODULE_PATH = ROOT / ".github/trust-root/scripts/reviewer_fallback_entrypoint.py"
 SPEC = importlib.util.spec_from_file_location("reviewer_fallback", MODULE_PATH)
 assert SPEC and SPEC.loader
 rf = importlib.util.module_from_spec(SPEC)
@@ -34,10 +34,12 @@ def event(
     sender=None,
     comment_id=101,
     created_at=NOW,
+    action="created",
 ):
     comment_user = comment_user or identity(rf.CODE_RABBIT_LOGIN, rf.CODE_RABBIT_ID)
     sender = sender or identity(rf.CODE_RABBIT_LOGIN, rf.CODE_RABBIT_ID)
     return {
+        "action": action,
         "repository": {"full_name": REPO},
         "issue": {
             "number": 77,
@@ -143,17 +145,14 @@ def request_comments(client):
     return [item for item in client.comments if item["body"].startswith("/qodo review")]
 
 
-def status_comment(client):
-    return next(item for item in client.comments if rf.STATUS_MARKER in item["body"])
-
-
-def qodo_event(body, *, comment_id=700, created_at=LATER):
+def qodo_event(body, *, comment_id=700, created_at=LATER, action="created"):
     return event(
         body=body,
         comment_user=identity(rf.QODO_LOGIN, rf.QODO_ID),
         sender=identity(rf.QODO_LOGIN, rf.QODO_ID),
         comment_id=comment_id,
         created_at=created_at,
+        action=action,
     )
 
 
@@ -170,7 +169,7 @@ def test_trusted_rate_limit_posts_one_authenticated_exact_head_request():
     assert HEAD in body
     assert "run=123 attempt=2" in body
     assert "Merge authority: `false`" in body
-    assert client.statuses[-1]["state"] == "success"
+    assert client.statuses == []
 
 
 def test_spoofed_coderabbit_identity_is_rejected():
@@ -201,6 +200,7 @@ def test_duplicate_delivery_uses_authenticated_artifact_and_is_noop():
     assert second["request_run_id"] == 123
     assert second["qodo_request_comment_id"] == first["qodo_request_comment_id"]
     assert len(request_comments(client)) == 1
+    assert client.statuses == []
 
 
 def test_forged_actions_request_marker_without_artifact_fails_closed():
@@ -247,6 +247,7 @@ def test_qodo_result_preserves_request_provenance_and_records_result_run():
     assert result["final_qodo_review_sha"] == HEAD
     assert result["final_qodo_outcome"] == "NO_ACTIONABLE_FINDINGS"
     assert result["merge_authority"] is False
+    assert client.statuses == []
 
 
 def test_superseded_qodo_result_fails_closed_and_never_publishes_success():
@@ -277,6 +278,26 @@ def test_replayed_qodo_comment_is_a_noop_and_does_not_replace_provenance():
     assert replay["request_run_id"] == 100
     assert replay["result_run_id"] == 200
     assert len(client.updated) == updates_before
+    assert client.statuses == []
+
+
+def test_edited_qodo_comment_cannot_complete_pending_lifecycle():
+    client = FakeClient()
+    run(event(), client, run_id=100, run_attempt=1)
+    updates_before = len(client.updated)
+    result = run(
+        qodo_event(
+            f"Review bound to exact head `{HEAD}`.\nBugs (0)",
+            action="edited",
+        ),
+        client,
+        run_id=200,
+        run_attempt=1,
+    )
+    assert result["passed"] is False
+    assert result["outcome"] == "REJECTED_EDITED_QODO_RESULT"
+    assert len(client.updated) == updates_before
+    assert client.statuses == []
 
 
 def test_pre_request_qodo_comment_is_rejected():
@@ -309,6 +330,21 @@ def test_qodo_result_requires_one_unambiguous_structured_reviewed_sha():
     assert result["passed"] is False
     assert result["outcome"] == "REJECTED_AMBIGUOUS_QODO_HEAD_BINDING"
     assert client.statuses[-1]["state"] == "failure"
+
+
+def test_duplicate_identical_structured_sha_fields_are_rejected():
+    client = FakeClient()
+    run(event(), client, run_id=100, run_attempt=1)
+    result = run(
+        qodo_event(
+            f"Review bound to exact head `{HEAD}`.\nReviewed commit: `{HEAD}`"
+        ),
+        client,
+        run_id=200,
+        run_attempt=1,
+    )
+    assert result["passed"] is False
+    assert result["outcome"] == "REJECTED_AMBIGUOUS_QODO_HEAD_BINDING"
 
 
 def test_arbitrary_sha_mention_does_not_bind_qodo_result():
@@ -358,6 +394,37 @@ def test_forged_actions_status_without_authenticated_request_fails_closed():
             client,
             run_id=200,
         )
+
+
+def test_artifact_pagination_exhaustion_fails_closed():
+    api = object.__new__(rf.GitHubApi)
+    api._token = "token"
+
+    def request_json(method, url, *, payload=None):
+        assert method == "GET" and payload is None
+        if url.endswith("/actions/runs/123"):
+            return {
+                "name": rf.WORKFLOW_NAME,
+                "event": "issue_comment",
+                "path": rf.WORKFLOW_PATH,
+                "head_branch": "main",
+                "run_attempt": 2,
+                "repository": {"full_name": REPO},
+                "status": "completed",
+                "conclusion": "success",
+            }
+        if "/actions/runs/123/artifacts?" in url:
+            return {
+                "artifacts": [
+                    {"id": page_id, "name": f"noise-{page_id}", "expired": False}
+                    for page_id in range(100)
+                ]
+            }
+        raise AssertionError(url)
+
+    api._request_json = request_json
+    with pytest.raises(rf.FallbackError, match="pagination exceeded"):
+        api.load_fallback_artifact(REPO, 77, 123, 2)
 
 
 def test_short_head_fails_closed():
