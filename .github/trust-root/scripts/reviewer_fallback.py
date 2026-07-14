@@ -516,7 +516,7 @@ def _validate_status_lifecycle(
 
 
 def _extract_reviewed_sha(body: str) -> str:
-    candidates: set[str] = set()
+    matches: list[str] = []
     for raw_line in body.splitlines():
         line = raw_line.strip()
         if not line or line.startswith(">"):
@@ -524,12 +524,14 @@ def _extract_reviewed_sha(body: str) -> str:
         for pattern in REVIEWED_SHA_PATTERNS:
             match = pattern.fullmatch(line)
             if match:
-                candidates.add(_normalize_sha(match.group(1)))
-    if not candidates:
+                matches.append(_normalize_sha(match.group(1)))
+    if not matches:
         raise FallbackError("Qodo result lacks a structured reviewed-commit field")
-    if len(candidates) != 1:
-        raise FallbackError("Qodo result contains ambiguous reviewed-commit fields")
-    return next(iter(candidates))
+    if len(matches) != 1:
+        raise FallbackError(
+            "Qodo result must contain exactly one structured reviewed-commit field"
+        )
+    return matches[0]
 
 
 def _classify_qodo_outcome(body: str) -> str:
@@ -722,6 +724,10 @@ class GitHubApi:
             artifacts.extend(page_items)
             if len(page_items) < 100:
                 break
+        else:
+            raise FallbackError(
+                "workflow artifact pagination exceeded the safe bound"
+            )
         matches = [
             item
             for item in artifacts
@@ -786,13 +792,10 @@ def _publish_commit_status(
     head_sha: str | None,
     evidence: dict[str, Any],
 ) -> None:
-    if head_sha is None:
+    if head_sha is None or evidence.get("passed") is True:
         return
     outcome = evidence["outcome"]
-    if evidence.get("passed") is True:
-        state = "success"
-        description = f"Fallback evidence recorded: {outcome}"
-    elif outcome == "PROVIDER_EVIDENCE_UNAVAILABLE":
+    if outcome == "PROVIDER_EVIDENCE_UNAVAILABLE":
         state = "error"
         description = "Qodo fallback evidence unavailable; never approval"
     else:
@@ -1178,6 +1181,9 @@ def process_event(
     run_attempt = _positive_int(run_attempt, label="run attempt")
     if not isinstance(event, dict):
         raise FallbackError("event payload must be an object")
+    action = event.get("action")
+    if action not in {"created", "edited"}:
+        raise FallbackError("issue_comment action must be created or edited")
     event_repository = event.get("repository")
     if not isinstance(event_repository, dict) or event_repository.get("full_name") != repository:
         raise FallbackError("event repository does not match GITHUB_REPOSITORY")
@@ -1200,9 +1206,21 @@ def process_event(
         return evidence
 
     body = _printable_comment_body(comment.get("body"))
-    if _matches_identity(
+    is_qodo = _matches_identity(
         comment.get("user"), login=QODO_LOGIN, user_id=QODO_ID
-    ) or _matches_identity(event.get("sender"), login=QODO_LOGIN, user_id=QODO_ID):
+    ) or _matches_identity(
+        event.get("sender"), login=QODO_LOGIN, user_id=QODO_ID
+    )
+    if is_qodo and action != "created":
+        evidence.update(
+            {
+                "outcome": "REJECTED_EDITED_QODO_RESULT",
+                "passed": False,
+                "merge_authority": False,
+            }
+        )
+        return evidence
+    if is_qodo:
         return _handle_qodo(
             event,
             client,
