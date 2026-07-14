@@ -1,0 +1,5 @@
+[bandit]
+# B506 flags yaml.load even when a custom loader subclasses yaml.SafeLoader.
+# tests/test_yaml_loader_security.py enforces that semantic boundary across
+# every production Python file, including nested custom loader classes.
+skips = B506
