@@ -68,6 +68,7 @@ jobs:
             --output artifacts/security/pip-audit.json
           audit_status=$?
           python -m bandit \
+            --ini .bandit \
             -r cml cli api \
             -ll -ii \
             -f json \
