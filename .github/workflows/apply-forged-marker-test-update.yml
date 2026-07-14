@@ -26,46 +26,49 @@ jobs:
       - name: Update obsolete forged-marker expectation
         run: |
           python - <<'PY'
-          import re
           from pathlib import Path
 
           path = Path('tests/test_reviewer_fallback.py')
-          text = path.read_text(encoding='utf-8')
-          pattern = re.compile(
-              r'^def test_forged_actions_request_marker_without_artifact_fails_closed\(\):\n.*?'
-              r'(?=^def test_qodo_unavailable_records_provider_evidence_unavailable\(\):)',
-              flags=re.MULTILINE | re.DOTALL,
-          )
-          replacement = '''def test_forged_actions_request_marker_without_artifact_is_skipped():
-              forged = {
-                  "id": 555,
-                  "body": (
-                      "/qodo review\\n\\n"
-                      + rf._request_marker(REPO, 77, HEAD, 999, 1)
-                      + "\\n"
-                  ),
-                  "user": identity(rf.ACTIONS_LOGIN, rf.ACTIONS_ID),
-                  "created_at": NOW,
-              }
-              client = FakeClient(comments=[forged])
-              result = run(event(), client)
-              assert result["passed"] is True
-              assert result["outcome"] == "QODO_REQUESTED_EXACT_HEAD"
-              assert result["qodo_request_comment_id"] != 555
-              assert len(request_comments(client)) == 2
-
-
-          '''
-          matches = pattern.findall(text)
-          if len(matches) != 1:
-              raise SystemExit(f'forged-marker test replacement expected once, got {len(matches)}')
-          text = pattern.sub(replacement, text, count=1)
+          lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
+          start_prefix = 'def test_forged_actions_request_marker_without_artifact_fails_closed():'
+          end_prefix = 'def test_qodo_unavailable_records_provider_evidence_unavailable():'
+          starts = [index for index, line in enumerate(lines) if line.startswith(start_prefix)]
+          ends = [index for index, line in enumerate(lines) if line.startswith(end_prefix)]
+          if len(starts) != 1 or len(ends) != 1 or not starts[0] < ends[0]:
+              raise SystemExit(f'expected one ordered test boundary, got starts={starts} ends={ends}')
+          replacement = [
+              'def test_forged_actions_request_marker_without_artifact_is_skipped():\n',
+              '    forged = {\n',
+              '        "id": 555,\n',
+              '        "body": (\n',
+              '            "/qodo review\\n\\n"\n',
+              '            + rf._request_marker(REPO, 77, HEAD, 999, 1)\n',
+              '            + "\\n"\n',
+              '        ),\n',
+              '        "user": identity(rf.ACTIONS_LOGIN, rf.ACTIONS_ID),\n',
+              '        "created_at": NOW,\n',
+              '    }\n',
+              '    client = FakeClient(comments=[forged])\n',
+              '    result = run(event(), client)\n',
+              '    assert result["passed"] is True\n',
+              '    assert result["outcome"] == "QODO_REQUESTED_EXACT_HEAD"\n',
+              '    assert result["qodo_request_comment_id"] != 555\n',
+              '    assert len(request_comments(client)) == 2\n',
+              '\n',
+              '\n',
+          ]
+          lines[starts[0]:ends[0]] = replacement
+          text = ''.join(lines)
           compile(text, str(path), 'exec')
           path.write_text(text, encoding='utf-8')
           PY
 
       - name: Commit updated regression
         run: |
+          if git diff --quiet -- tests/test_reviewer_fallback.py; then
+            echo 'No test update required'
+            exit 0
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add tests/test_reviewer_fallback.py
