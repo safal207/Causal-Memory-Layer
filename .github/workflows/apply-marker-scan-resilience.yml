@@ -30,29 +30,35 @@ jobs:
 
           path = Path('.github/trust-root/scripts/reviewer_fallback.py')
           text = path.read_text(encoding='utf-8')
-          if 'except FallbackError:\n            continue\n        if (' in text:
+          if 'try:\n            marker = _parse_request_marker' in text:
               print('marker scan resilience already applied')
               raise SystemExit(0)
 
-          old = '''    for comment in candidates:
-              marker = _parse_request_marker(comment.get("body"))
-              if (
-                  marker["repository"] == repository
-                  and marker["pull_number"] == pull_number
-                  and marker["head_sha"] == head_sha
-              ):
-                  artifact = _validate_request_comment(
-                      client,
-                      comment,
-                      repository=repository,
-                      pull_number=pull_number,
-                      head_sha=head_sha,
-                  )
-                  matches.append((comment, artifact))
+          old_parse = (
+              '    for comment in candidates:\n'
+              '        marker = _parse_request_marker(comment.get("body"))\n'
+          )
+          new_parse = (
+              '    for comment in candidates:\n'
+              '        try:\n'
+              '            marker = _parse_request_marker(comment.get("body"))\n'
+              '        except FallbackError:\n'
+              '            continue\n'
+          )
+          if text.count(old_parse) != 1:
+              raise SystemExit('marker parse replacement expected exactly once')
+          text = text.replace(old_parse, new_parse, 1)
+
+          old_validate = '''            artifact = _validate_request_comment(
+                  client,
+                  comment,
+                  repository=repository,
+                  pull_number=pull_number,
+                  head_sha=head_sha,
+              )
+              matches.append((comment, artifact))
           '''
-          new = '''    for comment in candidates:
-              try:
-                  marker = _parse_request_marker(comment.get("body"))
+          new_validate = '''            try:
                   artifact = _validate_request_comment(
                       client,
                       comment,
@@ -62,22 +68,22 @@ jobs:
                   )
               except FallbackError:
                   continue
-              if (
-                  marker["repository"] == repository
-                  and marker["pull_number"] == pull_number
-                  and marker["head_sha"] == head_sha
-              ):
-                  matches.append((comment, artifact))
+              matches.append((comment, artifact))
           '''
-          if text.count(old) != 1:
-              raise SystemExit('marker scan replacement expected exactly once')
-          text = text.replace(old, new, 1)
+          if text.count(old_validate) != 1:
+              raise SystemExit('marker validation replacement expected exactly once')
+          text = text.replace(old_validate, new_validate, 1)
+
           compile(text, str(path), 'exec')
           path.write_text(text, encoding='utf-8')
           PY
 
       - name: Commit resilient marker scan
         run: |
+          if git diff --quiet -- .github/trust-root/scripts/reviewer_fallback.py; then
+            echo 'No core changes required'
+            exit 0
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .github/trust-root/scripts/reviewer_fallback.py
