@@ -172,14 +172,14 @@ def test_trusted_rate_limit_posts_one_authenticated_exact_head_request():
     assert client.statuses == []
 
 
-def test_spoofed_coderabbit_identity_is_rejected():
+def test_spoofed_coderabbit_identity_is_ignored_without_writes():
     fake = identity("coderabbitai[bot]", 999)
     client = FakeClient(pulls=[pull()])
     result = run(event(comment_user=fake, sender=fake), client)
-    assert result["passed"] is False
-    assert result["outcome"] == "REJECTED_UNTRUSTED_CODERABBIT_IDENTITY"
+    assert result["passed"] is True
+    assert result["outcome"] == "IGNORED_UNRELATED_COMMENT"
     assert not request_comments(client)
-    assert client.statuses[-1]["state"] == "failure"
+    assert client.statuses == []
 
 
 def test_stale_head_before_post_is_rejected():
