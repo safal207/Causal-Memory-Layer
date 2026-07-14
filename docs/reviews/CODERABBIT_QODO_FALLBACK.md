@@ -4,51 +4,55 @@
 
 `CML Reviewer Fallback` preserves review continuity when the canonical CodeRabbit bot reports that a pull-request review could not start because of a rate limit.
 
-The workflow does not treat provider unavailability as approval. It requests one Qodo proxy review bound to the current full 40-character pull-request head SHA and records the real executor, requested reviewer, fallback reason, separate request/result provenance, and `merge_authority: false`.
+The workflow requests one Qodo proxy review bound to the current full 40-character pull-request head SHA. It records the real executor, requested reviewer, fallback reason, separate request/result provenance, and `merge_authority: false`. Provider unavailability is never approval.
 
-## Authoritative entrypoint
+## Intrinsically strict core
 
-The workflow executes only:
+The security invariants live in:
 
 ```text
-.github/trust-root/scripts/reviewer_fallback_entrypoint.py
+.github/trust-root/scripts/reviewer_fallback.py
 ```
 
-That protected entrypoint loads the reviewed state-machine core and adds the final non-authority controls:
+The core is safe when imported directly or executed through its own CLI. It intrinsically enforces:
 
 - Qodo `edited` events cannot complete a lifecycle;
 - exactly one structured reviewed-commit occurrence is required;
 - artifact pagination exhaustion fails explicitly;
 - successful evidence delivery never publishes a success commit status.
 
-The underlying core and the authoritative entrypoint are both protected by exact Git blob identity.
+The workflow executes a thin protected delegate:
+
+```text
+.github/trust-root/scripts/reviewer_fallback_entrypoint.py
+```
+
+The delegate only loads the core, re-exports its API, and calls `core.main()`. It contains no security monkey patches or alternate behavior. Both files are protected by exact Git blob identity, and direct-core regression tests prove the same guarantees without the delegate.
 
 ## Trusted trigger
 
-The workflow runs from the repository default branch on `issue_comment` `created` and `edited` events. It accepts a rate-limit signal only when both the comment author and event sender match the canonical CodeRabbit identity:
+The workflow runs from the repository default branch on `issue_comment` `created` and `edited` events. A rate-limit signal is accepted only when both the comment author and event sender match the canonical CodeRabbit identity:
 
 ```text
 login = coderabbitai[bot]
 id    = 136622811
 ```
 
-The comment must contain an explicit trusted rate-limit marker such as `Review limit reached`.
-
-Spoofed comments are rejected and produce failure evidence. The workflow never checks out or executes pull-request code.
+The comment must contain an explicit trusted rate-limit marker such as `Review limit reached`. Spoofed comments are rejected. Pull-request code is never checked out or executed.
 
 ## Exact-head and duplicate controls
 
 Before requesting Qodo, the workflow:
 
-1. confirms that the comment belongs to an open pull request targeting `main`;
-2. reads and validates the current full head SHA;
+1. confirms an open pull request targeting `main`;
+2. validates the full current head SHA;
 3. scans the complete issue-comment history;
-4. authenticates any prior request through the exact `CML Reviewer Fallback` workflow run and its run-scoped evidence artifact;
+4. authenticates any prior request through the exact successful workflow run and its run-scoped evidence artifact;
 5. serializes deliveries by pull-request number;
 6. re-fetches the pull request immediately before posting;
-7. rejects a request if the head, state, or base changed.
+7. rejects changed state, base, or head.
 
-The generated request marker binds repository, pull request, exact head, workflow run ID, and run attempt. The generated request also states:
+The request marker binds repository, pull request, exact head, run ID, and run attempt. The request also states:
 
 ```text
 requested reviewer = CodeRabbit
@@ -60,23 +64,21 @@ merge authority    = false
 
 ## Authenticated lifecycle evidence
 
-Comments authored as `github-actions[bot]` are not trusted merely because of that shared identity. A request marker or canonical status is accepted only when its referenced run:
+A `github-actions[bot]` comment is not trusted merely because of its shared identity. A request marker or canonical status is accepted only when its referenced run:
 
 - is named `CML Reviewer Fallback`;
 - uses `.github/workflows/reviewer-fallback.yml`;
 - is an `issue_comment` run from `main` in the expected repository;
-- has the exact run attempt recorded by the marker;
-- has completed successfully;
-- exposes exactly one non-expired artifact named for the pull request, run, and attempt;
-- contains `reviewer-fallback-evidence.json` matching repository, pull request, head SHA, run, attempt, request comment ID, and `merge_authority: false`.
+- has the exact recorded run attempt;
+- completed successfully;
+- exposes exactly one non-expired artifact named for the PR, run, and attempt;
+- contains one `reviewer-fallback-evidence.json` matching repository, PR, head, run, attempt, request comment, and `merge_authority: false`.
 
-The workflow has read-only Actions permission solely to verify this run-scoped capability. A public marker copied by another workflow is insufficient.
-
-Artifact enumeration is bounded. If ten complete 100-item pages are observed without a final short page, the verifier reports pagination exhaustion rather than silently treating the list as complete.
+Artifact enumeration is bounded. Ten complete pages of 100 artifacts cause explicit pagination exhaustion instead of silent truncation.
 
 ## Request and result provenance
 
-The canonical evidence keeps the original request lifecycle immutable:
+The canonical evidence keeps request provenance immutable:
 
 - `request_run_id`;
 - `request_run_attempt`;
@@ -92,61 +94,40 @@ A later Qodo event records separate result provenance:
 - `result_event_comment_id`;
 - `result_timestamp`.
 
-A result cannot overwrite the request run. Replayed comments cannot complete an already completed lifecycle. Edited Qodo comments are rejected before lifecycle processing, so an earlier bot comment cannot be edited into a completion event.
+A result cannot overwrite the request run. Replayed comments are deterministic no-ops. Edited Qodo comments are rejected before lifecycle processing.
 
 ## Final Qodo result
 
-A final result is accepted only from the canonical Qodo identity:
+A result is accepted only from the canonical Qodo identity:
 
 ```text
 login = qodo-code-review[bot]
 id    = 151058649
 ```
 
-The result must:
+It must:
 
 1. arrive through an `issue_comment` `created` event;
-2. occur after the authenticated request comment;
+2. occur after the authenticated request;
 3. contain exactly one structured reviewed-commit occurrence outside quoted request text;
-4. bind that field to the exact requested head;
-5. arrive while the pull request still has that exact current head;
+4. bind to the exact requested head;
+5. arrive while that head remains current;
 6. transition an incomplete lifecycle exactly once.
 
-Arbitrary SHA mentions do not establish binding. Missing, repeated, or conflicting structured reviewed-commit fields fail closed. A Qodo review of a superseded head is preserved as non-approval evidence with `passed: false`; it never publishes a success status.
+Missing, repeated, conflicting, or arbitrary SHA mentions fail closed. A superseded review is preserved as non-approval evidence with `passed: false`.
 
 ## Evidence output and non-authority
 
-Every handled event writes `cml-reviewer-fallback-v2` JSON. The workflow uploads it with an exact-run/exact-attempt artifact name and maintains one canonical machine-readable pull-request status comment.
+Every handled event writes `cml-reviewer-fallback-v2` JSON and uploads an exact-run/exact-attempt artifact. The workflow also maintains one canonical machine-readable PR comment.
 
-The workflow **never publishes a successful commit status**. This prevents evidence delivery, duplicate handling, or a Qodo result from becoming a branch-protection merge signal. Failure and provider-unavailable states may publish failure/error commit statuses linked to the exact event run attempt.
+The fallback **never publishes a successful commit status**. Therefore request delivery, duplicate handling, and a successful Qodo review cannot become a branch-protection merge signal. Failure and provider-unavailable outcomes may publish failure/error statuses linked to the exact event attempt.
 
-The canonical comment and artifact are evidence only. They do not authorize merge.
-
-## Fail-closed outcomes
-
-- spoofed CodeRabbit or Qodo identity → rejected;
-- unsupported issue-comment action → rejected;
-- edited Qodo result → rejected;
-- missing or short SHA → rejected;
-- closed pull request or non-`main` base → rejected;
-- superseded request head → rejected;
-- superseded Qodo result → rejected as stale evidence;
-- duplicate exact-head request → authenticated deterministic no-op;
-- repeated Qodo completion → deterministic no-op;
-- pre-request Qodo comment → rejected;
-- missing, repeated, multiple, or mismatched reviewed-commit fields → rejected;
-- forged Actions marker/status without matching workflow artifact → rejected;
-- unsuccessful or mismatched workflow run → rejected;
-- ambiguous artifact or ZIP evidence entry → rejected;
-- artifact pagination exhaustion → rejected;
-- Qodo request failure → `PROVIDER_EVIDENCE_UNAVAILABLE`;
-- malformed or ambiguous canonical status → workflow failure;
-- workflow exception → structured artifact evidence with `passed: false`.
+The comment and artifact are evidence only. They do not authorize merge.
 
 ## YAML security policy
 
-Bandit B506 is skipped only because it cannot distinguish the repository's duplicate-key loader derived from `yaml.SafeLoader`. A protected AST regression resolves module aliases and imported `load` functions, and rejects every production PyYAML load call unless its loader is proven to derive from `SafeLoader`. The Bandit config, security workflow, and semantic regression are protected by the trust-root manifest.
+Bandit B506 cannot distinguish the repository's duplicate-key loader derived from `yaml.SafeLoader`. The security workflow explicitly loads a protected `.bandit` policy, while a protected AST regression resolves module aliases and imported `load` functions and rejects every production load unless its loader is proven to derive from `SafeLoader`.
 
 ## Bootstrap boundary
 
-This integration adds a new workflow and trusted helpers, so its pull request intentionally changes protected trust-root paths. It requires a dedicated bootstrap review and explicit maintainer disposition. The workflow has no approval, merge, or auto-merge authority.
+This integration adds a workflow and trusted helpers, so its PR intentionally changes protected trust-root paths. It requires dedicated bootstrap review and explicit maintainer disposition. No workflow or reviewer has approval, merge, or auto-merge authority.
