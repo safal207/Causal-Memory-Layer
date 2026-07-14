@@ -6,6 +6,23 @@
 
 The workflow does not treat provider unavailability as approval. It requests one Qodo proxy review bound to the current full 40-character pull-request head SHA and records the real executor, requested reviewer, fallback reason, separate request/result provenance, and `merge_authority: false`.
 
+## Authoritative entrypoint
+
+The workflow executes only:
+
+```text
+.github/trust-root/scripts/reviewer_fallback_entrypoint.py
+```
+
+That protected entrypoint loads the reviewed state-machine core and adds the final non-authority controls:
+
+- Qodo `edited` events cannot complete a lifecycle;
+- exactly one structured reviewed-commit occurrence is required;
+- artifact pagination exhaustion fails explicitly;
+- successful evidence delivery never publishes a success commit status.
+
+The underlying core and the authoritative entrypoint are both protected by exact Git blob identity.
+
 ## Trusted trigger
 
 The workflow runs from the repository default branch on `issue_comment` `created` and `edited` events. It accepts a rate-limit signal only when both the comment author and event sender match the canonical CodeRabbit identity:
@@ -55,6 +72,8 @@ Comments authored as `github-actions[bot]` are not trusted merely because of tha
 
 The workflow has read-only Actions permission solely to verify this run-scoped capability. A public marker copied by another workflow is insufficient.
 
+Artifact enumeration is bounded. If ten complete 100-item pages are observed without a final short page, the verifier reports pagination exhaustion rather than silently treating the list as complete.
+
 ## Request and result provenance
 
 The canonical evidence keeps the original request lifecycle immutable:
@@ -73,7 +92,7 @@ A later Qodo event records separate result provenance:
 - `result_event_comment_id`;
 - `result_timestamp`.
 
-A result cannot overwrite the request run. Replayed or edited comments cannot complete an already completed lifecycle.
+A result cannot overwrite the request run. Replayed comments cannot complete an already completed lifecycle. Edited Qodo comments are rejected before lifecycle processing, so an earlier bot comment cannot be edited into a completion event.
 
 ## Final Qodo result
 
@@ -86,23 +105,28 @@ id    = 151058649
 
 The result must:
 
-1. occur after the authenticated request comment;
-2. contain one unambiguous structured reviewed-commit field outside quoted request text;
-3. bind that field to the exact requested head;
-4. arrive while the pull request still has that exact current head;
-5. transition an incomplete lifecycle exactly once.
+1. arrive through an `issue_comment` `created` event;
+2. occur after the authenticated request comment;
+3. contain exactly one structured reviewed-commit occurrence outside quoted request text;
+4. bind that field to the exact requested head;
+5. arrive while the pull request still has that exact current head;
+6. transition an incomplete lifecycle exactly once.
 
-Arbitrary SHA mentions do not establish binding. Missing or conflicting structured reviewed-commit fields fail closed. A Qodo review of a superseded head is preserved as non-approval evidence with `passed: false`; it never publishes a success status.
+Arbitrary SHA mentions do not establish binding. Missing, repeated, or conflicting structured reviewed-commit fields fail closed. A Qodo review of a superseded head is preserved as non-approval evidence with `passed: false`; it never publishes a success status.
 
-## Evidence output
+## Evidence output and non-authority
 
-Every handled event writes `cml-reviewer-fallback-v2` JSON. The workflow uploads it with an exact-run/exact-attempt artifact name, maintains one canonical machine-readable pull-request status comment, and publishes the `CML Reviewer Fallback` commit status linked to the exact event run attempt.
+Every handled event writes `cml-reviewer-fallback-v2` JSON. The workflow uploads it with an exact-run/exact-attempt artifact name and maintains one canonical machine-readable pull-request status comment.
 
-A successful fallback status means only that proxy review evidence was delivered or recorded. It is not native CodeRabbit approval and does not authorize merge.
+The workflow **never publishes a successful commit status**. This prevents evidence delivery, duplicate handling, or a Qodo result from becoming a branch-protection merge signal. Failure and provider-unavailable states may publish failure/error commit statuses linked to the exact event run attempt.
+
+The canonical comment and artifact are evidence only. They do not authorize merge.
 
 ## Fail-closed outcomes
 
 - spoofed CodeRabbit or Qodo identity → rejected;
+- unsupported issue-comment action → rejected;
+- edited Qodo result → rejected;
 - missing or short SHA → rejected;
 - closed pull request or non-`main` base → rejected;
 - superseded request head → rejected;
@@ -110,8 +134,11 @@ A successful fallback status means only that proxy review evidence was delivered
 - duplicate exact-head request → authenticated deterministic no-op;
 - repeated Qodo completion → deterministic no-op;
 - pre-request Qodo comment → rejected;
-- missing, multiple, or mismatched reviewed-commit fields → rejected;
+- missing, repeated, multiple, or mismatched reviewed-commit fields → rejected;
 - forged Actions marker/status without matching workflow artifact → rejected;
+- unsuccessful or mismatched workflow run → rejected;
+- ambiguous artifact or ZIP evidence entry → rejected;
+- artifact pagination exhaustion → rejected;
 - Qodo request failure → `PROVIDER_EVIDENCE_UNAVAILABLE`;
 - malformed or ambiguous canonical status → workflow failure;
 - workflow exception → structured artifact evidence with `passed: false`.
@@ -122,4 +149,4 @@ Bandit B506 is skipped only because it cannot distinguish the repository's dupli
 
 ## Bootstrap boundary
 
-This integration adds a new workflow and trusted helper, so its pull request intentionally changes protected trust-root paths. It requires a dedicated bootstrap review and explicit maintainer disposition. The workflow has no approval, merge, or auto-merge authority.
+This integration adds a new workflow and trusted helpers, so its pull request intentionally changes protected trust-root paths. It requires a dedicated bootstrap review and explicit maintainer disposition. The workflow has no approval, merge, or auto-merge authority.
