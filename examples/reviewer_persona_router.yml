@@ -1,0 +1,61 @@
+profiles:
+  - profile_id: codex-style
+    version: "1"
+    minimum_compatibility: 0.70
+    rubric:
+      - Trace concrete execution and failure paths.
+      - Require the smallest reproducible regression test.
+      - Prefer the smallest safe remediation.
+
+  - profile_id: claude-style
+    version: "1"
+    minimum_compatibility: 0.75
+    rubric:
+      - Reconstruct the intended invariants before judging individual lines.
+      - Treat green CI as evidence rather than proof.
+      - Search for counterexamples and systemic consequences.
+
+  - profile_id: qodo-style
+    version: "1"
+    minimum_compatibility: 0.70
+    rubric:
+      - Classify requirement, correctness, security, and observability gaps.
+      - Provide exact fix focus areas and a minimal remediation prompt.
+
+  - profile_id: coderabbit-style
+    version: "1"
+    minimum_compatibility: 0.70
+    rubric:
+      - Review the complete diff and separate blockers from nits.
+      - Check correctness, security, performance, and maintainability.
+
+providers:
+  - provider_id: coderabbit
+    status: RATE_LIMITED
+    native_profiles: [coderabbit-style]
+    compatibility:
+      codex-style: 0.80
+      claude-style: 0.84
+      qodo-style: 0.87
+    historical_quality: 0.94
+    remaining_budget: 0.00
+
+  - provider_id: qodo
+    status: AVAILABLE
+    native_profiles: [qodo-style]
+    compatibility:
+      coderabbit-style: 0.91
+      codex-style: 0.84
+      claude-style: 0.82
+    historical_quality: 0.92
+    remaining_budget: 0.80
+
+  - provider_id: codex
+    status: AVAILABLE
+    native_profiles: [codex-style]
+    compatibility:
+      coderabbit-style: 0.80
+      claude-style: 0.86
+      qodo-style: 0.84
+    historical_quality: 0.96
+    remaining_budget: 0.65
