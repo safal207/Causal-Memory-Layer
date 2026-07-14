@@ -1,8 +1,8 @@
 {
   "files": {
     ".bandit": "5568293d2e15266a57eb51cc81b0bef223c2b269",
-    ".github/trust-root/scripts/reviewer_fallback.py": "0953d8ffeb17456a2af9d59e88ba5610c342831b",
-    ".github/trust-root/scripts/reviewer_fallback_entrypoint.py": "3f8f21d34f5669ff94d639abc37f03b7a9053e82",
+    ".github/trust-root/scripts/reviewer_fallback.py": "ee20f0319b44385ae6cfbac8ba7c57ff6e30209e",
+    ".github/trust-root/scripts/reviewer_fallback_entrypoint.py": "f7809274669ccf54178854e3bc100dbf16a8a228",
     ".github/workflows/ci.yml": "ae103606ca5b4b99609ee48c2f867e6bde1d55ec",
     ".github/workflows/python-package-validation.yml": "13bd15e4010a1cc04f64b972a69c8da07f0e58a7",
     ".github/workflows/reviewer-fallback.yml": "06c69445b392265c851c87ac16f58873dcac6ccf",
@@ -15,7 +15,8 @@
     "tests/test_ci_evidence.py": "2d080fc4c728f1d8d98c01311839c8cd456b2f90",
     "tests/test_ci_workflow_contract.py": "8e928b8504c1b0db6efddfc6ea9e64a99d066bf6",
     "tests/test_reviewer_fallback.py": "3c51f46fb2e8401f42319cebafe58a0cd2de1c7d",
-    "tests/test_reviewer_fallback_workflow_contract.py": "64836408ce1c585ef613f04cbd23670d9f644223",
+    "tests/test_reviewer_fallback_core_direct.py": "8fdbceadd05328fe4ba01d81468d577529a0da56",
+    "tests/test_reviewer_fallback_workflow_contract.py": "c9d9baf7cd0437cd6ce401e885b994c77378e499",
     "tests/test_yaml_loader_security.py": "9ad22454505e17b2e75fe57672e3d0f3a3c67c83"
   },
   "schema_version": "cml-trust-root-files-v1"
