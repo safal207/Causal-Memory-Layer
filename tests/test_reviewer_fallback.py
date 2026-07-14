@@ -18,6 +18,7 @@ SPEC.loader.exec_module(rf)
 REPO = "safal207/Causal-Memory-Layer"
 HEAD = "a" * 40
 NEW_HEAD = "b" * 40
+EARLIER = "2026-07-14T11:59:00+00:00"
 NOW = "2026-07-14T12:00:00+00:00"
 LATER = "2026-07-14T12:01:00+00:00"
 
@@ -280,11 +281,11 @@ def test_replayed_qodo_comment_is_a_noop_and_does_not_replace_provenance():
 
 def test_pre_request_qodo_comment_is_rejected():
     client = FakeClient()
-    run(event(created_at=LATER), client, run_id=100, run_attempt=1)
+    run(event(), client, run_id=100, run_attempt=1)
     result = run(
         qodo_event(
             f"Review bound to exact head `{HEAD}`.\nBugs (0)",
-            created_at=NOW,
+            created_at=EARLIER,
         ),
         client,
         run_id=200,
