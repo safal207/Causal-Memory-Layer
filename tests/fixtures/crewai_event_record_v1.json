@@ -1,0 +1,65 @@
+{
+  "schema_version": "crewai-event-record-fixtures-v1",
+  "cases": [
+    {
+      "name": "valid_nested_trace",
+      "events": [
+        {"event_id": "crew-start", "type": "crew_kickoff_started", "emission_sequence": 1},
+        {"event_id": "task-start", "type": "task_started", "parent_event_id": "crew-start", "previous_event_id": "crew-start", "emission_sequence": 2},
+        {"event_id": "tool-start", "type": "tool_usage_started", "parent_event_id": "task-start", "previous_event_id": "task-start", "emission_sequence": 3},
+        {"event_id": "tool-finish", "type": "tool_usage_finished", "parent_event_id": "task-start", "previous_event_id": "tool-start", "started_event_id": "tool-start", "emission_sequence": 4},
+        {"event_id": "task-finish", "type": "task_completed", "parent_event_id": "crew-start", "previous_event_id": "tool-finish", "started_event_id": "task-start", "emission_sequence": 5},
+        {"event_id": "crew-finish", "type": "crew_kickoff_completed", "previous_event_id": "task-finish", "started_event_id": "crew-start", "emission_sequence": 6}
+      ],
+      "expected_codes": []
+    },
+    {
+      "name": "missing_parent",
+      "events": [
+        {"event_id": "task-start", "type": "task_started", "parent_event_id": "missing-crew", "emission_sequence": 1}
+      ],
+      "expected_codes": ["CML-CREWAI-ORPHANED-ROOT"]
+    },
+    {
+      "name": "missing_started_event",
+      "events": [
+        {"event_id": "tool-finish", "type": "tool_usage_finished", "started_event_id": "missing-tool-start", "emission_sequence": 1}
+      ],
+      "expected_codes": ["CML-CREWAI-MISSING-REFERENCE"]
+    },
+    {
+      "name": "mismatched_start_finish",
+      "events": [
+        {"event_id": "task-start", "type": "task_started", "emission_sequence": 1},
+        {"event_id": "tool-finish", "type": "tool_usage_finished", "started_event_id": "task-start", "emission_sequence": 2}
+      ],
+      "expected_codes": ["CML-CREWAI-PAIR-MISMATCH"]
+    },
+    {
+      "name": "cycle",
+      "events": [
+        {"event_id": "event-a", "type": "custom", "triggered_by_event_id": "event-b", "emission_sequence": 1},
+        {"event_id": "event-b", "type": "custom", "triggered_by_event_id": "event-a", "emission_sequence": 2}
+      ],
+      "expected_codes": ["CML-CREWAI-CYCLE", "CML-CREWAI-SEQUENCE-VIOLATION"]
+    },
+    {
+      "name": "sequence_violation",
+      "events": [
+        {"event_id": "event-a", "type": "custom", "emission_sequence": 2},
+        {"event_id": "event-b", "type": "custom", "previous_event_id": "event-a", "emission_sequence": 1}
+      ],
+      "expected_codes": ["CML-CREWAI-SEQUENCE-VIOLATION"]
+    },
+    {
+      "name": "replay_preserves_lineage",
+      "events": [
+        {"event_id": "tool-finish", "type": "tool_usage_finished", "parent_event_id": "task-start", "previous_event_id": "tool-start", "started_event_id": "tool-start", "emission_sequence": 4},
+        {"event_id": "crew-start", "type": "crew_kickoff_started", "emission_sequence": 1},
+        {"event_id": "tool-start", "type": "tool_usage_started", "parent_event_id": "task-start", "previous_event_id": "task-start", "emission_sequence": 3},
+        {"event_id": "task-start", "type": "task_started", "parent_event_id": "crew-start", "previous_event_id": "crew-start", "emission_sequence": 2}
+      ],
+      "expected_codes": []
+    }
+  ]
+}
