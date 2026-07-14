@@ -106,7 +106,6 @@ _IDENTITY_ACTIONS = frozenset(
         "adopted",
         "adopting",
         "are",
-        "as",
         "assert",
         "be",
         "become",
