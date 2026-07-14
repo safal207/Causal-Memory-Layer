@@ -1,5 +1,6 @@
 {
   "files": {
+    ".bandit": "5568293d2e15266a57eb51cc81b0bef223c2b269",
     ".github/trust-root/scripts/reviewer_fallback.py": "8fd8b674978fe0731d94c228897eeae50bd54a31",
     ".github/workflows/ci.yml": "ae103606ca5b4b99609ee48c2f867e6bde1d55ec",
     ".github/workflows/python-package-validation.yml": "13bd15e4010a1cc04f64b972a69c8da07f0e58a7",
@@ -13,7 +14,8 @@
     "tests/test_ci_evidence.py": "2d080fc4c728f1d8d98c01311839c8cd456b2f90",
     "tests/test_ci_workflow_contract.py": "8e928b8504c1b0db6efddfc6ea9e64a99d066bf6",
     "tests/test_reviewer_fallback.py": "8b1bed9e8d93275ab055d911425e97430a0a7bf2",
-    "tests/test_reviewer_fallback_workflow_contract.py": "8aaf75742bd590ef16e6b045e885adcdfa733878"
+    "tests/test_reviewer_fallback_workflow_contract.py": "8aaf75742bd590ef16e6b045e885adcdfa733878",
+    "tests/test_yaml_loader_security.py": "7a9c2c5105698c72c9a5777b8c0b1351bdce9f90"
   },
   "schema_version": "cml-trust-root-files-v1"
 }
