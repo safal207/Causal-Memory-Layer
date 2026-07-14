@@ -151,6 +151,34 @@ def test_import_shadowing_path_is_rejected(tmp_path: Path):
     assert result["findings"][0]["code"] == "CML-TRUST-ROOT-IMPORT-SHADOWING"
 
 
+def test_existing_top_level_package_child_is_allowed(tmp_path: Path):
+    base, subject = build_fixture(tmp_path)
+    for root in (base, subject):
+        package = root / "scripts"
+        package.mkdir(exist_ok=True)
+        (package / "__init__.py").write_text("\n", encoding="utf-8")
+    (subject / "scripts/new_helper.py").write_text("VALUE = 1\n", encoding="utf-8")
+    result = verify(base, subject, commit_subject(subject))
+    assert result["passed"] is True
+    assert result["changed_files"] == ["scripts/new_helper.py"]
+
+
+def test_new_transitive_stdlib_shadowing_package_is_rejected(tmp_path: Path):
+    base, subject = build_fixture(tmp_path)
+    package = subject / "shutil"
+    package.mkdir()
+    (package / "__init__.py").write_text("raise RuntimeError\n", encoding="utf-8")
+    result = verify(base, subject, commit_subject(subject))
+    assert result["passed"] is False
+    assert result["findings"][0]["code"] == "CML-TRUST-ROOT-IMPORT-SHADOWING"
+    assert result["findings"][0]["path"] == "shutil/__init__.py"
+
+
+def test_trusted_gate_only_targets_main_base():
+    workflow = (ROOT / ".github/workflows/trusted-pr-gate.yml").read_text(encoding="utf-8")
+    assert "pull_request_target:\n    branches: [main]\n" in workflow
+
+
 def test_renamed_protected_path_is_detected_without_api(tmp_path: Path):
     base, subject = build_fixture(tmp_path)
     source = subject / ".github/workflows/trusted-pr-gate.yml"
