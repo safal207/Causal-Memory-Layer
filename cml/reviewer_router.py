@@ -34,6 +34,7 @@ _RUBRIC_IDENTITY_ACTIONS = frozenset(
     {
         "act",
         "are",
+        "as",
         "assert",
         "be",
         "become",
@@ -195,64 +196,57 @@ def _string_sequence(value: object, label: str) -> tuple[str, ...]:
     return result
 
 
+def _normalized_rubric_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value)
+    if any(
+        unicodedata.category(char) in {"Cc", "Cf", "Cs"}
+        for char in normalized
+    ):
+        raise ReviewerRoutingError(
+            "profile rubric cannot contain hidden Unicode control characters"
+        )
+    if any(
+        (char.isalpha() and ord(char) > 127)
+        or unicodedata.category(char).startswith("M")
+        for char in normalized
+    ):
+        raise ReviewerRoutingError(
+            "profile rubric cannot contain non-ASCII letters or combining marks"
+        )
+    return normalized.casefold()
+
+
 def _rubric_tokens(value: str) -> tuple[str, ...]:
-    normalized = unicodedata.normalize("NFKC", value).casefold()
-    return tuple(re.findall(r"[a-z0-9]+", normalized))
-
-
-def _tokens_near(
-    tokens: tuple[str, ...],
-    left: frozenset[str],
-    right: frozenset[str],
-    window: int = 8,
-) -> bool:
-    for index, token in enumerate(tokens):
-        if token not in left:
-            continue
-        lower = max(0, index - window)
-        upper = min(len(tokens), index + window + 1)
-        if any(candidate in right for candidate in tokens[lower:upper]):
-            return True
-    return False
+    return tuple(re.findall(r"[a-z0-9]+", _normalized_rubric_text(value)))
 
 
 def _review_rubric(value: object) -> tuple[str, ...]:
     result = _string_sequence(value, "profile rubric")
     for item in result:
-        if any(
-            unicodedata.category(char) in {"Cc", "Cf", "Cs"}
-            for char in item
-        ):
-            raise ReviewerRoutingError(
-                "profile rubric cannot contain hidden Unicode control characters"
-            )
         tokens = _rubric_tokens(item)
-        neutral_review = bool(
-            tokens and tokens[0] in _RUBRIC_NEUTRAL_REVIEW_VERBS
+        token_set = frozenset(tokens)
+        first_alpha = next((token for token in tokens if token.isalpha()), "")
+        neutral_review = first_alpha in _RUBRIC_NEUTRAL_REVIEW_VERBS
+
+        reviewer_subject = "reviewer" in token_set
+        native_identity = (
+            "native" in token_set
+            and bool(token_set & _RUBRIC_IDENTITY_TERMS)
         )
-        requested_reviewer = _tokens_near(
-            tokens, frozenset({"requested"}), frozenset({"reviewer"}), 4
-        )
-        native_identity = _tokens_near(
-            tokens, frozenset({"native"}), _RUBRIC_IDENTITY_TERMS, 6
-        )
-        identity_subject = requested_reviewer or native_identity
-        identity_action = any(
-            token in _RUBRIC_IDENTITY_ACTIONS for token in tokens
-        )
-        merge_authority_subject = _tokens_near(
-            tokens, _RUBRIC_MERGE_TERMS, _RUBRIC_AUTHORITY_TERMS, 8
-        )
-        merge_authority_action = _tokens_near(
-            tokens, _RUBRIC_AUTHORITY_ACTIONS, _RUBRIC_MERGE_TERMS, 8
-        )
+        identity_subject = reviewer_subject or native_identity
+        identity_action = bool(token_set & _RUBRIC_IDENTITY_ACTIONS)
+
+        has_merge = bool(token_set & _RUBRIC_MERGE_TERMS)
+        has_authority = bool(token_set & _RUBRIC_AUTHORITY_TERMS)
+        has_authority_action = bool(token_set & _RUBRIC_AUTHORITY_ACTIONS)
+
         if identity_subject and (identity_action or not neutral_review):
             raise ReviewerRoutingError(
                 "profile rubric cannot define reviewer identity, native approval, "
                 "or merge authority; those rules belong to the execution contract"
             )
-        if merge_authority_action or (
-            merge_authority_subject and not neutral_review
+        if has_merge and (
+            has_authority_action or (has_authority and not neutral_review)
         ):
             raise ReviewerRoutingError(
                 "profile rubric cannot define reviewer identity, native approval, "
@@ -411,12 +405,13 @@ class ReviewRequest:
             "minimum_evidence",
             _enum(self.minimum_evidence, EvidenceLevel, "evidence level"),
         )
-        if isinstance(self.max_fallback_hops, bool) or self.max_fallback_hops not in (
-            0,
-            1,
+        if (
+            not isinstance(self.max_fallback_hops, int)
+            or isinstance(self.max_fallback_hops, bool)
+            or self.max_fallback_hops not in (0, 1)
         ):
             raise ReviewerRoutingError(
-                "v0.1 supports max_fallback_hops of 0 or 1 only"
+                "v0.1 supports integer max_fallback_hops of 0 or 1 only"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -534,8 +529,14 @@ class RouteDecision:
                 "fallback_reason",
                 _enum(self.fallback_reason, FallbackReason, "fallback reason"),
             )
-        if isinstance(self.fallback_hops, bool) or self.fallback_hops not in (0, 1):
-            raise ReviewerRoutingError("route supports at most one fallback hop")
+        if (
+            not isinstance(self.fallback_hops, int)
+            or isinstance(self.fallback_hops, bool)
+            or self.fallback_hops not in (0, 1)
+        ):
+            raise ReviewerRoutingError(
+                "route supports integer fallback_hops of 0 or 1 only"
+            )
         object.__setattr__(
             self, "score", _probability(self.score, "route score")
         )
