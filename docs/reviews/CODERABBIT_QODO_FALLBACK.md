@@ -16,6 +16,9 @@ The security invariants live in:
 
 The core is safe when imported directly or executed through its own CLI. It intrinsically enforces:
 
+- only canonical CodeRabbit/Qodo identities reach provider handlers;
+- untrusted rate-limit text is ignored before write-capable API calls;
+- untrusted request-marker comments are skipped before marker parsing;
 - Qodo `edited` events cannot complete a lifecycle;
 - exactly one structured reviewed-commit occurrence is required;
 - artifact pagination exhaustion fails explicitly;
@@ -31,14 +34,23 @@ The delegate only loads the core, re-exports its API, and calls `core.main()`. I
 
 ## Trusted trigger
 
-The workflow runs from the repository default branch on `issue_comment` `created` and `edited` events. A rate-limit signal is accepted only when both the comment author and event sender match the canonical CodeRabbit identity:
+The write-capable workflow job starts only when the issue comment belongs to a pull request and the comment author login is exactly one of:
+
+```text
+coderabbitai[bot]
+qodo-code-review[bot]
+```
+
+Arbitrary comment text cannot start the job. The workflow-level filter is only the first boundary: the core additionally requires canonical numeric IDs and sender/author agreement before routing CodeRabbit or Qodo provider events.
+
+A CodeRabbit rate-limit signal is accepted only when both the comment author and event sender match:
 
 ```text
 login = coderabbitai[bot]
 id    = 136622811
 ```
 
-The comment must contain an explicit trusted rate-limit marker such as `Review limit reached`. Spoofed comments are rejected. Pull-request code is never checked out or executed.
+The trusted bot comment must also contain an explicit rate-limit marker such as `Review limit reached`. A matching phrase from any other identity is ignored as unrelated input, without creating comments, statuses, or provider requests. Pull-request code is never checked out or executed.
 
 ## Exact-head and duplicate controls
 
@@ -47,10 +59,13 @@ Before requesting Qodo, the workflow:
 1. confirms an open pull request targeting `main`;
 2. validates the full current head SHA;
 3. scans the complete issue-comment history;
-4. authenticates any prior request through the exact successful workflow run and its run-scoped evidence artifact;
-5. serializes deliveries by pull-request number;
-6. re-fetches the pull request immediately before posting;
-7. rejects changed state, base, or head.
+4. discards non-Actions request-marker comments before parsing marker syntax;
+5. authenticates any trusted prior request through the exact successful workflow run and its run-scoped evidence artifact;
+6. serializes deliveries by pull-request number;
+7. re-fetches the pull request immediately before posting;
+8. rejects changed state, base, or head.
+
+A malformed marker from an untrusted commenter cannot block legitimate fallback processing. A malformed marker from the trusted Actions identity still fails closed because it claims to participate in the authenticated lifecycle.
 
 The request marker binds repository, pull request, exact head, run ID, and run attempt. The request also states:
 
