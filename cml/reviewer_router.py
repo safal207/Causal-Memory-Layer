@@ -16,17 +16,6 @@ _SHA = re.compile(r"^[0-9a-f]{40}$")
 _IDENT = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 _WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
 _EVIDENCE_REJECTION = "EVIDENCE_BELOW_MINIMUM:"
-_RUBRIC_RESERVED_PHRASES = (
-    ("merge", "authority"),
-    ("merge", "approval"),
-    ("merge", "permission"),
-    ("merge", "right"),
-    ("merge", "rights"),
-    ("native", "approval"),
-    ("native", "authority"),
-    ("native", "status"),
-    ("native", "verdict"),
-)
 _RUBRIC_IDENTITY_VERBS = frozenset(
     {
         "act",
@@ -44,8 +33,24 @@ _RUBRIC_IDENTITY_VERBS = frozenset(
     }
 )
 _RUBRIC_MERGE_AUTHORITY_VERBS = frozenset(
-    {"approve", "authorize", "grant", "permit"}
+    {
+        "approve",
+        "assert",
+        "assume",
+        "authorize",
+        "claim",
+        "declare",
+        "exercise",
+        "grant",
+        "permit",
+        "represent",
+        "use",
+    }
 )
+_RUBRIC_AUTHORITY_TERMS = frozenset(
+    {"approval", "authority", "permission", "right", "rights"}
+)
+_RUBRIC_MERGE_TERMS = frozenset({"merge", "merged", "merging"})
 
 
 class ReviewerRoutingError(ValueError):
@@ -155,16 +160,6 @@ def _string_sequence(value: object, label: str) -> tuple[str, ...]:
     return result
 
 
-def _contains_token_phrase(
-    tokens: tuple[str, ...], phrase: tuple[str, ...]
-) -> bool:
-    width = len(phrase)
-    return any(
-        tokens[index : index + width] == phrase
-        for index in range(len(tokens) - width + 1)
-    )
-
-
 def _rubric_tokens(value: str) -> tuple[str, ...]:
     normalized = unicodedata.normalize("NFKC", value).casefold()
     return tuple(re.findall(r"[a-z0-9]+", normalized))
@@ -174,27 +169,34 @@ def _review_rubric(value: object) -> tuple[str, ...]:
     result = _string_sequence(value, "profile rubric")
     for item in result:
         tokens = _rubric_tokens(item)
-        reserved_phrase = any(
-            _contains_token_phrase(tokens, phrase)
-            for phrase in _RUBRIC_RESERVED_PHRASES
-        )
-        identity_claim = any(
-            token in _RUBRIC_IDENTITY_VERBS
-            and (
-                "native" in tokens[index + 1 : index + 7]
+        identity_claim = False
+        merge_authority_action = False
+        for index, token in enumerate(tokens):
+            following = tokens[index + 1 : index + 9]
+            if token in _RUBRIC_IDENTITY_VERBS and (
+                "native" in following
                 or (
-                    "requested" in tokens[index + 1 : index + 7]
-                    and "reviewer" in tokens[index + 1 : index + 7]
+                    "requested" in following
+                    and "reviewer" in following
                 )
-            )
-            for index, token in enumerate(tokens)
-        )
-        merge_grant = any(
-            token in _RUBRIC_MERGE_AUTHORITY_VERBS
-            and "merge" in tokens[index + 1 : index + 6]
-            for index, token in enumerate(tokens)
-        )
-        if reserved_phrase or identity_claim or merge_grant:
+            ):
+                identity_claim = True
+            if token in _RUBRIC_MERGE_AUTHORITY_VERBS:
+                has_merge = any(
+                    candidate in _RUBRIC_MERGE_TERMS
+                    for candidate in following
+                )
+                has_authority = any(
+                    candidate in _RUBRIC_AUTHORITY_TERMS
+                    for candidate in following
+                )
+                directly_controls_merge = (
+                    token in {"approve", "authorize", "permit"}
+                    and has_merge
+                )
+                if (has_merge and has_authority) or directly_controls_merge:
+                    merge_authority_action = True
+        if identity_claim or merge_authority_action:
             raise ReviewerRoutingError(
                 "profile rubric cannot define reviewer identity, native approval, "
                 "or merge authority; those rules belong to the execution contract"
