@@ -203,7 +203,7 @@ def test_duplicate_delivery_uses_authenticated_artifact_and_is_noop():
     assert client.statuses == []
 
 
-def test_forged_actions_request_marker_without_artifact_fails_closed():
+def test_forged_actions_request_marker_without_artifact_is_skipped():
     forged = {
         "id": 555,
         "body": (
@@ -215,8 +215,11 @@ def test_forged_actions_request_marker_without_artifact_fails_closed():
         "created_at": NOW,
     }
     client = FakeClient(comments=[forged])
-    with pytest.raises(rf.FallbackError, match="artifact missing"):
-        run(event(), client)
+    result = run(event(), client)
+    assert result["passed"] is True
+    assert result["outcome"] == "QODO_REQUESTED_EXACT_HEAD"
+    assert result["qodo_request_comment_id"] != 555
+    assert len(request_comments(client)) == 2
 
 
 def test_qodo_unavailable_records_provider_evidence_unavailable():
