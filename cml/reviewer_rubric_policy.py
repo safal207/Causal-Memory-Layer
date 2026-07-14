@@ -242,7 +242,7 @@ def _has_adoption_relationship(tokens: tuple[str, ...]) -> bool:
     for index, token in enumerate(tokens):
         if token not in {"as", "under", "with"}:
             continue
-        following = frozenset(tokens[index + 1 : index + 6])
+        following = frozenset(tokens[index + 1 :])
         if following & _ADOPTION_TARGETS:
             return True
     return False
