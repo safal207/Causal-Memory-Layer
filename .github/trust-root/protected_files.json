@@ -14,7 +14,7 @@
     "scripts/ci/verify_workflow_contract.py": "85ef8222b10cd1731372fd9e58a586046f214cc0",
     "tests/test_ci_evidence.py": "2d080fc4c728f1d8d98c01311839c8cd456b2f90",
     "tests/test_ci_workflow_contract.py": "8e928b8504c1b0db6efddfc6ea9e64a99d066bf6",
-    "tests/test_reviewer_fallback.py": "de1f98356a032b675ff3f846871037f11dfb7610",
+    "tests/test_reviewer_fallback.py": "6655ef715f2c6f7c2aad3c2fd45acf2a52ec089f",
     "tests/test_reviewer_fallback_core_direct.py": "8fdbceadd05328fe4ba01d81468d577529a0da56",
     "tests/test_reviewer_fallback_untrusted_inputs.py": "a40e5645ec4c8bcc59be6ce4e307cf9fddbb13b4",
     "tests/test_reviewer_fallback_workflow_contract.py": "3c509225d9ac73abb18f81c7ffa1bb39dcbed19c",
