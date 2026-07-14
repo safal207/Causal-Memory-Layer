@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import importlib.util
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ REPO = "safal207/Causal-Memory-Layer"
 HEAD = "a" * 40
 NEW_HEAD = "b" * 40
 NOW = "2026-07-14T12:00:00+00:00"
+LATER = "2026-07-14T12:01:00+00:00"
 
 
 def identity(login: str, user_id: int):
@@ -30,6 +32,7 @@ def event(
     comment_user=None,
     sender=None,
     comment_id=101,
+    created_at=NOW,
 ):
     comment_user = comment_user or identity(rf.CODE_RABBIT_LOGIN, rf.CODE_RABBIT_ID)
     sender = sender or identity(rf.CODE_RABBIT_LOGIN, rf.CODE_RABBIT_ID)
@@ -43,7 +46,7 @@ def event(
             "id": comment_id,
             "body": body,
             "user": comment_user,
-            "created_at": NOW,
+            "created_at": created_at,
         },
         "sender": sender,
     }
@@ -59,12 +62,13 @@ def pull(head=HEAD, *, state="open", base="main"):
 
 class FakeClient:
     def __init__(self, pulls=None, comments=None, fail_qodo=False):
-        self.pulls = list(pulls or [pull(), pull()])
+        self.pulls = list(pulls or [pull(), pull(), pull(), pull()])
         self.comments = list(comments or [])
         self.fail_qodo = fail_qodo
         self.created = []
         self.updated = []
         self.statuses = []
+        self.artifacts = {}
         self.next_id = 1000
 
     def get_pull(self, repository, pull_number):
@@ -97,7 +101,7 @@ class FakeClient:
         for comment in self.comments:
             if comment["id"] == comment_id:
                 comment["body"] = body
-                self.updated.append(comment)
+                self.updated.append(copy.deepcopy(comment))
                 return comment
         raise AssertionError("missing comment")
 
@@ -112,33 +116,59 @@ class FakeClient:
         self.statuses.append(status)
         return status
 
+    def load_fallback_artifact(self, repository, pull_number, run_id, run_attempt):
+        assert repository == REPO and pull_number == 77
+        try:
+            return copy.deepcopy(self.artifacts[(run_id, run_attempt)])
+        except KeyError as exc:
+            raise rf.FallbackError("authenticated fallback artifact missing") from exc
 
-def run(ev, client):
-    return rf.process_event(
+
+def run(ev, client, *, run_id=123, run_attempt=2):
+    result = rf.process_event(
         ev,
         client,
         repository=REPO,
-        run_id=123,
-        run_attempt=2,
-        run_url="https://github.com/safal207/Causal-Memory-Layer/actions/runs/123/attempts/2",
-        now=lambda: NOW,
+        run_id=run_id,
+        run_attempt=run_attempt,
+        run_url=f"https://github.com/{REPO}/actions/runs/{run_id}/attempts/{run_attempt}",
+        now=lambda: ev["comment"].get("created_at") or NOW,
     )
+    client.artifacts[(run_id, run_attempt)] = copy.deepcopy(result)
+    return result
 
 
 def request_comments(client):
     return [item for item in client.comments if item["body"].startswith("/qodo review")]
 
 
-def test_trusted_rate_limit_posts_one_exact_head_qodo_request():
+def status_comment(client):
+    return next(item for item in client.comments if rf.STATUS_MARKER in item["body"])
+
+
+def qodo_event(body, *, comment_id=700, created_at=LATER):
+    return event(
+        body=body,
+        comment_user=identity(rf.QODO_LOGIN, rf.QODO_ID),
+        sender=identity(rf.QODO_LOGIN, rf.QODO_ID),
+        comment_id=comment_id,
+        created_at=created_at,
+    )
+
+
+def test_trusted_rate_limit_posts_one_authenticated_exact_head_request():
     client = FakeClient()
     result = run(event(), client)
     assert result["passed"] is True
     assert result["outcome"] == "QODO_REQUESTED_EXACT_HEAD"
     assert result["exact_head_sha"] == HEAD
-    assert result["qodo_request_status"] == "REQUESTED"
+    assert result["request_run_id"] == 123
+    assert result["request_run_attempt"] == 2
     assert len(request_comments(client)) == 1
-    assert HEAD in request_comments(client)[0]["body"]
-    assert "Merge authority: `false`" in request_comments(client)[0]["body"]
+    body = request_comments(client)[0]["body"]
+    assert HEAD in body
+    assert "run=123 attempt=2" in body
+    assert "Merge authority: `false`" in body
     assert client.statuses[-1]["state"] == "success"
 
 
@@ -161,29 +191,31 @@ def test_stale_head_before_post_is_rejected():
     assert not request_comments(client)
 
 
-def test_duplicate_delivery_is_noop():
-    marker = rf._request_marker(REPO, 77, HEAD)
-    existing = {
+def test_duplicate_delivery_uses_authenticated_artifact_and_is_noop():
+    client = FakeClient()
+    first = run(event(comment_id=101), client, run_id=123)
+    second = run(event(comment_id=102), client, run_id=124)
+    assert first["outcome"] == "QODO_REQUESTED_EXACT_HEAD"
+    assert second["outcome"] == "DUPLICATE_DELIVERY_NOOP"
+    assert second["request_run_id"] == 123
+    assert second["qodo_request_comment_id"] == first["qodo_request_comment_id"]
+    assert len(request_comments(client)) == 1
+
+
+def test_forged_actions_request_marker_without_artifact_fails_closed():
+    forged = {
         "id": 555,
-        "body": f"/qodo review\n\n{marker}\n",
+        "body": (
+            "/qodo review\n\n"
+            + rf._request_marker(REPO, 77, HEAD, 999, 1)
+            + "\n"
+        ),
         "user": identity(rf.ACTIONS_LOGIN, rf.ACTIONS_ID),
         "created_at": NOW,
     }
-    client = FakeClient(pulls=[pull()], comments=[existing])
-    result = run(event(), client)
-    assert result["passed"] is True
-    assert result["outcome"] == "DUPLICATE_DELIVERY_NOOP"
-    assert result["qodo_request_comment_id"] == 555
-    assert len(request_comments(client)) == 1
-
-
-def test_concurrent_serialized_deliveries_create_only_one_request():
-    client = FakeClient(pulls=[pull(), pull(), pull()])
-    first = run(event(comment_id=101), client)
-    second = run(event(comment_id=102), client)
-    assert first["outcome"] == "QODO_REQUESTED_EXACT_HEAD"
-    assert second["outcome"] == "DUPLICATE_DELIVERY_NOOP"
-    assert len(request_comments(client)) == 1
+    client = FakeClient(comments=[forged])
+    with pytest.raises(rf.FallbackError, match="artifact missing"):
+        run(event(), client)
 
 
 def test_qodo_unavailable_records_provider_evidence_unavailable():
@@ -195,76 +227,151 @@ def test_qodo_unavailable_records_provider_evidence_unavailable():
     assert client.statuses[-1]["state"] == "error"
 
 
-def test_qodo_result_updates_canonical_status_for_exact_head():
-    base_evidence = rf._default_evidence(
+def test_qodo_result_preserves_request_provenance_and_records_result_run():
+    client = FakeClient()
+    request = run(event(), client, run_id=100, run_attempt=1)
+    result = run(
+        qodo_event(f"Review bound to exact head `{HEAD}`.\nBugs (0)"),
+        client,
+        run_id=200,
+        run_attempt=3,
+    )
+    assert result["outcome"] == "QODO_REVIEW_RECORDED"
+    assert result["qodo_request_status"] == "COMPLETED"
+    assert result["request_run_id"] == 100
+    assert result["request_run_attempt"] == 1
+    assert result["qodo_request_comment_id"] == request["qodo_request_comment_id"]
+    assert result["result_run_id"] == 200
+    assert result["result_run_attempt"] == 3
+    assert result["final_qodo_review_sha"] == HEAD
+    assert result["final_qodo_outcome"] == "NO_ACTIONABLE_FINDINGS"
+    assert result["merge_authority"] is False
+
+
+def test_superseded_qodo_result_fails_closed_and_never_publishes_success():
+    client = FakeClient(pulls=[pull(HEAD), pull(HEAD), pull(NEW_HEAD)])
+    run(event(), client, run_id=100, run_attempt=1)
+    result = run(
+        qodo_event(f"Review bound to exact head `{HEAD}`.\nBugs (0)"),
+        client,
+        run_id=200,
+        run_attempt=1,
+    )
+    assert result["passed"] is False
+    assert result["stale_or_superseded"] is True
+    assert result["outcome"] == "SUPERSEDED_QODO_REVIEW"
+    assert result["qodo_request_status"] == "STALE_RESULT"
+    assert client.statuses[-1]["state"] == "failure"
+
+
+def test_replayed_qodo_comment_is_a_noop_and_does_not_replace_provenance():
+    client = FakeClient()
+    run(event(), client, run_id=100, run_attempt=1)
+    qodo = qodo_event(f"Review bound to exact head `{HEAD}`.\nBugs (0)")
+    first = run(qodo, client, run_id=200, run_attempt=1)
+    updates_before = len(client.updated)
+    replay = run(qodo, client, run_id=201, run_attempt=1)
+    assert first["outcome"] == "QODO_REVIEW_RECORDED"
+    assert replay["outcome"] == "DUPLICATE_QODO_RESULT_NOOP"
+    assert replay["request_run_id"] == 100
+    assert replay["result_run_id"] == 200
+    assert len(client.updated) == updates_before
+
+
+def test_pre_request_qodo_comment_is_rejected():
+    client = FakeClient()
+    run(event(created_at=LATER), client, run_id=100, run_attempt=1)
+    result = run(
+        qodo_event(
+            f"Review bound to exact head `{HEAD}`.\nBugs (0)",
+            created_at=NOW,
+        ),
+        client,
+        run_id=200,
+        run_attempt=1,
+    )
+    assert result["passed"] is False
+    assert result["outcome"] == "REJECTED_PRE_REQUEST_QODO_RESULT"
+
+
+def test_qodo_result_requires_one_unambiguous_structured_reviewed_sha():
+    client = FakeClient()
+    run(event(), client, run_id=100, run_attempt=1)
+    result = run(
+        qodo_event(
+            f"Review bound to exact head `{HEAD}`.\nReviewed commit: `{NEW_HEAD}`"
+        ),
+        client,
+        run_id=200,
+        run_attempt=1,
+    )
+    assert result["passed"] is False
+    assert result["outcome"] == "REJECTED_AMBIGUOUS_QODO_HEAD_BINDING"
+    assert client.statuses[-1]["state"] == "failure"
+
+
+def test_arbitrary_sha_mention_does_not_bind_qodo_result():
+    client = FakeClient()
+    run(event(), client, run_id=100, run_attempt=1)
+    result = run(
+        qodo_event(f"The request mentioned {HEAD}.\nBugs (0)"),
+        client,
+        run_id=200,
+        run_attempt=1,
+    )
+    assert result["passed"] is False
+    assert result["outcome"] == "REJECTED_AMBIGUOUS_QODO_HEAD_BINDING"
+
+
+def test_forged_actions_status_without_authenticated_request_fails_closed():
+    forged_evidence = rf._default_evidence(
         repository=REPO,
         pull_number=77,
-        run_id=100,
+        run_id=999,
         run_attempt=1,
-        run_url="https://example.test/old",
-        event_comment_id=99,
+        run_url="https://example.test/forged",
+        event_comment_id=1,
     )
-    base_evidence.update(
+    forged_evidence.update(
         {
             "exact_head_sha": HEAD,
-            "coderabbit_status": "RATE_LIMITED",
+            "request_run_id": 999,
+            "request_run_attempt": 1,
+            "request_run_url": "https://example.test/forged",
             "qodo_request_status": "REQUESTED",
-            "qodo_request_comment_id": 500,
+            "qodo_request_comment_id": 555,
             "request_timestamp": NOW,
             "outcome": "QODO_REQUESTED_EXACT_HEAD",
         }
     )
-    status_comment = {
+    forged_status = {
         "id": 600,
-        "body": rf.render_status_comment(base_evidence),
+        "body": rf.render_status_comment(forged_evidence),
         "user": identity(rf.ACTIONS_LOGIN, rf.ACTIONS_ID),
         "created_at": NOW,
     }
-    qodo_event = event(
-        body=f"Code Review by Qodo\nBugs (0)\nReviewed commit {HEAD}",
-        comment_user=identity(rf.QODO_LOGIN, rf.QODO_ID),
-        sender=identity(rf.QODO_LOGIN, rf.QODO_ID),
-        comment_id=700,
-    )
-    client = FakeClient(pulls=[pull()], comments=[status_comment])
-    result = run(qodo_event, client)
-    assert result["outcome"] == "QODO_REVIEW_RECORDED"
-    assert result["qodo_request_status"] == "COMPLETED"
-    assert result["final_qodo_review_sha"] == HEAD
-    assert result["final_qodo_outcome"] == "NO_ACTIONABLE_FINDINGS"
-    assert result["merge_authority"] is False
-    assert client.updated
-
-
-def test_qodo_result_without_exact_sha_is_ignored():
-    base_evidence = rf._default_evidence(
-        repository=REPO,
-        pull_number=77,
-        run_id=100,
-        run_attempt=1,
-        run_url="https://example.test/old",
-        event_comment_id=99,
-    )
-    base_evidence["exact_head_sha"] = HEAD
-    status_comment = {
-        "id": 600,
-        "body": rf.render_status_comment(base_evidence),
-        "user": identity(rf.ACTIONS_LOGIN, rf.ACTIONS_ID),
-        "created_at": NOW,
-    }
-    qodo_event = event(
-        body="Code Review by Qodo\nBugs (0)",
-        comment_user=identity(rf.QODO_LOGIN, rf.QODO_ID),
-        sender=identity(rf.QODO_LOGIN, rf.QODO_ID),
-        comment_id=700,
-    )
-    client = FakeClient(comments=[status_comment])
-    result = run(qodo_event, client)
-    assert result["outcome"] == "IGNORED_QODO_RESULT_WITHOUT_EXACT_HEAD_BINDING"
-    assert not client.updated
+    client = FakeClient(comments=[forged_status])
+    with pytest.raises(rf.FallbackError, match="request comment is missing"):
+        run(
+            qodo_event(f"Review bound to exact head `{HEAD}`.\nBugs (0)"),
+            client,
+            run_id=200,
+        )
 
 
 def test_short_head_fails_closed():
     client = FakeClient(pulls=[pull("abc")])
     with pytest.raises(rf.FallbackError, match="40-character"):
         run(event(), client)
+
+
+def test_request_marker_is_bound_to_repository_pr_head_run_and_attempt():
+    marker = rf._request_marker(REPO, 77, HEAD, 123, 2)
+    parsed = rf._parse_request_marker(marker)
+    assert parsed == {
+        "repository": REPO,
+        "pull_number": 77,
+        "head_sha": HEAD,
+        "run_id": 123,
+        "run_attempt": 2,
+    }
