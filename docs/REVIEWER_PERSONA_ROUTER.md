@@ -11,18 +11,18 @@ Reviewer Persona Router separates the requested review persona from the provider
 
 ## Rubric policy
 
-Rubric validation normalizes Unicode with NFKC and then applies item-wide security invariants rather than bounded token-distance heuristics.
+Rubric validation normalizes Unicode with NFKC and applies item-wide security invariants rather than bounded token-distance heuristics.
 
 The validator rejects:
 
-- active, passive, noun-form, or direct reviewer-identity claims;
+- active, passive, noun-form, direct, or `as reviewer` identity claims;
 - merge authority, approval, permission, or rights grants;
 - safe-prefix injection followed by an authority command;
 - filler-token padding intended to separate protected terms;
 - hidden Unicode controls and formatting characters;
 - non-ASCII alphabetic characters and combining marks that can create cross-script or diacritic confusables.
 
-Neutral technical criteria remain valid, including numbered items such as:
+Neutral technical criteria remain valid. Numbered list markers are ignored when identifying the first technical verb, so these remain valid:
 
 - `1. Review merge authority checks for bypasses.`
 - `2) Audit native approval validation.`
