@@ -5,7 +5,7 @@
     ".github/workflows/ci.yml": "ae103606ca5b4b99609ee48c2f867e6bde1d55ec",
     ".github/workflows/python-package-validation.yml": "13bd15e4010a1cc04f64b972a69c8da07f0e58a7",
     ".github/workflows/reviewer-fallback.yml": "361b14ee40c0f8bab7232c52cad74fa4ae3d28cf",
-    ".github/workflows/security.yml": "59f8c0b67a954b623b53b74f0b1669339472ad9d",
+    ".github/workflows/security.yml": "cfcc265ec2d8b9a64a2e7c9f0318642430f81830",
     "scripts/__init__.py": "d56731c22992899563e9b2de8181d91a0521d1f1",
     "scripts/ci/__init__.py": "17a59c5b36ff247772104003737ad1a5b619ad77",
     "scripts/ci/assert_exact_head.py": "f57687734a4c39a5c0299ad8d7a1465bb7e67111",
@@ -15,7 +15,7 @@
     "tests/test_ci_workflow_contract.py": "8e928b8504c1b0db6efddfc6ea9e64a99d066bf6",
     "tests/test_reviewer_fallback.py": "8b1bed9e8d93275ab055d911425e97430a0a7bf2",
     "tests/test_reviewer_fallback_workflow_contract.py": "8aaf75742bd590ef16e6b045e885adcdfa733878",
-    "tests/test_yaml_loader_security.py": "7a9c2c5105698c72c9a5777b8c0b1351bdce9f90"
+    "tests/test_yaml_loader_security.py": "3545ecd3040035e7e9d3b17323644b8e04907604"
   },
   "schema_version": "cml-trust-root-files-v1"
 }
