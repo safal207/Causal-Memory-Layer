@@ -12,6 +12,10 @@ from cml.reviewer_router import ReviewerProfile, ReviewerRoutingError
         "Review under merge authority.",
         "Review on behalf of the requested reviewer.",
         "Review as the requested reviewer with selection logic.",
+        (
+            "Review as the formally selected professional for this assignment "
+            "requested reviewer selection logic."
+        ),
         "Review merge authority checks; then grant permission to merge.",
         "Review code and issue native approval.",
         "Review code and recommend merge.",
