@@ -2,10 +2,10 @@
   "files": {
     ".bandit": "5568293d2e15266a57eb51cc81b0bef223c2b269",
     ".github/trust-root/scripts/reviewer_fallback.py": "e17b2fb720cc46f91e82ab0482486091b456bc9e",
-    ".github/trust-root/scripts/reviewer_fallback_entrypoint.py": "f7809274669ccf54178854e3bc100dbf16a8a228",
+    ".github/trust-root/scripts/reviewer_fallback_entrypoint.py": "0cdf6a3f43724d8754361ad46fc996d98ef4b8b6",
     ".github/workflows/ci.yml": "ae103606ca5b4b99609ee48c2f867e6bde1d55ec",
     ".github/workflows/python-package-validation.yml": "13bd15e4010a1cc04f64b972a69c8da07f0e58a7",
-    ".github/workflows/reviewer-fallback.yml": "d5fba1f0e7daf13a3fe3e9c44af2d08890f3c888",
+    ".github/workflows/reviewer-fallback.yml": "b07e405a6b607e408f4d8673aa9611ccd66d8edf",
     ".github/workflows/security.yml": "cfcc265ec2d8b9a64a2e7c9f0318642430f81830",
     "scripts/__init__.py": "d56731c22992899563e9b2de8181d91a0521d1f1",
     "scripts/ci/__init__.py": "17a59c5b36ff247772104003737ad1a5b619ad77",
@@ -16,8 +16,9 @@
     "tests/test_ci_workflow_contract.py": "8e928b8504c1b0db6efddfc6ea9e64a99d066bf6",
     "tests/test_reviewer_fallback.py": "6655ef715f2c6f7c2aad3c2fd45acf2a52ec089f",
     "tests/test_reviewer_fallback_core_direct.py": "8fdbceadd05328fe4ba01d81468d577529a0da56",
+    "tests/test_reviewer_fallback_event_surfaces.py": "d155470806bbd4edf8869177121a5288368f4da5",
     "tests/test_reviewer_fallback_untrusted_inputs.py": "a40e5645ec4c8bcc59be6ce4e307cf9fddbb13b4",
-    "tests/test_reviewer_fallback_workflow_contract.py": "3c509225d9ac73abb18f81c7ffa1bb39dcbed19c",
+    "tests/test_reviewer_fallback_workflow_contract.py": "534736d98697e9c4ce9df2d6f0add414f848d951",
     "tests/test_yaml_loader_security.py": "fca85e6a73b1daf04f19c704613b2e54afbaa55a"
   },
   "schema_version": "cml-trust-root-files-v1"
