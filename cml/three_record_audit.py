@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import dataclass, field
 from typing import Any, Iterable
 
@@ -23,7 +24,7 @@ CLAIM_BOUNDARY = (
 
 
 class ThreeRecordAuditError(ValueError):
-    """Raised when the top-level audit input is structurally invalid."""
+    """Raised when audit input cannot be processed deterministically."""
 
 
 class FindingCode:
@@ -70,16 +71,51 @@ class CausalFinding:
         return result
 
 
-def canonical_json(value: Any) -> str:
-    """Return deterministic JSON for the fixture's JSON-only value domain."""
+def _validate_json_value(value: Any, *, path: str = "$") -> None:
+    """Validate the canonical JSON value domain with deterministic errors."""
 
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
+    if value is None or isinstance(value, (bool, int)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ThreeRecordAuditError(f"{path} contains a non-finite number")
+        return
+    if isinstance(value, str):
+        if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+            raise ThreeRecordAuditError(
+                f"{path} must contain only Unicode scalar values"
+            )
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_json_value(item, path=f"{path}[{index}]")
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ThreeRecordAuditError(f"{path} object keys must be strings")
+            _validate_json_value(key, path=f"{path} key")
+            _validate_json_value(item, path=f"{path}.{key}")
+        return
+    raise ThreeRecordAuditError(
+        f"{path} contains a non-JSON value: {type(value).__name__}"
     )
+
+
+def canonical_json(value: Any) -> str:
+    """Return deterministic JSON for the strict JSON-only value domain."""
+
+    _validate_json_value(value)
+    try:
+        return json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ThreeRecordAuditError("value cannot be encoded as canonical JSON") from exc
 
 
 def record_ref(record: dict[str, Any]) -> str:
@@ -213,33 +249,58 @@ def _finding(
 
 
 def _detect_cycle(graph: dict[str, set[str]]) -> list[str] | None:
-    visiting: set[str] = set()
-    visited: set[str] = set()
-    stack: list[str] = []
+    """Return one deterministic cycle using an explicit DFS stack."""
 
-    def visit(node: str) -> list[str] | None:
-        if node in visiting:
-            start = stack.index(node)
-            return stack[start:] + [node]
-        if node in visited:
-            return None
-        visiting.add(node)
-        stack.append(node)
-        for parent in sorted(graph.get(node, set())):
-            if parent not in graph:
+    state: dict[str, int] = {}
+    active_path: list[str] = []
+    active_index: dict[str, int] = {}
+
+    for start in sorted(graph):
+        if state.get(start, 0) != 0:
+            continue
+
+        state[start] = 1
+        active_index[start] = 0
+        active_path.append(start)
+        stack: list[tuple[str, list[str], int]] = [
+            (start, sorted(parent for parent in graph.get(start, set()) if parent in graph), 0)
+        ]
+
+        while stack:
+            node, parents, index = stack[-1]
+            if index >= len(parents):
+                stack.pop()
+                state[node] = 2
+                active_index.pop(node, None)
+                if active_path and active_path[-1] == node:
+                    active_path.pop()
                 continue
-            cycle = visit(parent)
-            if cycle:
-                return cycle
-        stack.pop()
-        visiting.remove(node)
-        visited.add(node)
-        return None
 
-    for node in sorted(graph):
-        cycle = visit(node)
-        if cycle:
-            return cycle
+            parent = parents[index]
+            stack[-1] = (node, parents, index + 1)
+            parent_state = state.get(parent, 0)
+
+            if parent_state == 1:
+                start_index = active_index[parent]
+                return active_path[start_index:] + [parent]
+            if parent_state == 2:
+                continue
+
+            state[parent] = 1
+            active_index[parent] = len(active_path)
+            active_path.append(parent)
+            stack.append(
+                (
+                    parent,
+                    sorted(
+                        candidate
+                        for candidate in graph.get(parent, set())
+                        if candidate in graph
+                    ),
+                    0,
+                )
+            )
+
     return None
 
 
