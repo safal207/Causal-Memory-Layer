@@ -471,31 +471,30 @@ def audit_three_record_transition(
             if isinstance(reference, str):
                 graph[integrity_ref].add(reference)
 
-        if authorization is not None:
-            if not _same_required_text_fields(
-                integrity, authorization, "transition_id", "subject_id"
-            ):
-                _finding(
-                    findings,
-                    code=FindingCode.CROSS_SUBJECT_OR_TRANSITION_JOIN,
-                    edge="authorization -> response integrity",
-                    record_ids=[authorization_ref or "missing", integrity_ref],
-                    message=(
-                        "Authorization and response integrity require the same "
-                        "non-empty transition_id and subject_id."
-                    ),
-                )
-            if parent_authorization != authorization_ref:
-                _finding(
-                    findings,
-                    code=FindingCode.MISSING_AUTHORIZATION_PARENT,
-                    edge="response integrity -> authorization",
-                    record_ids=[integrity_ref, parent_authorization or "missing"],
-                    message=(
-                        "Response integrity does not reference the supplied "
-                        "authorization record."
-                    ),
-                )
+        if authorization is not None and not _same_required_text_fields(
+            integrity, authorization, "transition_id", "subject_id"
+        ):
+            _finding(
+                findings,
+                code=FindingCode.CROSS_SUBJECT_OR_TRANSITION_JOIN,
+                edge="authorization -> response integrity",
+                record_ids=[authorization_ref or "missing", integrity_ref],
+                message=(
+                    "Authorization and response integrity require the same "
+                    "non-empty transition_id and subject_id."
+                ),
+            )
+        if authorization_ref is None or parent_authorization != authorization_ref:
+            _finding(
+                findings,
+                code=FindingCode.MISSING_AUTHORIZATION_PARENT,
+                edge="response integrity -> authorization",
+                record_ids=[integrity_ref, parent_authorization or "missing"],
+                message=(
+                    "Response integrity does not reference the supplied "
+                    "authorization record."
+                ),
+            )
 
         known_observation_refs = {reference for _, reference in observations}
         declared_observation_refs = integrity.get("observation_refs", [])
