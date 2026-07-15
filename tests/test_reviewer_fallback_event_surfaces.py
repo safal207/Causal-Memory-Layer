@@ -203,7 +203,9 @@ def test_coderabbit_rate_limit_on_each_native_surface_requests_qodo_once(
     assert result["passed"] is True
     assert result["outcome"] == "QODO_REQUESTED_EXACT_HEAD"
     requests = [
-        comment for comment in client.comments if str(comment["body"]).startswith("/qodo review")
+        comment
+        for comment in client.comments
+        if str(comment["body"]).startswith("/qodo review")
     ]
     assert len(requests) == 1
     assert HEAD in str(requests[0]["body"])
@@ -212,7 +214,9 @@ def test_coderabbit_rate_limit_on_each_native_surface_requests_qodo_once(
 
 def test_qodo_review_submission_can_complete_authenticated_lifecycle() -> None:
     client = SurfaceClient()
-    run_surface("pull_request_review", raw_event("pull_request_review"), client, run_id=100)
+    run_surface(
+        "pull_request_review", raw_event("pull_request_review"), client, run_id=100
+    )
 
     body = f"Review bound to exact head `{HEAD}`.\nBugs (0)"
     normalized, result = run_surface(
@@ -257,14 +261,15 @@ def test_inline_qodo_comment_cannot_complete_lifecycle() -> None:
 
 def test_review_surface_preserves_sender_author_disagreement_for_core_rejection() -> None:
     client = SurfaceClient()
-    spoofed = identity(rf.CODE_RABBIT_LOGIN, 999)
+    canonical_author = provider_identity("coderabbit")
+    spoofed_sender = identity(rf.CODE_RABBIT_LOGIN, 999)
 
     _, result = run_surface(
         "pull_request_review",
         raw_event(
             "pull_request_review",
-            user=spoofed,
-            sender=spoofed,
+            user=canonical_author,
+            sender=spoofed_sender,
         ),
         client,
         run_id=123,
