@@ -85,6 +85,49 @@
           "causal_validity": "INVALID"
         }
       }
+    },
+    {
+      "case_id": "actual_authorization_observation_cycle",
+      "authorization_record_ref": "sha256:authorization-cycle",
+      "authorization": {
+        "transition_id": "transition-edge-cycle",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-edge-cycle",
+        "binding_digest": "sha256:binding-edge-cycle",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_parent_refs": ["sha256:observation-cycle"]
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record_ref": "sha256:observation-cycle",
+          "record": {
+            "transition_id": "transition-edge-cycle",
+            "subject_id": "agent:deploy",
+            "authorization_ref": "$AUTHORIZATION_REF",
+            "action_identity_digest": "sha256:action-edge-cycle",
+            "binding_digest": "sha256:binding-edge-cycle",
+            "execution_status": "EXECUTED",
+            "result_digest": "sha256:result-edge-cycle"
+          }
+        }
+      ],
+      "integrity": null,
+      "expected": {
+        "status": "FAILED",
+        "finding_codes": [
+          "CML-TTR-R8-CAUSAL_CYCLE_OR_AMBIGUOUS_ROOT",
+          "CML-TTR-R9-RECORD_REFERENCE_MISMATCH",
+          "CML-TTR-R9-RECORD_REFERENCE_MISMATCH"
+        ],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "INVALID"
+        }
+      }
     }
   ]
 }
