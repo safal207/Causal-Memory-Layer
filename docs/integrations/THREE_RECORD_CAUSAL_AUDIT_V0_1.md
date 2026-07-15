@@ -21,12 +21,13 @@ model claim is semantically true.
 - Auditor: [`cml/three_record_audit.py`](../../cml/three_record_audit.py)
 - Primary fixtures: [`tests/fixtures/three_record_causal_audit_v0.1.json`](../../tests/fixtures/three_record_causal_audit_v0.1.json)
 - Broken-edge fixtures: [`tests/fixtures/three_record_causal_audit_edges_v0.1.json`](../../tests/fixtures/three_record_causal_audit_edges_v0.1.json)
-- Tests: [`tests/test_three_record_causal_audit.py`](../../tests/test_three_record_causal_audit.py)
+- Main tests: [`tests/test_three_record_causal_audit.py`](../../tests/test_three_record_causal_audit.py)
+- Parent-reference tests: [`tests/test_three_record_causal_parent_refs.py`](../../tests/test_three_record_causal_parent_refs.py)
 
 Run:
 
 ```bash
-pytest tests/test_three_record_causal_audit.py -q
+pytest tests/test_three_record_causal_audit.py tests/test_three_record_causal_parent_refs.py -q
 ```
 
 ## Portable canonical wrappers
@@ -80,8 +81,11 @@ response_integrity.observation_refs -> supplied observation.record_ref values
 claim.observation_refs -> supplied observation.record_ref values
 ```
 
-An authorization record must either identify causal parents or explicitly mark
-itself with `causal_root=true`.
+An authorization record must either identify at least one non-empty causal
+parent reference or explicitly mark itself with `causal_root=true`. Empty and
+whitespace-only entries in `causal_parent_refs` provide no ancestry and cannot
+make an otherwise ambiguous root valid. Valid external parent references remain
+supported even when blank noise is also present.
 
 ## Finding codes
 
@@ -94,7 +98,7 @@ itself with `causal_root=true`.
 | `CML-TTR-R5-STALE_OR_CONSUMED_AUTHORITY_AS_LIVE` | Expired, consumed, or revalidation-required authority is reused for live execution. |
 | `CML-TTR-R6-CROSS_SUBJECT_OR_TRANSITION_JOIN` | Required subject or transition identity is absent, empty, or differs across joined records. |
 | `CML-TTR-R7-SUPPORTED_CLAIM_NO_LINEAGE` | A `SUPPORTED` claim lacks complete observation ancestry. |
-| `CML-TTR-R8-CAUSAL_CYCLE_OR_AMBIGUOUS_ROOT` | The record graph contains a cycle or the authorization root is not explicit. |
+| `CML-TTR-R8-CAUSAL_CYCLE_OR_AMBIGUOUS_ROOT` | The record graph contains a cycle or the authorization has neither a non-empty causal parent nor an explicit root marker. |
 | `CML-TTR-R9-RECORD_REFERENCE_MISMATCH` | A wrapper reference does not match the deterministic record digest. |
 
 Every finding includes:
@@ -144,6 +148,7 @@ The deterministic corpus covers:
 - expired authorization → observed runtime block → honest response;
 - observation action/binding mismatch;
 - missing, empty, and whitespace-only identity/binding evidence;
+- blank-only causal-parent ancestry and valid external parents with blank noise;
 - cross-subject and cross-transition substitution;
 - claim referencing an unrelated observation on multiple distinct edges;
 - digest-only redacted evidence;
