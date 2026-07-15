@@ -21,6 +21,7 @@ from cml.integrations.action_ref import validate_rfc3339_milliseconds_utc
 
 GUARDRAIL_DECISION_SCHEMA = "cml-guardrail-decision-v1"
 SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+STABLE_TOKEN = re.compile(r"^[A-Za-z0-9._:/-]+$")
 VERDICTS = frozenset({"ALLOW", "DENY", "SUSPEND"})
 CLAIM_FIELDS = frozenset(
     {
@@ -51,6 +52,10 @@ def _validate_non_empty_token(value: object, *, label: str) -> str:
     _validate_unicode_scalar_string(value, label=label)
     if value != value.strip():
         raise ValueError(f"{label} must not contain leading or trailing whitespace")
+    if not STABLE_TOKEN.fullmatch(value):
+        raise ValueError(
+            f"{label} must use the ASCII token charset [A-Za-z0-9._:/-]"
+        )
     return value
 
 
@@ -113,6 +118,8 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 def _require_exact_fields(
     payload: Mapping[str, Any], *, expected: frozenset[str], label: str
 ) -> None:
+    if any(not isinstance(key, str) for key in payload):
+        raise ValueError(f"{label} keys must be strings")
     observed = frozenset(payload)
     missing = sorted(expected - observed)
     unknown = sorted(observed - expected)
@@ -169,9 +176,10 @@ class GuardrailDecisionV1:
     """A content-addressed decision plus an optional non-authoritative proof.
 
     Ordinary value equality includes the proof sidecar. Use
-    :meth:`same_authoritative_identity` when only the content-addressed decision
-    identity is relevant. Instances are intentionally unhashable so a cache or
-    set cannot silently collapse proof-bearing and proof-free evidence objects.
+    :meth:`same_authoritative_identity` when only a valid content-addressed
+    decision identity is relevant. Instances are intentionally unhashable so a
+    cache or set cannot silently collapse proof-bearing and proof-free evidence
+    objects.
     """
 
     decision_id: str
@@ -201,8 +209,15 @@ class GuardrailDecisionV1:
         }
 
     def same_authoritative_identity(self, other: object) -> bool:
+        """Return true only when both decisions are valid and identically bound."""
+
+        if not isinstance(other, GuardrailDecisionV1):
+            return False
+        self_expected = derive_guardrail_decision_id(self.claims)
+        other_expected = derive_guardrail_decision_id(other.claims)
         return (
-            isinstance(other, GuardrailDecisionV1)
+            self.decision_id == self_expected
+            and other.decision_id == other_expected
             and self.schema_version == other.schema_version
             and self.decision_id == other.decision_id
             and self.claims == other.claims
