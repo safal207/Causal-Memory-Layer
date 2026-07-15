@@ -39,9 +39,16 @@ TOP_LEVEL_FIELDS = frozenset({"schema_version", "decision_id", "claims", "proof"
 GuardrailVerdict = Literal["ALLOW", "DENY", "SUSPEND"]
 
 
+def _validate_unicode_scalar_string(value: str, *, label: str) -> str:
+    if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+        raise ValueError(f"{label} must contain only Unicode scalar values")
+    return value
+
+
 def _validate_non_empty_token(value: object, *, label: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{label} must be a non-empty string")
+    _validate_unicode_scalar_string(value, label=label)
     if value != value.strip():
         raise ValueError(f"{label} must not contain leading or trailing whitespace")
     return value
@@ -61,8 +68,10 @@ def _parse_timestamp(value: str) -> datetime:
 
 
 def _freeze_json(value: Any, *, path: str = "proof") -> Any:
-    if value is None or isinstance(value, (str, bool, int)):
+    if value is None or isinstance(value, (bool, int)):
         return value
+    if isinstance(value, str):
+        return _validate_unicode_scalar_string(value, label=path)
     if isinstance(value, float):
         if not math.isfinite(value):
             raise ValueError(f"{path} contains a non-finite number")
@@ -72,6 +81,7 @@ def _freeze_json(value: Any, *, path: str = "proof") -> Any:
         for key, item in value.items():
             if not isinstance(key, str):
                 raise ValueError(f"{path} keys must be strings")
+            _validate_unicode_scalar_string(key, label=f"{path} key")
             frozen[key] = _freeze_json(item, path=f"{path}.{key}")
         return MappingProxyType(frozen)
     if isinstance(value, (list, tuple)):
@@ -93,6 +103,7 @@ def _thaw_json(value: Any) -> Any:
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
+        _validate_unicode_scalar_string(key, label="JSON object key")
         if key in result:
             raise ValueError(f"duplicate JSON key: {key}")
         result[key] = value
@@ -155,12 +166,20 @@ class GuardrailDecisionClaimsV1:
 
 @dataclass(frozen=True)
 class GuardrailDecisionV1:
-    """A content-addressed decision plus an optional non-authoritative proof."""
+    """A content-addressed decision plus an optional non-authoritative proof.
+
+    Ordinary value equality includes the proof sidecar. Use
+    :meth:`same_authoritative_identity` when only the content-addressed decision
+    identity is relevant. Instances are intentionally unhashable so a cache or
+    set cannot silently collapse proof-bearing and proof-free evidence objects.
+    """
 
     decision_id: str
     claims: GuardrailDecisionClaimsV1
-    proof: Mapping[str, Any] | None = field(default=None, compare=False)
+    proof: Mapping[str, Any] | None = field(default=None)
     schema_version: str = GUARDRAIL_DECISION_SCHEMA
+
+    __hash__ = None
 
     def __post_init__(self) -> None:
         if self.schema_version != GUARDRAIL_DECISION_SCHEMA:
@@ -180,6 +199,14 @@ class GuardrailDecisionV1:
             "schema_version": self.schema_version,
             "claims": self.claims.to_mapping(),
         }
+
+    def same_authoritative_identity(self, other: object) -> bool:
+        return (
+            isinstance(other, GuardrailDecisionV1)
+            and self.schema_version == other.schema_version
+            and self.decision_id == other.decision_id
+            and self.claims == other.claims
+        )
 
     def to_mapping(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
