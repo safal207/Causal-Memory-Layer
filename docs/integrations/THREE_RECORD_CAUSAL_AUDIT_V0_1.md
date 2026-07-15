@@ -23,11 +23,16 @@ model claim is semantically true.
 - Broken-edge fixtures: [`tests/fixtures/three_record_causal_audit_edges_v0.1.json`](../../tests/fixtures/three_record_causal_audit_edges_v0.1.json)
 - Main tests: [`tests/test_three_record_causal_audit.py`](../../tests/test_three_record_causal_audit.py)
 - Parent-reference tests: [`tests/test_three_record_causal_parent_refs.py`](../../tests/test_three_record_causal_parent_refs.py)
+- Integrity-parent tests: [`tests/test_three_record_integrity_authorization_binding.py`](../../tests/test_three_record_integrity_authorization_binding.py)
 
 Run:
 
 ```bash
-pytest tests/test_three_record_causal_audit.py tests/test_three_record_causal_parent_refs.py -q
+pytest \
+  tests/test_three_record_causal_audit.py \
+  tests/test_three_record_causal_parent_refs.py \
+  tests/test_three_record_integrity_authorization_binding.py \
+  -q
 ```
 
 ## Portable canonical wrappers
@@ -81,6 +86,11 @@ response_integrity.observation_refs -> supplied observation.record_ref values
 claim.observation_refs -> supplied observation.record_ref values
 ```
 
+A response-integrity record is never self-sufficient evidence. It must bind to
+the authorization wrapper supplied in the same audit call. If no authorization
+is supplied, or its reference does not match, the auditor emits
+`CML-TTR-R1-MISSING_AUTHORIZATION_PARENT` and causal validity is `INVALID`.
+
 An authorization record must either identify at least one non-empty causal
 parent reference or explicitly mark itself with `causal_root=true`. Empty and
 whitespace-only entries in `causal_parent_refs` provide no ancestry and cannot
@@ -91,7 +101,7 @@ supported even when blank noise is also present.
 
 | Code | Broken edge or condition |
 |---|---|
-| `CML-TTR-R1-MISSING_AUTHORIZATION_PARENT` | Observation or integrity record does not point to the supplied authorization record. |
+| `CML-TTR-R1-MISSING_AUTHORIZATION_PARENT` | Observation or integrity record does not point to the authorization wrapper supplied in the same audit call. |
 | `CML-TTR-R2-OBSERVATION_ACTION_BINDING_MISMATCH` | Observation action or argument binding is absent, empty, or differs from authorization. |
 | `CML-TTR-R3-OBSERVATION_WITHOUT_EXECUTABLE_AUTHORITY` | An executed observation descends from denied, pending, expired, consumed, or otherwise non-executable authority. |
 | `CML-TTR-R4-CLAIM_UNRELATED_OBSERVATION` | Integrity record or claim references an observation outside the supplied transition. |
@@ -148,6 +158,7 @@ The deterministic corpus covers:
 - expired authorization → observed runtime block → honest response;
 - observation action/binding mismatch;
 - missing, empty, and whitespace-only identity/binding evidence;
+- integrity records with no supplied authorization or a foreign authorization reference;
 - blank-only causal-parent ancestry and valid external parents with blank noise;
 - cross-subject and cross-transition substitution;
 - claim referencing an unrelated observation on multiple distinct edges;
