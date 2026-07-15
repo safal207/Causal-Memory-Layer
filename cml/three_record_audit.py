@@ -83,11 +83,15 @@ def canonical_json(value: Any) -> str:
 
 
 def record_ref(record: dict[str, Any]) -> str:
+    """Return the canonical SHA-256 reference for a record."""
+
     digest = hashlib.sha256(canonical_json(record).encode("utf-8")).hexdigest()
     return f"sha256:{digest}"
 
 
 def wrap_record(record: dict[str, Any]) -> dict[str, Any]:
+    """Wrap a record with its canonical reference."""
+
     return {"record": record, "record_ref": record_ref(record)}
 
 
@@ -105,7 +109,22 @@ def _require_wrapper(value: Any, label: str) -> tuple[dict[str, Any], str]:
 
 def _text(record: dict[str, Any], field_name: str) -> str | None:
     value = record.get(field_name)
-    return value if isinstance(value, str) and value else None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value
+
+
+def _same_required_text_fields(
+    left: dict[str, Any], right: dict[str, Any], *field_names: str
+) -> bool:
+    """Return true only when all named fields are non-empty and equal."""
+
+    for field_name in field_names:
+        left_value = _text(left, field_name)
+        right_value = _text(right, field_name)
+        if left_value is None or right_value is None or left_value != right_value:
+            return False
+    return True
 
 
 def _authority_dimension(record: dict[str, Any] | None) -> str:
@@ -136,7 +155,9 @@ def _authority_dimension(record: dict[str, Any] | None) -> str:
 
 
 def _execution_dimension(observations: Iterable[dict[str, Any]]) -> str:
-    statuses = [str(record.get("execution_status", "")).upper() for record in observations]
+    statuses = [
+        str(record.get("execution_status", "")).upper() for record in observations
+    ]
     if any(status == "EXECUTED" for status in statuses):
         return "OBSERVED_EXECUTED"
     if any(status in {"BLOCKED", "REFUSED"} for status in statuses):
@@ -304,10 +325,10 @@ def audit_three_record_transition(
                 message="Observation does not reference the supplied authorization record.",
                 context={"authorization_ref": parent},
             )
+
         if authorization is not None:
-            if (
-                observation.get("transition_id") != authorization.get("transition_id")
-                or observation.get("subject_id") != authorization.get("subject_id")
+            if not _same_required_text_fields(
+                observation, authorization, "transition_id", "subject_id"
             ):
                 _finding(
                     findings,
@@ -315,15 +336,15 @@ def audit_three_record_transition(
                     edge="authorization -> observation",
                     record_ids=[authorization_ref or "missing", observation_ref],
                     message=(
-                        "Authorization and observation do not share the same "
+                        "Authorization and observation require the same non-empty "
                         "transition_id and subject_id."
                     ),
                 )
-            if (
-                observation.get("action_identity_digest")
-                != authorization.get("action_identity_digest")
-                or observation.get("binding_digest")
-                != authorization.get("binding_digest")
+            if not _same_required_text_fields(
+                observation,
+                authorization,
+                "action_identity_digest",
+                "binding_digest",
             ):
                 _finding(
                     findings,
@@ -331,8 +352,8 @@ def audit_three_record_transition(
                     edge="authorization -> observation binding",
                     record_ids=[authorization_ref or "missing", observation_ref],
                     message=(
-                        "Observation action_identity_digest or binding_digest "
-                        "does not match authorization."
+                        "Observation and authorization require matching non-empty "
+                        "action_identity_digest and binding_digest values."
                     ),
                 )
             if str(observation.get("execution_status", "")).upper() == "EXECUTED":
@@ -376,7 +397,9 @@ def audit_three_record_transition(
                 code=FindingCode.RECORD_REFERENCE_MISMATCH,
                 edge="record -> record_ref",
                 record_ids=[integrity_ref],
-                message="Response integrity record reference does not match canonical bytes.",
+                message=(
+                    "Response integrity record reference does not match canonical bytes."
+                ),
             )
 
         parent_authorization = _text(integrity, "authorization_ref")
@@ -387,9 +410,8 @@ def audit_three_record_transition(
                 graph[integrity_ref].add(reference)
 
         if authorization is not None:
-            if (
-                integrity.get("transition_id") != authorization.get("transition_id")
-                or integrity.get("subject_id") != authorization.get("subject_id")
+            if not _same_required_text_fields(
+                integrity, authorization, "transition_id", "subject_id"
             ):
                 _finding(
                     findings,
@@ -397,8 +419,8 @@ def audit_three_record_transition(
                     edge="authorization -> response integrity",
                     record_ids=[authorization_ref or "missing", integrity_ref],
                     message=(
-                        "Authorization and response integrity do not share the "
-                        "same transition_id and subject_id."
+                        "Authorization and response integrity require the same "
+                        "non-empty transition_id and subject_id."
                     ),
                 )
             if parent_authorization != authorization_ref:
