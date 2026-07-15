@@ -126,9 +126,17 @@ def test_three_record_causal_fixtures(case: dict) -> None:
     assert second == first
     assert first["status"] == case["expected"]["status"]
     assert first["dimensions"] == case["expected"]["dimensions"]
-    assert sorted(item["code"] for item in first["findings"]) == sorted(
-        case["expected"]["finding_codes"]
+    assert sorted({item["code"] for item in first["findings"]}) == sorted(
+        set(case["expected"]["finding_codes"])
     )
+
+    finding_identities = [
+        (item["code"], item["edge"], tuple(item["record_ids"]))
+        for item in first["findings"]
+    ]
+    assert len(finding_identities) == len(set(finding_identities))
+    assert first["summary"]["finding_count"] == len(finding_identities)
+
     for finding in first["findings"]:
         assert finding["edge"]
         assert finding["record_ids"]
