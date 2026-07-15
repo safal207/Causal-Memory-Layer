@@ -93,7 +93,7 @@ def test_policy_graph_verdict_and_reason_changes_mint_new_ids() -> None:
     assert len({item.decision_id for item in mutations.values()}) == len(mutations)
 
 
-def test_proof_sidecar_does_not_change_identity_and_is_frozen() -> None:
+def test_proof_sidecar_does_not_change_identity_but_changes_value_equality() -> None:
     plain = _decision()
     with_proof = _decision(
         proof={
@@ -104,12 +104,27 @@ def test_proof_sidecar_does_not_change_identity_and_is_frozen() -> None:
 
     assert plain.decision_id == with_proof.decision_id
     assert plain.claims == with_proof.claims
+    assert plain.same_authoritative_identity(with_proof)
+    assert plain != with_proof
     assert with_proof.to_mapping()["proof"] == {
         "signature": "demo-signature",
         "anchors": ["ledger:1", "log:2"],
     }
     with pytest.raises(TypeError):
         with_proof.proof["signature"] = "mutated"
+    with pytest.raises(TypeError):
+        hash(plain)
+    with pytest.raises(TypeError):
+        hash(with_proof)
+
+
+def test_different_proofs_are_distinct_values_with_same_authoritative_identity() -> None:
+    first = _decision(proof={"signature": "first"})
+    second = _decision(proof={"signature": "second"})
+
+    assert first != second
+    assert first.same_authoritative_identity(second)
+    assert first.decision_id == second.decision_id
 
 
 def test_tampered_expiry_with_reused_id_fails_verification() -> None:
@@ -203,6 +218,37 @@ def test_invalid_digest_timestamp_verdict_and_interval_are_rejected() -> None:
         _decision(issued_at="2026-07-15T12:00:00Z")
     with pytest.raises(ValueError, match="strictly later"):
         _decision(expires_at="2026-07-15T12:00:00.000Z")
+
+
+@pytest.mark.parametrize("field_name", ["reason_code", "provider_id"])
+@pytest.mark.parametrize("value", ["bad\ud800", "bad\udfff"])
+def test_claim_tokens_reject_non_unicode_scalar_values(
+    field_name: str, value: str
+) -> None:
+    with pytest.raises(ValueError, match="Unicode scalar values"):
+        _decision(**{field_name: value})
+
+
+@pytest.mark.parametrize(
+    "proof",
+    [
+        {"bad\ud800": "value"},
+        {"value": "bad\udfff"},
+        {"nested": ["valid", {"value": "bad\ud800"}]},
+    ],
+)
+def test_proof_rejects_non_unicode_scalar_keys_and_values(proof: object) -> None:
+    with pytest.raises(ValueError, match="Unicode scalar values"):
+        _decision(proof=proof)
+
+
+def test_json_loader_rejects_escaped_unpaired_surrogate() -> None:
+    payload = _decision().to_mapping()
+    payload["claims"]["reason_code"] = "bad\ud800"
+    encoded = json.dumps(payload, ensure_ascii=True)
+
+    with pytest.raises(ValueError, match="Unicode scalar values"):
+        load_guardrail_decision_json(encoded)
 
 
 def test_naive_verification_time_is_rejected() -> None:
