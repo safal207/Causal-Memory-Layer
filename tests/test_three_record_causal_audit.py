@@ -16,6 +16,7 @@ FIXTURE_PATHS = [
     ROOT / "tests/fixtures/three_record_causal_audit_v0.1.json",
     ROOT / "tests/fixtures/three_record_causal_audit_edges_v0.1.json",
 ]
+_MISSING = object()
 
 
 def load_cases() -> list[dict]:
@@ -30,6 +31,8 @@ def load_cases() -> list[dict]:
 def materialize(case: dict) -> tuple[dict | None, list[dict], dict | None]:
     authorization_record = copy.deepcopy(case.get("authorization"))
     authorization = wrap_record(authorization_record) if authorization_record else None
+    if authorization is not None and case.get("authorization_record_ref"):
+        authorization["record_ref"] = case["authorization_record_ref"]
     authorization_ref = authorization["record_ref"] if authorization else None
 
     observations: list[dict] = []
@@ -39,6 +42,8 @@ def materialize(case: dict) -> tuple[dict | None, list[dict], dict | None]:
         if record.get("authorization_ref") == "$AUTHORIZATION_REF":
             record["authorization_ref"] = authorization_ref
         wrapper = wrap_record(record)
+        if item.get("record_ref"):
+            wrapper["record_ref"] = item["record_ref"]
         observations.append(wrapper)
         observation_refs[item["key"]] = wrapper["record_ref"]
 
@@ -70,6 +75,39 @@ def _replace_observation_reference(value: str, references: dict[str, str]) -> st
     return value
 
 
+def _valid_authorization_and_observation(
+    *, field_name: str | None = None, replacement: object = _MISSING
+) -> tuple[dict, dict]:
+    authorization_record = {
+        "transition_id": "transition-required-evidence",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-required-evidence",
+        "binding_digest": "sha256:binding-required-evidence",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_root": True,
+    }
+    observation_record = {
+        "transition_id": "transition-required-evidence",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-required-evidence",
+        "binding_digest": "sha256:binding-required-evidence",
+        "execution_status": "EXECUTED",
+        "result_digest": "sha256:result-required-evidence",
+    }
+    if field_name is not None:
+        if replacement is _MISSING:
+            authorization_record.pop(field_name)
+            observation_record.pop(field_name)
+        else:
+            authorization_record[field_name] = replacement
+            observation_record[field_name] = replacement
+
+    authorization = wrap_record(authorization_record)
+    observation_record["authorization_ref"] = authorization["record_ref"]
+    return authorization, wrap_record(observation_record)
+
+
 @pytest.mark.parametrize("case", load_cases(), ids=lambda case: case["case_id"])
 def test_three_record_causal_fixtures(case: dict) -> None:
     authorization, observations, integrity = materialize(case)
@@ -88,13 +126,92 @@ def test_three_record_causal_fixtures(case: dict) -> None:
     assert second == first
     assert first["status"] == case["expected"]["status"]
     assert first["dimensions"] == case["expected"]["dimensions"]
-    assert sorted({item["code"] for item in first["findings"]}) == sorted(
+    assert sorted(item["code"] for item in first["findings"]) == sorted(
         case["expected"]["finding_codes"]
     )
     for finding in first["findings"]:
         assert finding["edge"]
         assert finding["record_ids"]
         assert finding["message"]
+
+
+@pytest.mark.parametrize("field_name", ["transition_id", "subject_id"])
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        pytest.param(_MISSING, id="missing"),
+        pytest.param("", id="empty"),
+        pytest.param("   ", id="whitespace"),
+    ],
+)
+def test_required_transition_and_subject_evidence_fail_closed(
+    field_name: str, replacement: object
+) -> None:
+    authorization, observation = _valid_authorization_and_observation(
+        field_name=field_name, replacement=replacement
+    )
+
+    report = audit_three_record_transition(
+        authorization_record=authorization,
+        observation_records=[observation],
+        response_integrity_record=None,
+    )
+
+    assert [item["code"] for item in report["findings"]] == [
+        FindingCode.CROSS_SUBJECT_OR_TRANSITION_JOIN
+    ]
+    assert report["dimensions"]["causal_validity"] == "INVALID"
+
+
+@pytest.mark.parametrize("field_name", ["action_identity_digest", "binding_digest"])
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        pytest.param(_MISSING, id="missing"),
+        pytest.param("", id="empty"),
+        pytest.param("   ", id="whitespace"),
+    ],
+)
+def test_required_action_and_binding_evidence_fail_closed(
+    field_name: str, replacement: object
+) -> None:
+    authorization, observation = _valid_authorization_and_observation(
+        field_name=field_name, replacement=replacement
+    )
+
+    report = audit_three_record_transition(
+        authorization_record=authorization,
+        observation_records=[observation],
+        response_integrity_record=None,
+    )
+
+    assert [item["code"] for item in report["findings"]] == [
+        FindingCode.OBSERVATION_ACTION_BINDING_MISMATCH
+    ]
+    assert report["dimensions"]["causal_validity"] == "INVALID"
+
+
+def test_missing_response_integrity_identity_cannot_join_by_none_equality() -> None:
+    authorization, observation = _valid_authorization_and_observation()
+    integrity = wrap_record(
+        {
+            "authorization_ref": authorization["record_ref"],
+            "observation_refs": [observation["record_ref"]],
+            "overall_verdict": "VERIFIED",
+            "claims": [],
+        }
+    )
+
+    report = audit_three_record_transition(
+        authorization_record=authorization,
+        observation_records=[observation],
+        response_integrity_record=integrity,
+    )
+
+    assert FindingCode.CROSS_SUBJECT_OR_TRANSITION_JOIN in {
+        item["code"] for item in report["findings"]
+    }
+    assert report["dimensions"]["causal_validity"] == "INVALID"
 
 
 def test_response_integrity_failure_does_not_make_causal_chain_invalid() -> None:
@@ -149,9 +266,9 @@ def test_consumed_authority_used_for_execution_emits_two_distinct_findings() -> 
         response_integrity_record=None,
     )
 
-    codes = {item["code"] for item in report["findings"]}
-    assert FindingCode.OBSERVATION_WITHOUT_EXECUTABLE_AUTHORITY in codes
-    assert FindingCode.STALE_OR_CONSUMED_AUTHORITY_AS_LIVE in codes
+    codes = [item["code"] for item in report["findings"]]
+    assert codes.count(FindingCode.OBSERVATION_WITHOUT_EXECUTABLE_AUTHORITY) == 1
+    assert codes.count(FindingCode.STALE_OR_CONSUMED_AUTHORITY_AS_LIVE) == 1
     assert report["dimensions"]["authority"] == "CONSUMED"
     assert report["dimensions"]["execution"] == "OBSERVED_EXECUTED"
     assert report["dimensions"]["response_integrity"] == "NOT_EVALUATED"
