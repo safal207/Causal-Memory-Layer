@@ -4,6 +4,7 @@ from dataclasses import replace
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import unicodedata
 
 import pytest
 
@@ -127,6 +128,15 @@ def test_different_proofs_are_distinct_values_with_same_authoritative_identity()
     assert first.decision_id == second.decision_id
 
 
+def test_same_authoritative_identity_rejects_equally_stale_objects() -> None:
+    claims = _decision().claims
+    first = GuardrailDecisionV1(decision_id="ff" * 32, claims=claims)
+    second = GuardrailDecisionV1(decision_id="ff" * 32, claims=claims)
+
+    assert first == second
+    assert not first.same_authoritative_identity(second)
+
+
 def test_tampered_expiry_with_reused_id_fails_verification() -> None:
     baseline = _decision()
     extended_claims = replace(
@@ -209,6 +219,20 @@ def test_unknown_top_level_or_claim_fields_are_rejected() -> None:
         guardrail_decision_from_mapping(with_unknown_claim)
 
 
+def test_non_string_mapping_keys_are_rejected_deterministically() -> None:
+    payload = _decision().to_mapping()
+    payload[1] = "bad"
+    with pytest.raises(ValueError, match="decision keys must be strings"):
+        guardrail_decision_from_mapping(payload)
+
+    payload = _decision().to_mapping()
+    claims = dict(payload["claims"])
+    claims[1] = "bad"
+    payload["claims"] = claims
+    with pytest.raises(ValueError, match="claims keys must be strings"):
+        guardrail_decision_from_mapping(payload)
+
+
 def test_invalid_digest_timestamp_verdict_and_interval_are_rejected() -> None:
     with pytest.raises(ValueError, match="request_digest"):
         _decision(request_digest="not-a-digest")
@@ -229,6 +253,18 @@ def test_claim_tokens_reject_non_unicode_scalar_values(
         _decision(**{field_name: value})
 
 
+@pytest.mark.parametrize("field_name", ["reason_code", "provider_id"])
+def test_claim_tokens_reject_unicode_normalization_ambiguity(field_name: str) -> None:
+    nfc = "café"
+    nfd = unicodedata.normalize("NFD", nfc)
+    assert nfc != nfd
+
+    with pytest.raises(ValueError, match="ASCII token charset"):
+        _decision(**{field_name: nfc})
+    with pytest.raises(ValueError, match="ASCII token charset"):
+        _decision(**{field_name: nfd})
+
+
 @pytest.mark.parametrize(
     "proof",
     [
@@ -240,6 +276,15 @@ def test_claim_tokens_reject_non_unicode_scalar_values(
 def test_proof_rejects_non_unicode_scalar_keys_and_values(proof: object) -> None:
     with pytest.raises(ValueError, match="Unicode scalar values"):
         _decision(proof=proof)
+
+
+def test_proof_preserves_unicode_scalar_values_without_affecting_identity() -> None:
+    nfc = _decision(proof={"note": "café"})
+    nfd = _decision(proof={"note": unicodedata.normalize("NFD", "café")})
+
+    assert nfc != nfd
+    assert nfc.same_authoritative_identity(nfd)
+    assert nfc.decision_id == nfd.decision_id
 
 
 def test_json_loader_rejects_escaped_unpaired_surrogate() -> None:
@@ -266,6 +311,8 @@ def test_naive_verification_time_is_rejected() -> None:
         "decision-v1-expiry-mutated.json",
         "decision-v1-policy-mutated.json",
         "decision-v1-graph-mutated.json",
+        "decision-v1-verdict-mutated.json",
+        "decision-v1-reason-mutated.json",
     ],
 )
 def test_fixed_vectors_are_independently_recomputable(filename: str) -> None:
