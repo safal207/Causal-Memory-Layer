@@ -335,15 +335,16 @@ def audit_three_record_transition(
                 record_ids=[authorization_ref],
                 message="Authorization record reference does not match canonical bytes.",
             )
-        parent_refs = authorization.get("causal_parent_refs", [])
-        if parent_refs is None:
-            parent_refs = []
-        if not isinstance(parent_refs, list) or any(
-            not isinstance(item, str) for item in parent_refs
+        raw_parent_refs = authorization.get("causal_parent_refs", [])
+        if raw_parent_refs is None:
+            raw_parent_refs = []
+        if not isinstance(raw_parent_refs, list) or any(
+            not isinstance(item, str) for item in raw_parent_refs
         ):
             raise ThreeRecordAuditError(
                 "authorization_record.record.causal_parent_refs must be a string array"
             )
+        parent_refs = [item for item in raw_parent_refs if item.strip()]
         graph[authorization_ref].update(parent_refs)
         if not parent_refs and authorization.get("causal_root") is not True:
             _finding(
@@ -352,7 +353,7 @@ def audit_three_record_transition(
                 edge="authorization -> causal root",
                 record_ids=[authorization_ref],
                 message=(
-                    "Authorization has neither causal parents nor an explicit "
+                    "Authorization has neither non-empty causal parents nor an explicit "
                     "causal_root=true marker."
                 ),
             )
