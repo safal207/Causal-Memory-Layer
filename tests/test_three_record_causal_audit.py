@@ -6,7 +6,10 @@ import pytest
 
 from cml.three_record_audit import (
     FindingCode,
+    ThreeRecordAuditError,
+    _detect_cycle,
     audit_three_record_transition,
+    canonical_json,
     wrap_record,
 )
 
@@ -317,3 +320,33 @@ def test_digest_only_records_do_not_require_sensitive_payloads() -> None:
     )
     assert report["status"] == "VERIFIED"
     assert report["dimensions"]["causal_validity"] == "VALID"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"bad": "surrogate-\ud800"},
+        {"nested": ["valid", {"bad-key-\udfff": "value"}]},
+    ],
+)
+def test_canonical_json_rejects_non_unicode_scalar_values(value: object) -> None:
+    with pytest.raises(ThreeRecordAuditError, match="Unicode scalar values"):
+        canonical_json(value)
+
+
+def test_cycle_detection_handles_deep_lineage_without_recursion() -> None:
+    depth = 2500
+    graph = {"node-0000": set()}
+    for index in range(1, depth):
+        graph[f"node-{index:04d}"] = {f"node-{index - 1:04d}"}
+
+    assert _detect_cycle(graph) is None
+
+    graph["node-0000"] = {f"node-{depth - 1:04d}"}
+    first = _detect_cycle(graph)
+    second = _detect_cycle(graph)
+
+    assert first == second
+    assert first is not None
+    assert first[0] == first[-1]
+    assert len(first) == depth + 1
