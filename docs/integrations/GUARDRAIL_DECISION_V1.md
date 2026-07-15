@@ -16,8 +16,8 @@ Every v1 decision binds these fields into `decision_id`:
 {
   "request_digest": "<sha256>",
   "verdict": "ALLOW | DENY | SUSPEND",
-  "reason_code": "<stable reason>",
-  "provider_id": "<provider identity>",
+  "reason_code": "<stable ASCII token>",
+  "provider_id": "<stable ASCII token>",
   "policy_digest": "<sha256>",
   "authorization_source_digest": "<sha256>",
   "issued_at": "<RFC3339 UTC milliseconds>",
@@ -50,9 +50,10 @@ Derivation:
 decision_id = lowercase_hex(SHA-256(canonical_preimage_utf8))
 ```
 
-All strings must consist only of Unicode scalar values. Unpaired UTF-16
-surrogates are rejected before canonicalization so implementations cannot
-disagree about UTF-8 encoding behavior.
+`provider_id` and `reason_code` are restricted to the portable ASCII token
+charset `[A-Za-z0-9._:/-]`. This avoids NFC/NFD normalization ambiguity across
+languages. Other JSON strings must consist only of Unicode scalar values;
+unpaired UTF-16 surrogates are rejected before serialization.
 
 For the baseline vector in
 `tests/vectors/guardrail_decision_v1/decision-v1-valid.json`:
@@ -66,10 +67,12 @@ decision_id = 0152b2fdd53a315e4a2ea6c48cd79f9e076675354537e0efb5fad9f40295fe09
 The loader rejects:
 
 - duplicate JSON keys at any object level;
+- non-string keys in direct `Mapping` input;
 - unknown top-level fields;
 - unknown or missing claim fields;
 - non-lowercase or non-64-character digests;
 - unsupported verdicts;
+- non-ASCII `provider_id` or `reason_code` tokens;
 - timestamps without exact UTC millisecond precision;
 - `expires_at <= issued_at`;
 - strings or object keys containing unpaired surrogate code points;
@@ -105,8 +108,15 @@ That separation is intentional:
 Ordinary Python value equality includes the proof sidecar, so proof-free and
 proof-bearing evidence objects are not interchangeable. `GuardrailDecisionV1`
 is intentionally unhashable to prevent sets or caches from collapsing those
-objects. Call `same_authoritative_identity()` when the comparison should ignore
-proof and compare only the bound decision identity.
+objects.
+
+`same_authoritative_identity()` is the explicit proof-agnostic comparison. It
+recomputes both IDs before returning true, so two objects carrying the same
+stale or forged `decision_id` are not treated as authoritative-identical.
+
+Proof strings preserve their exact Unicode scalar sequence. NFC and NFD proof
+notes may therefore compare differently, but proof is not part of the
+content-addressed decision identity.
 
 ## Mutation vectors
 
@@ -115,7 +125,9 @@ The repository includes fixed vectors for:
 - a valid baseline;
 - an extended expiry retaining the old ID;
 - a changed policy digest retaining the old ID;
-- a changed authorization-source digest retaining the old ID.
+- a changed authorization-source digest retaining the old ID;
+- a changed verdict retaining the old ID;
+- a changed reason code retaining the old ID.
 
 Each vector contains the canonical preimage, recomputed ID, and expected
 finding codes so another implementation can reproduce the result without
