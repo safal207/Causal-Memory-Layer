@@ -50,6 +50,10 @@ Derivation:
 decision_id = lowercase_hex(SHA-256(canonical_preimage_utf8))
 ```
 
+All strings must consist only of Unicode scalar values. Unpaired UTF-16
+surrogates are rejected before canonicalization so implementations cannot
+disagree about UTF-8 encoding behavior.
+
 For the baseline vector in
 `tests/vectors/guardrail_decision_v1/decision-v1-valid.json`:
 
@@ -68,6 +72,7 @@ The loader rejects:
 - unsupported verdicts;
 - timestamps without exact UTC millisecond precision;
 - `expires_at <= issued_at`;
+- strings or object keys containing unpaired surrogate code points;
 - non-JSON proof values.
 
 This prevents a provider from placing a semantic extension such as
@@ -86,7 +91,7 @@ The verifier recomputes the ID and evaluates time validity:
 A verifier may report more than one finding. Findings are deterministic and
 sorted by code.
 
-## Proof sidecar
+## Proof sidecar and equality
 
 An optional `proof` JSON object can carry a signature, external anchor, witness,
 or transparency-log reference. It is recursively frozen by the Python
@@ -96,6 +101,12 @@ That separation is intentional:
 
 - `decision_id` proves deterministic content identity;
 - proof mechanisms establish authorship, tamper evidence, or independence.
+
+Ordinary Python value equality includes the proof sidecar, so proof-free and
+proof-bearing evidence objects are not interchangeable. `GuardrailDecisionV1`
+is intentionally unhashable to prevent sets or caches from collapsing those
+objects. Call `same_authoritative_identity()` when the comparison should ignore
+proof and compare only the bound decision identity.
 
 ## Mutation vectors
 
