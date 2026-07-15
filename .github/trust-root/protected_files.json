@@ -16,7 +16,7 @@
     "tests/test_ci_workflow_contract.py": "8e928b8504c1b0db6efddfc6ea9e64a99d066bf6",
     "tests/test_reviewer_fallback.py": "6655ef715f2c6f7c2aad3c2fd45acf2a52ec089f",
     "tests/test_reviewer_fallback_core_direct.py": "8fdbceadd05328fe4ba01d81468d577529a0da56",
-    "tests/test_reviewer_fallback_event_surfaces.py": "d155470806bbd4edf8869177121a5288368f4da5",
+    "tests/test_reviewer_fallback_event_surfaces.py": "8b356909a543e59ba5c6b96ec7099d3f00555eb2",
     "tests/test_reviewer_fallback_untrusted_inputs.py": "a40e5645ec4c8bcc59be6ce4e307cf9fddbb13b4",
     "tests/test_reviewer_fallback_workflow_contract.py": "276709872e5c4839e79139646858f469556cbd43",
     "tests/test_yaml_loader_security.py": "fca85e6a73b1daf04f19c704613b2e54afbaa55a"
