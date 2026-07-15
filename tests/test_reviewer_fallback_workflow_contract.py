@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +60,16 @@ def test_reviewer_fallback_workflow_runs_only_for_canonical_provider_logins():
     assert "github.event.review.user.login == 'coderabbitai[bot]'" in text
     assert "github.event.comment.user.login == 'qodo-code-review[bot]'" in text
     assert "github.event.review.user.login == 'qodo-code-review[bot]'" in text
+
+    inline_branch = re.search(
+        r"github\.event_name == 'pull_request_review_comment'\s*&&(?P<body>.*?)\n\s*\)",
+        text,
+        flags=re.DOTALL,
+    )
+    assert inline_branch is not None
+    assert "coderabbitai[bot]" in inline_branch.group("body")
+    assert "qodo-code-review[bot]" not in inline_branch.group("body")
+
     assert "contains(github.event.comment.body" not in text
     assert "Review limit reached" not in text
     assert ".github/trust-root/scripts/reviewer_fallback_entrypoint.py" in text
