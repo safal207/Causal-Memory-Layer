@@ -27,8 +27,10 @@ Every v1 decision binds these fields into `decision_id`:
 
 `authorization_source_digest` may identify a declared authorization DAG, a
 policy bundle, a ruleset snapshot, or another source that actually determined
-the verdict. Changing one graph edge therefore requires a new digest and a new
-`decision_id`.
+the verdict. Upstream producers must recompute and supply this digest whenever
+the authorization source changes. This contract binds the supplied digest into
+`decision_id`; it does not inspect or independently recompute the underlying
+DAG or policy source.
 
 `expires_at` is inside the same preimage. A provider cannot extend a decision's
 validity while preserving its identity.
