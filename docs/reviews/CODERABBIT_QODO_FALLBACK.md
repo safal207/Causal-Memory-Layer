@@ -49,7 +49,7 @@ The core remains intrinsically strict and enforces:
 
 ## Native event surfaces
 
-The workflow listens to the three GitHub surfaces on which a review provider may
+The workflow declares the three GitHub surfaces on which a review provider may
 publish native PR output:
 
 ```text
@@ -66,10 +66,23 @@ pull_request_review:          submitted, edited
 pull_request_review_comment:  created, edited
 ```
 
-The workflow-level filter permits execution only when the event-specific author
-login is exactly `coderabbitai[bot]` or `qodo-code-review[bot]`. Arbitrary text
-cannot start the write-capable job. The core then independently verifies numeric
-identity and event sender agreement.
+The write-capable job has a narrower provider matrix:
+
+| Event surface | CodeRabbit | Qodo |
+| --- | --- | --- |
+| `issue_comment` | allowed | allowed |
+| `pull_request_review` | allowed | allowed |
+| `pull_request_review_comment` | allowed | not started |
+
+Qodo inline comments are partial findings or replies, not canonical completed
+reviews. Excluding them at the workflow boundary avoids intentional failed runs
+for every inline Qodo comment. The protected adapter still maps such a payload
+to the core's rejected edited-result path if invoked directly or by a future
+caller.
+
+Arbitrary text cannot start the write-capable job. The workflow checks the
+event-specific provider login first; the core then independently verifies the
+numeric identity and sender/author agreement.
 
 A CodeRabbit rate-limit signal from any supported native surface is normalized
 into the same strict core path. The signal is accepted only when author and
@@ -94,9 +107,9 @@ A complete Qodo result may arrive as either:
 Both are normalized to the core `created` lifecycle event and must satisfy the
 same exact-head and provenance checks.
 
-An inline `pull_request_review_comment` from Qodo is partial evidence. The
-adapter deliberately maps it to the core's rejected edited-result path, so an
-inline finding or reply cannot complete the canonical review lifecycle.
+An inline `pull_request_review_comment` from Qodo cannot complete the canonical
+review lifecycle. It is excluded by the normal workflow filter and rejected by
+the adapter/core boundary if presented directly.
 
 The accepted Qodo identity remains:
 
