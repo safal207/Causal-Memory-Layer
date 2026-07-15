@@ -35,10 +35,7 @@ jobs:
       ) ||
       (
         github.event_name == 'pull_request_review_comment' &&
-        (
-          github.event.comment.user.login == 'coderabbitai[bot]' ||
-          github.event.comment.user.login == 'qodo-code-review[bot]'
-        )
+        github.event.comment.user.login == 'coderabbitai[bot]'
       )
     runs-on: ubuntu-latest
     timeout-minutes: 10
