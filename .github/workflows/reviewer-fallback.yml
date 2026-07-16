@@ -7,17 +7,82 @@ on:
     types: [submitted, edited]
   pull_request_review_comment:
     types: [created, edited]
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      pull_number:
+        description: Open PR number targeting main
+        required: true
+        type: string
+      coderabbit_comment_id:
+        description: Canonical CodeRabbit rate-limit comment ID
+        required: true
+        type: string
 
 permissions: {}
 
 concurrency:
-  group: cml-reviewer-fallback-${{ github.repository }}-${{ github.event.issue.number || github.event.pull_request.number }}
+  group: >-
+    cml-reviewer-fallback-${{ github.repository }}-${{
+      github.event.issue.number ||
+      github.event.pull_request.number ||
+      inputs.pull_number ||
+      'discover'
+    }}
   cancel-in-progress: false
 
 jobs:
+  discover:
+    name: Discover missed reviewer fallback events
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+      issues: read
+
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Discover and dispatch missed exact-head fallback
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+        run: |
+          python .github/trust-root/scripts/reviewer_fallback_reconcile.py discover \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --run-url "$RUN_URL" \
+            --ref "${{ github.event.repository.default_branch }}" \
+            --output reviewer-fallback-discovery-evidence.json
+
+      - name: Upload exact-attempt discovery evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-reviewer-fallback-discovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reviewer-fallback-discovery-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+
   route:
     name: Route trusted reviewer fallback
     if: >-
+      github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'issue_comment' &&
         github.event.issue.pull_request != null &&
@@ -64,20 +129,33 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CML_EVENT_NAME: ${{ github.event_name }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+          CML_PULL_NUMBER: ${{ inputs.pull_number }}
+          CML_CODERABBIT_COMMENT_ID: ${{ inputs.coderabbit_comment_id }}
         run: |
-          python .github/trust-root/scripts/reviewer_fallback_entrypoint.py \
-            --event-path "$GITHUB_EVENT_PATH" \
-            --repository "$GITHUB_REPOSITORY" \
-            --run-id "$GITHUB_RUN_ID" \
-            --run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --run-url "$RUN_URL" \
-            --output reviewer-fallback-evidence.json
+          if [[ "$CML_EVENT_NAME" == "workflow_dispatch" ]]; then
+            python .github/trust-root/scripts/reviewer_fallback_reconcile.py reconcile \
+              --repository "$GITHUB_REPOSITORY" \
+              --pull-number "$CML_PULL_NUMBER" \
+              --comment-id "$CML_CODERABBIT_COMMENT_ID" \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --run-url "$RUN_URL" \
+              --output reviewer-fallback-evidence.json
+          else
+            python .github/trust-root/scripts/reviewer_fallback_entrypoint.py \
+              --event-path "$GITHUB_EVENT_PATH" \
+              --repository "$GITHUB_REPOSITORY" \
+              --run-id "$GITHUB_RUN_ID" \
+              --run-attempt "$GITHUB_RUN_ATTEMPT" \
+              --run-url "$RUN_URL" \
+              --output reviewer-fallback-evidence.json
+          fi
 
       - name: Upload exact-attempt fallback evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: cml-reviewer-fallback-pr${{ github.event.issue.number || github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: cml-reviewer-fallback-pr${{ github.event.issue.number || github.event.pull_request.number || inputs.pull_number }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: reviewer-fallback-evidence.json
           if-no-files-found: error
           retention-days: 30
