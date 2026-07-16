@@ -7,6 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/reviewer-fallback.yml"
 CORE = ROOT / ".github/trust-root/scripts/reviewer_fallback.py"
 ENTRYPOINT = ROOT / ".github/trust-root/scripts/reviewer_fallback_entrypoint.py"
+RECONCILER = ROOT / ".github/trust-root/scripts/reviewer_fallback_reconcile.py"
+RUNTIME = ROOT / ".github/trust-root/scripts/reviewer_fallback_runtime.py"
 
 
 def test_reviewer_fallback_workflow_is_trusted_default_branch_only():
@@ -15,6 +17,9 @@ def test_reviewer_fallback_workflow_is_trusted_default_branch_only():
     assert "issue_comment:" in text
     assert "pull_request_review:" in text
     assert "pull_request_review_comment:" in text
+    assert "schedule:" in text
+    assert 'cron: "17 * * * *"' in text
+    assert "workflow_dispatch:" in text
     assert "types: [created, edited]" in text
     assert "types: [submitted, edited]" in text
     assert "ref: ${{ github.event.repository.default_branch }}" in text
@@ -26,17 +31,19 @@ def test_reviewer_fallback_workflow_is_trusted_default_branch_only():
 def test_reviewer_fallback_workflow_has_least_privilege_and_serialization():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "\npermissions: {}\n" in text
+    assert "actions: write" in text
     assert "actions: read" in text
     assert "contents: read" in text
     assert "pull-requests: read" in text
+    assert "issues: read" in text
     assert "issues: write" in text
     assert "statuses: write" in text
     assert "cancel-in-progress: false" in text
-    assert (
-        "cml-reviewer-fallback-${{ github.repository }}-"
-        "${{ github.event.issue.number || github.event.pull_request.number }}"
-        in text
-    )
+    assert "cml-reviewer-fallback-${{ github.repository }}-${{" in text
+    assert "github.event.issue.number ||" in text
+    assert "github.event.pull_request.number ||" in text
+    assert "inputs.pull_number ||" in text
+    assert "'discover'" in text
 
 
 def test_reviewer_fallback_workflow_pins_actions_and_exact_attempt_evidence():
@@ -49,10 +56,13 @@ def test_reviewer_fallback_workflow_pins_actions_and_exact_attempt_evidence():
     assert "if: always()" in text
     assert "if-no-files-found: error" in text
     assert "CML_EVENT_NAME: ${{ github.event_name }}" in text
+    assert "cml-reviewer-fallback-discovery-${{ github.run_id }}" in text
+    assert "github.event.issue.number || github.event.pull_request.number || inputs.pull_number" in text
 
 
 def test_reviewer_fallback_workflow_runs_only_for_canonical_provider_logins():
     text = WORKFLOW.read_text(encoding="utf-8")
+    assert "github.event_name == 'workflow_dispatch'" in text
     assert "github.event_name == 'issue_comment'" in text
     assert "github.event_name == 'pull_request_review'" in text
     assert "github.event_name == 'pull_request_review_comment'" in text
@@ -72,8 +82,9 @@ def test_reviewer_fallback_workflow_runs_only_for_canonical_provider_logins():
 
     assert "contains(github.event.comment.body" not in text
     assert "Review limit reached" not in text
-    assert ".github/trust-root/scripts/reviewer_fallback_entrypoint.py" in text
+    assert ".github/trust-root/scripts/reviewer_fallback_runtime.py" in text
     assert "python .github/trust-root/scripts/reviewer_fallback.py" not in text
+    assert "python .github/trust-root/scripts/reviewer_fallback_entrypoint.py" not in text
 
 
 def test_reviewer_fallback_core_is_intrinsically_strict():
@@ -102,3 +113,24 @@ def test_reviewer_fallback_entrypoint_is_a_bounded_event_adapter():
     assert "core._extract_reviewed_sha =" not in entrypoint
     assert "core._publish_commit_status =" not in entrypoint
     assert "core.GitHubApi =" not in entrypoint
+
+
+def test_reconciliation_runtime_preserves_exact_head_and_artifact_boundaries():
+    reconciler = RECONCILER.read_text(encoding="utf-8")
+    runtime = RUNTIME.read_text(encoding="utf-8")
+
+    assert "_standalone_head_present" in reconciler
+    assert "_trusted_bound_rate_limit_comment" in reconciler
+    assert "_find_request_comment" in reconciler
+    assert "latest_head != head_sha" in reconciler
+    assert "actions/workflows/" in reconciler
+    assert '"merge_authority": False' in reconciler
+
+    assert 'ALLOWED_ARTIFACT_RUN_EVENTS = rf.SUPPORTED_EVENT_NAMES | {"workflow_dispatch"}' in runtime
+    assert '"schedule"' not in runtime.split("ALLOWED_ARTIFACT_RUN_EVENTS", 1)[1].split("\n", 1)[0]
+    assert "RuntimeGitHubApi" in runtime
+    assert "rec.discover(" in runtime
+    assert "rec.reconcile(" in runtime
+    assert "rf.normalize_event_payload" in runtime
+    assert "rf.process_event(" in runtime
+    assert 'state = "success"' not in runtime
