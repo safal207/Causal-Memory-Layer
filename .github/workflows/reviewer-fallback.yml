@@ -62,7 +62,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
         run: |
-          python .github/trust-root/scripts/reviewer_fallback_reconcile.py discover \
+          python .github/trust-root/scripts/reviewer_fallback_runtime.py discover \
             --repository "$GITHUB_REPOSITORY" \
             --run-id "$GITHUB_RUN_ID" \
             --run-attempt "$GITHUB_RUN_ATTEMPT" \
@@ -133,7 +133,7 @@ jobs:
           CML_CODERABBIT_COMMENT_ID: ${{ inputs.coderabbit_comment_id }}
         run: |
           if [[ "$CML_EVENT_NAME" == "workflow_dispatch" ]]; then
-            python .github/trust-root/scripts/reviewer_fallback_reconcile.py reconcile \
+            python .github/trust-root/scripts/reviewer_fallback_runtime.py reconcile \
               --repository "$GITHUB_REPOSITORY" \
               --pull-number "$CML_PULL_NUMBER" \
               --comment-id "$CML_CODERABBIT_COMMENT_ID" \
@@ -142,7 +142,7 @@ jobs:
               --run-url "$RUN_URL" \
               --output reviewer-fallback-evidence.json
           else
-            python .github/trust-root/scripts/reviewer_fallback_entrypoint.py \
+            python .github/trust-root/scripts/reviewer_fallback_runtime.py native \
               --event-path "$GITHUB_EVENT_PATH" \
               --repository "$GITHUB_REPOSITORY" \
               --run-id "$GITHUB_RUN_ID" \
