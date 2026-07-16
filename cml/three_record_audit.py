@@ -185,7 +185,7 @@ def _authority_dimension(record: dict[str, Any] | None) -> str:
         "PENDING_APPROVAL",
     }:
         return "PENDING"
-    if decision in {"ALLOW", "ACCEPT"} and state in {"", "ACTIVE"}:
+    if decision in {"ALLOW", "ACCEPT"} and state == "ACTIVE":
         return "VALID"
     return "UNKNOWN"
 
