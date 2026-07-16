@@ -8,6 +8,7 @@ Modules:
     ctag                     — CTAG 16-bit computation (DOM, CLASS, GEN, LHINT, SEAL)
     chain                    — Chain reconstruction and path queries
     audit                    — Audit engine (R1–R4)
+    three_record_audit       — Trustworthy-transition causal join validation
     report                   — Report generation (Markdown, JSON, text)
     reviewer_router          — Provider/persona routing with explicit provenance
     reviewer_rubric_policy   — Executable rubric trust boundary
@@ -27,6 +28,15 @@ from .ctag import (
 )
 from .chain import reconstruct_chain, has_path, find_root, group_by_pid
 from .audit import AuditEngine, AuditConfig, AuditResult, Finding, Severity, CustomRule
+from .three_record_audit import (
+    CausalFinding,
+    FindingCode,
+    ThreeRecordAuditError,
+    audit_three_record_transition,
+    canonical_json,
+    record_ref,
+    wrap_record,
+)
 from .report import to_markdown, to_json, to_text
 
 # The router module is loaded first so the policy module can reuse its public
@@ -61,6 +71,9 @@ __all__ = [
     "reconstruct_chain", "has_path", "find_root", "group_by_pid",
     # audit
     "AuditEngine", "AuditConfig", "AuditResult", "Finding", "Severity", "CustomRule",
+    # trustworthy-transition causal audit
+    "CausalFinding", "FindingCode", "ThreeRecordAuditError",
+    "audit_three_record_transition", "canonical_json", "record_ref", "wrap_record",
     # report
     "to_markdown", "to_json", "to_text",
     # reviewer router

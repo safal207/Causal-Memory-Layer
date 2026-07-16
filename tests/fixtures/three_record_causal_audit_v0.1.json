@@ -1,0 +1,403 @@
+{
+  "fixture_version": "0.1",
+  "profile": "org.cml.three-record-causal-audit.v0.1",
+  "cases": [
+    {
+      "case_id": "valid_supported_chain",
+      "authorization": {
+        "transition_id": "transition-001",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-001",
+        "binding_digest": "sha256:binding-001",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_root": true
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record": {
+            "transition_id": "transition-001",
+            "subject_id": "agent:deploy",
+            "authorization_ref": "$AUTHORIZATION_REF",
+            "action_identity_digest": "sha256:action-001",
+            "binding_digest": "sha256:binding-001",
+            "execution_status": "EXECUTED",
+            "result_digest": "sha256:result-001"
+          }
+        }
+      ],
+      "integrity": {
+        "transition_id": "transition-001",
+        "subject_id": "agent:deploy",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": ["$OBSERVATION:primary"],
+        "overall_verdict": "VERIFIED",
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "verdict": "SUPPORTED",
+            "observation_refs": ["$OBSERVATION:primary"]
+          }
+        ]
+      },
+      "expected": {
+        "status": "VERIFIED",
+        "finding_codes": [],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "VERIFIED",
+          "causal_validity": "VALID"
+        }
+      }
+    },
+    {
+      "case_id": "valid_chain_contradicted_claim",
+      "authorization": {
+        "transition_id": "transition-002",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-002",
+        "binding_digest": "sha256:binding-002",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_root": true
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record": {
+            "transition_id": "transition-002",
+            "subject_id": "agent:deploy",
+            "authorization_ref": "$AUTHORIZATION_REF",
+            "action_identity_digest": "sha256:action-002",
+            "binding_digest": "sha256:binding-002",
+            "execution_status": "EXECUTED",
+            "result_digest": "sha256:result-002"
+          }
+        }
+      ],
+      "integrity": {
+        "transition_id": "transition-002",
+        "subject_id": "agent:deploy",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": ["$OBSERVATION:primary"],
+        "overall_verdict": "FAILED",
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "verdict": "CONTRADICTED",
+            "observation_refs": ["$OBSERVATION:primary"]
+          }
+        ]
+      },
+      "expected": {
+        "status": "VERIFIED",
+        "finding_codes": [],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "FAILED",
+          "causal_validity": "VALID"
+        }
+      }
+    },
+    {
+      "case_id": "denied_no_execution_false_claim",
+      "authorization": {
+        "transition_id": "transition-003",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-003",
+        "binding_digest": "sha256:binding-003",
+        "decision": "DENY",
+        "current_state": "DENIED",
+        "causal_root": true
+      },
+      "observations": [],
+      "integrity": {
+        "transition_id": "transition-003",
+        "subject_id": "agent:deploy",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": [],
+        "overall_verdict": "FAILED",
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "verdict": "CONTRADICTED",
+            "observation_refs": []
+          }
+        ]
+      },
+      "expected": {
+        "status": "VERIFIED",
+        "finding_codes": [],
+        "dimensions": {
+          "authority": "DENIED",
+          "execution": "NOT_OBSERVED",
+          "response_integrity": "FAILED",
+          "causal_validity": "VALID"
+        }
+      }
+    },
+    {
+      "case_id": "expired_authority_observed_block_honest",
+      "authorization": {
+        "transition_id": "transition-004",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-004",
+        "binding_digest": "sha256:binding-004",
+        "decision": "ALLOW",
+        "current_state": "EXPIRED",
+        "causal_root": true
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record": {
+            "transition_id": "transition-004",
+            "subject_id": "agent:deploy",
+            "authorization_ref": "$AUTHORIZATION_REF",
+            "action_identity_digest": "sha256:action-004",
+            "binding_digest": "sha256:binding-004",
+            "execution_status": "BLOCKED",
+            "result_digest": "sha256:redacted-block-receipt"
+          }
+        }
+      ],
+      "integrity": {
+        "transition_id": "transition-004",
+        "subject_id": "agent:deploy",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": ["$OBSERVATION:primary"],
+        "overall_verdict": "VERIFIED",
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "verdict": "SUPPORTED",
+            "observation_refs": ["$OBSERVATION:primary"]
+          }
+        ]
+      },
+      "expected": {
+        "status": "VERIFIED",
+        "finding_codes": [],
+        "dimensions": {
+          "authority": "EXPIRED",
+          "execution": "OBSERVED_BLOCKED",
+          "response_integrity": "VERIFIED",
+          "causal_validity": "VALID"
+        }
+      }
+    },
+    {
+      "case_id": "observation_action_binding_mismatch",
+      "authorization": {
+        "transition_id": "transition-005",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-005",
+        "binding_digest": "sha256:binding-005",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_root": true
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record": {
+            "transition_id": "transition-005",
+            "subject_id": "agent:deploy",
+            "authorization_ref": "$AUTHORIZATION_REF",
+            "action_identity_digest": "sha256:wrong-action",
+            "binding_digest": "sha256:wrong-binding",
+            "execution_status": "EXECUTED",
+            "result_digest": "sha256:result-005"
+          }
+        }
+      ],
+      "integrity": {
+        "transition_id": "transition-005",
+        "subject_id": "agent:deploy",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": ["$OBSERVATION:primary"],
+        "overall_verdict": "VERIFIED",
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "verdict": "SUPPORTED",
+            "observation_refs": ["$OBSERVATION:primary"]
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "finding_codes": [
+          "CML-TTR-R2-OBSERVATION_ACTION_BINDING_MISMATCH"
+        ],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "VERIFIED",
+          "causal_validity": "INVALID"
+        }
+      }
+    },
+    {
+      "case_id": "cross_transition_observation_substitution",
+      "authorization": {
+        "transition_id": "transition-006",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-006",
+        "binding_digest": "sha256:binding-006",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_root": true
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record": {
+            "transition_id": "transition-other",
+            "subject_id": "agent:other",
+            "authorization_ref": "$AUTHORIZATION_REF",
+            "action_identity_digest": "sha256:action-006",
+            "binding_digest": "sha256:binding-006",
+            "execution_status": "EXECUTED",
+            "result_digest": "sha256:result-006"
+          }
+        }
+      ],
+      "integrity": {
+        "transition_id": "transition-006",
+        "subject_id": "agent:deploy",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": ["$OBSERVATION:primary"],
+        "overall_verdict": "FAILED",
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "verdict": "CONTRADICTED",
+            "observation_refs": ["$OBSERVATION:primary"]
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "finding_codes": [
+          "CML-TTR-R6-CROSS_SUBJECT_OR_TRANSITION_JOIN"
+        ],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "FAILED",
+          "causal_validity": "INVALID"
+        }
+      }
+    },
+    {
+      "case_id": "claim_references_unrelated_observation",
+      "authorization": {
+        "transition_id": "transition-007",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-007",
+        "binding_digest": "sha256:binding-007",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_root": true
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record": {
+            "transition_id": "transition-007",
+            "subject_id": "agent:deploy",
+            "authorization_ref": "$AUTHORIZATION_REF",
+            "action_identity_digest": "sha256:action-007",
+            "binding_digest": "sha256:binding-007",
+            "execution_status": "EXECUTED",
+            "result_digest": "sha256:result-007"
+          }
+        }
+      ],
+      "integrity": {
+        "transition_id": "transition-007",
+        "subject_id": "agent:deploy",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": ["sha256:foreign-observation"],
+        "overall_verdict": "VERIFIED",
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "verdict": "SUPPORTED",
+            "observation_refs": ["sha256:foreign-observation"]
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "finding_codes": [
+          "CML-TTR-R4-CLAIM_UNRELATED_OBSERVATION",
+          "CML-TTR-R7-SUPPORTED_CLAIM_NO_LINEAGE"
+        ],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "VERIFIED",
+          "causal_validity": "INVALID"
+        }
+      }
+    },
+    {
+      "case_id": "digest_only_redacted_evidence",
+      "authorization": {
+        "transition_id": "transition-008",
+        "subject_id": "agent:treasury",
+        "action_identity_digest": "sha256:redacted-action-digest",
+        "binding_digest": "sha256:redacted-binding-digest",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_root": true,
+        "redaction_profile": "digest-only-v1"
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record": {
+            "transition_id": "transition-008",
+            "subject_id": "agent:treasury",
+            "authorization_ref": "$AUTHORIZATION_REF",
+            "action_identity_digest": "sha256:redacted-action-digest",
+            "binding_digest": "sha256:redacted-binding-digest",
+            "execution_status": "EXECUTED",
+            "result_digest": "sha256:redacted-result-digest",
+            "redaction_profile": "digest-only-v1"
+          }
+        }
+      ],
+      "integrity": {
+        "transition_id": "transition-008",
+        "subject_id": "agent:treasury",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": ["$OBSERVATION:primary"],
+        "overall_verdict": "PARTIAL",
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "verdict": "UNVERIFIABLE",
+            "observation_refs": ["$OBSERVATION:primary"]
+          }
+        ],
+        "redaction_profile": "digest-only-v1"
+      },
+      "expected": {
+        "status": "VERIFIED",
+        "finding_codes": [],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "PARTIAL",
+          "causal_validity": "VALID"
+        }
+      }
+    }
+  ]
+}
