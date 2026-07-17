@@ -20,6 +20,10 @@ import memory_retrieval_github as legacy  # noqa: E402
 import memory_retrieval_hardened as hardened  # noqa: E402
 
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+ENTRY_FAILURE_STAGES = frozenset(
+    {"repository-bind", "event-read", "event-bind", "runtime"}
+)
+ALL_FAILURE_STAGES = ENTRY_FAILURE_STAGES | hardened.FAILURE_STAGES
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -102,7 +106,23 @@ def pull_number_from_event(event: dict[str, Any]) -> int:
     return raw_number
 
 
-def _failure_result(args: argparse.Namespace, exc: Exception) -> dict[str, Any]:
+def failure_stage(exc: Exception, fallback: str) -> str:
+    """Return only an allowlisted non-sensitive stage label."""
+
+    candidate = getattr(exc, "cml_failure_stage", fallback)
+    if isinstance(candidate, str) and candidate in ALL_FAILURE_STAGES:
+        return candidate
+    if fallback in ALL_FAILURE_STAGES:
+        return fallback
+    return "runtime"
+
+
+def _failure_result(
+    args: argparse.Namespace,
+    exc: Exception,
+    *,
+    fallback_stage: str = "runtime",
+) -> dict[str, Any]:
     return {
         "schema_version": core.SCHEMA_VERSION,
         "repository": args.repository,
@@ -112,6 +132,7 @@ def _failure_result(args: argparse.Namespace, exc: Exception) -> dict[str, Any]:
         "run_url": args.run_url,
         "outcome": "RETRIEVAL_ERROR",
         "skip_reason": None,
+        "failure_stage": failure_stage(exc, fallback_stage),
         "accepted_count": None,
         "publishable_count": 0,
         "withheld_count": None,
@@ -136,12 +157,16 @@ def _failure_result(args: argparse.Namespace, exc: Exception) -> dict[str, Any]:
 
 def main() -> None:
     args = parser().parse_args()
+    stage = "repository-bind"
     try:
         repository = args.repository
         if not isinstance(repository, str) or not REPOSITORY.fullmatch(repository):
             raise core.RetrievalError("repository must use owner/name format")
+        stage = "event-read"
         event = read_event(args.event_path)
+        stage = "event-bind"
         pull_number = pull_number_from_event(event)
+        stage = "runtime"
         result = hardened.retrieve_for_pull(
             api=legacy.GitHubApi(os.environ.get("GITHUB_TOKEN", "")),
             repository=repository,
@@ -151,7 +176,7 @@ def main() -> None:
             run_url=args.run_url,
         )
     except Exception as exc:
-        result = _failure_result(args, exc)
+        result = _failure_result(args, exc, fallback_stage=stage)
     write_json(args.output, result)
     if not result.get("passed", False):
         raise SystemExit(
