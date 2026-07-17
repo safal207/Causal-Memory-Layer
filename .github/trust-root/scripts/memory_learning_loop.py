@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+import re
 import sys
 from typing import Any
 
@@ -16,6 +17,8 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import memory_learning_core as core  # noqa: E402
 import memory_learning_github as github  # noqa: E402
+
+REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -61,7 +64,7 @@ def main() -> None:
     args = parser().parse_args()
     try:
         repository = args.repository
-        if not isinstance(repository, str) or repository.count("/") != 1:
+        if not isinstance(repository, str) or not REPOSITORY.fullmatch(repository):
             raise core.LearningLoopError("repository must use owner/name format")
         run_id = core.positive_int(args.run_id, label="run id")
         run_attempt = core.positive_int(args.run_attempt, label="run attempt")
