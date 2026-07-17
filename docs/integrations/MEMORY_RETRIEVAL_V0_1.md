@@ -1,4 +1,4 @@
-# CML Memory Retrieval v0.1
+# CML Memory Retrieval v0.1.1
 
 CML Memory Retrieval surfaces relevant **accepted** engineering memory while a pull request is still under review.
 
@@ -20,7 +20,7 @@ The retrieval comment is advisory. It cannot approve, execute, modify, or merge 
 
 ## GitHub lifecycle
 
-The protected workflow runs when an open pull request is:
+The protected workflow runs only from `pull_request_target` when an open pull request is:
 
 - opened;
 - reopened;
@@ -28,24 +28,25 @@ The protected workflow runs when an open pull request is:
 - edited;
 - moved from draft to ready for review.
 
-A manual `workflow_dispatch` mode accepts an open pull-request number for backfill and live validation.
+There is no manual `workflow_dispatch` path. This preserves one invariant: the protected runtime is always checked out from the exact base SHA carried by the pull-request event.
 
 For each eligible event, the workflow:
 
-1. checks out the exact trusted base SHA;
+1. checks out the exact trusted pull-request base SHA;
 2. never checks out or executes the source branch;
 3. reads the pull-request title, body, head/base SHAs, and changed filenames through the GitHub API;
 4. loads accepted Memory Packs only from `.cml/memory/cycles/*.json` at the exact base SHA;
 5. validates schema, identity, graph connectivity, evidence references, privacy, and authority boundaries;
 6. ranks publishable memories deterministically;
 7. creates or updates one managed `Relevant CML Memory` comment;
-8. uploads an exact-run/exact-attempt evidence artifact.
+8. deletes extra bot-authored managed comments and verifies exactly one remains;
+9. uploads an exact-run/exact-attempt evidence artifact.
 
 Generated memory pull requests and memory-only changes are skipped to prevent recursion and noise.
 
 ## Retrieval algorithm
 
-Version 0.1 deliberately uses no embedding API and no language model.
+Version 0.1.1 deliberately uses no embedding API and no language model.
 
 The query contains weighted tokens from:
 
@@ -77,7 +78,7 @@ At most three memories are shown.
 
 ## Comment format
 
-Each result contains:
+Each selected result contains:
 
 - the prior situation;
 - the accepted selected path;
@@ -97,11 +98,20 @@ The managed marker is:
 <!-- cml-retrieval-v0.1 -->
 ```
 
-Only a comment authored by `github-actions[bot]` with that marker may be updated. A human comment containing the marker is never overwritten.
+Only a comment authored by `github-actions[bot]` with that marker may be updated or deleted. A human comment containing the marker is never modified.
+
+The upsert is fail closed:
+
+1. create or update the oldest bot-authored managed comment;
+2. list managed comments again;
+3. delete every extra bot-authored managed comment;
+4. list again and require exactly one canonical comment with the expected body.
+
+A deletion or postcondition failure fails the workflow rather than reporting a successful upsert.
 
 ## Privacy policy
 
-The workflow applies privacy **before ranking**.
+Privacy is applied **before ranking** and again before comment or artifact output.
 
 ### Public repository
 
@@ -112,15 +122,22 @@ visibility = public
 contains_private_data = false
 ```
 
-Team, partner, private, or private-data packs are counted as withheld but their situation, path, constraints, and evidence are not rendered.
+The public comment and public workflow artifact do not reveal:
+
+- the number of accepted non-public packs;
+- the number of packs withheld by privacy;
+- the number or details of invalid packs;
+- rejected paths or validation error text.
+
+They may report only the number of publishable candidates, selected public matches, and their public evidence.
 
 ### Internal repository
 
-`team`, `partner`, and `public` packs without private data may be rendered.
+`team`, `partner`, and `public` packs without private data may be rendered. Hidden and rejected corpus counts remain redacted from the workflow artifact because repository artifact visibility can differ from pull-request conversation expectations.
 
 ### Private repository
 
-Repository-local accepted packs may be rendered because the pull-request conversation has the repository's access boundary.
+Repository-local accepted packs may be rendered because the pull-request conversation and workflow artifacts share the private repository access boundary. Private repositories may retain accepted, withheld, and rejected diagnostics in the evidence artifact and managed comment.
 
 Unknown repository visibility uses the public-repository rule.
 
@@ -142,41 +159,45 @@ Every candidate must:
 - start the selected path at a situation;
 - end it at an outcome or lesson.
 
-Invalid packs are excluded. Their bounded error summaries are stored only in the workflow evidence artifact, not in the public comment.
+Invalid packs are excluded. In non-private repositories, their count, paths, and error text are not placed in the comment or evidence artifact. Private repositories may retain bounded diagnostics inside the repository access boundary.
 
 ## Evidence artifact
 
-Each attempt records:
+Every attempt records non-sensitive operational facts:
 
 - repository and pull-request number;
 - exact head and base SHAs;
-- accepted, publishable, withheld, and rejected counts;
-- selected paths, pack IDs, source commits, scores, and matched terms;
-- comment creation/update action and comment ID;
-- duplicate managed-comment count;
+- publishable candidate count;
+- selected pack paths, public pack IDs, source commits, scores, and matched terms;
+- comment creation/update/reconciliation action and canonical comment ID;
+- number of duplicate bot comments reconciled;
+- whether corpus diagnostics were privacy-redacted;
 - `direct_main_write: false`;
 - `approval_authority: false`;
 - `merge_authority: false`;
 - `execution_authority: false`.
+
+For public and internal repositories, accepted, withheld, and rejected corpus counts are `null`, rejected details are empty, and failures use a generic message. Private repositories may retain bounded repository-local diagnostics.
 
 ## Security boundary
 
 `pull_request_target` is used only because a comment must be written reliably, including for fork pull requests. Its use is constrained:
 
 - workflow and runtime come from the trusted default branch;
-- checkout ref is the exact base SHA;
+- checkout ref is the exact pull-request base SHA;
+- no manual-dispatch fallback exists;
 - source-branch code is never checked out or executed;
 - no patch, diff, review body, issue comment, or prompt is ingested;
 - no repository secret is used;
 - persisted Git credentials are disabled;
 - workflow permissions are limited to `contents: read`, `pull-requests: read`, and `issues: write`;
 - runtime is stdlib-only;
-- all API pagination and memory sizes are bounded;
-- failures are fail-closed and produce an evidence artifact.
+- API pagination, file count, file size, query inputs, result count, and comment size are bounded;
+- failures are fail closed and produce a privacy-safe evidence artifact.
 
 ## Product boundary
 
-Retrieval v0.1 answers:
+Retrieval v0.1.1 answers:
 
 > Which accepted prior decisions look relevant to this change, and what constraints must the reviewer re-check?
 
