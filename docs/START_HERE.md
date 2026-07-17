@@ -8,25 +8,36 @@ The core invariant is simple:
 
 CML exists to make that difference inspectable.
 
+<p align="center">
+  <a href="LOTUS.md">
+    <img src="assets/lotus.svg" alt="CML Lotus Layer" width="150" />
+  </a>
+</p>
+
+<p align="center">
+  <strong>Memory may preserve causes, but it may not silently become authority.</strong>
+</p>
+
 ## 10-minute onboarding path
 
 1. Read the root `README.md` to understand the problem and the current artifact.
-2. Read `ROADMAP.md` to see how CML evolved from semantics to vCML, CTAG, multi-boundary memory, hypervisor semantics, hardware mapping, and monetization/distribution.
-3. Read `CONTRIBUTING.md` for contribution expectations.
-4. Run the fast validation flow:
+2. Read [`LOTUS.md`](LOTUS.md) to understand the human and memory-governance principles.
+3. Read `ROADMAP.md` to see how CML evolved from semantics to vCML, CTAG, multi-boundary memory, hypervisor semantics, hardware mapping, and monetization/distribution.
+4. Read `CONTRIBUTING.md` for contribution expectations.
+5. Run the fast validation flow:
 
 ```bash
 pip install -e ".[dev]"
 pytest
 ```
 
-5. Run the deterministic safety benchmark:
+6. Run the deterministic safety benchmark:
 
 ```bash
 python scripts/run_safety_eval.py
 ```
 
-6. Review beginner-friendly issues labeled `good first issue` or `help wanted`.
+7. Review beginner-friendly issues labeled `good first issue` or `help wanted`.
 
 ## What CML is
 
@@ -131,8 +142,13 @@ That makes it useful for agentic oversight, security auditing, fintech controls,
 
 ## Contribution principle
 
-A strong CML contribution should preserve three things:
+A strong CML contribution should preserve four things:
 
 1. **Causal clarity** — the meaning of authority, intent, and responsibility must stay explicit.
 2. **Reproducibility** — examples and findings should be testable.
 3. **No overclaiming** — CML should state what it checks and what it does not check.
+4. **Memory without authority** — retrieved or accepted memory must remain advisory, inspectable, and human-governed.
+
+Before accepting a durable-memory change, ask:
+
+> Does this memory help us understand the cause without taking choice away from the person?
