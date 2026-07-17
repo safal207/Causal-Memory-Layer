@@ -16,6 +16,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import memory_learning_core as core  # noqa: E402
+import memory_learning_fallback as fallback  # noqa: E402
 import memory_learning_github as github  # noqa: E402
 
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -78,7 +79,7 @@ def main() -> None:
             pull_number = core.positive_int(
                 event_pull.get("number"), label="pull number"
             )
-        result = github.propose(
+        result = fallback.propose_with_fallback(
             api=github.GitHubApi(os.environ.get("GITHUB_TOKEN", "")),
             repository=repository,
             pull_number=pull_number,
@@ -101,6 +102,8 @@ def main() -> None:
             "branch": None,
             "proposal_pull_number": None,
             "proposal_pull_url": None,
+            "fallback_issue_number": None,
+            "fallback_issue_url": None,
             "validation_workflows": list(github.VALIDATION_WORKFLOWS),
             "validation_dispatched": False,
             "direct_main_write": False,
@@ -117,7 +120,8 @@ def main() -> None:
     print(
         f"CML memory learning loop outcome={result['outcome']} "
         f"source_pr={result.get('pull_number')} "
-        f"proposal_pr={result.get('proposal_pull_number')}"
+        f"proposal_pr={result.get('proposal_pull_number')} "
+        f"fallback_issue={result.get('fallback_issue_number')}"
     )
 
 
