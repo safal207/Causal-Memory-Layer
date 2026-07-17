@@ -158,8 +158,9 @@ class GitHubApi:
         encoded = payload.get("content")
         if not isinstance(encoded, str) or payload.get("encoding") != "base64":
             raise core.LearningLoopError("existing generated content is not base64")
+        normalized = "".join(encoded.split())
         try:
-            return base64.b64decode(encoded, validate=True).decode("utf-8")
+            return base64.b64decode(normalized, validate=True).decode("utf-8")
         except (ValueError, UnicodeDecodeError) as exc:
             raise core.LearningLoopError("existing generated content is invalid") from exc
 
@@ -189,8 +190,13 @@ class GitHubApi:
             "GET",
             f"/repos/{repository}/pulls?state=all&head={quote(owner + ':' + branch, safe=':')}",
         )
-        values = core.sequence(payload, label="proposal response")
-        return core.mapping(values[0], label="proposal") if values else None
+        values = [
+            core.mapping(item, label="proposal")
+            for item in core.sequence(payload, label="proposal response")
+        ]
+        if not values:
+            return None
+        return next((item for item in values if item.get("state") == "open"), values[0])
 
     def create_pull(
         self,
@@ -307,16 +313,29 @@ def propose(
     existing_proposal = api.proposal(repository, branch)
     if existing_proposal is not None:
         state = existing_proposal.get("state")
+        proposal_number = core.positive_int(
+            existing_proposal.get("number"), label="proposal pull number"
+        )
         evidence.update(
             {
                 "outcome": "PROPOSAL_ALREADY_OPEN_NOOP"
                 if state == "open"
                 else "PROPOSAL_CLOSED_NOOP",
-                "proposal_pull_number": existing_proposal.get("number"),
+                "proposal_pull_number": proposal_number,
                 "proposal_pull_url": existing_proposal.get("html_url"),
             }
         )
         if state == "open":
+            proposal_content = api.content(repository, memory_path, branch)
+            if proposal_content is None or api.content_text(proposal_content) != rendered:
+                raise core.LearningLoopError(
+                    "open generated proposal does not contain the exact expected memory pack"
+                )
+            proposal_files = core.normalize_files(api.files(repository, proposal_number))
+            if [item["filename"] for item in proposal_files] != [memory_path]:
+                raise core.LearningLoopError(
+                    "open generated proposal contains unexpected changed files"
+                )
             api.dispatch_validation(repository, branch)
             evidence["validation_dispatched"] = True
         return evidence
