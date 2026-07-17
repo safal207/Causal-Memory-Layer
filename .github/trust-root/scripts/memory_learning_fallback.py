@@ -168,20 +168,6 @@ def propose_with_fallback(
         if not _is_exact_pr_creation_block(exc, repository):
             raise
 
-    existing_proposal = api.proposal(
-        repository,
-        f"{core.GENERATED_BRANCH_PREFIX}pr-{pull_number}-",
-    )
-    if existing_proposal is not None:
-        return github.propose(
-            api=api,
-            repository=repository,
-            pull_number=pull_number,
-            run_id=run_id,
-            run_attempt=run_attempt,
-            run_url=run_url,
-        )
-
     branch, memory_path, pack_id, head_sha, merge_sha = _expected_proposal(
         api, repository=repository, pull_number=pull_number
     )
