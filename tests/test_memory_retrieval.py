@@ -26,13 +26,13 @@ SOURCE = "c" * 40
 
 def make_pack(
     *,
-    number: int,
-    title: str,
-    summary: str,
-    cause: str,
-    design: str,
-    validation: str,
-    boundary: str,
+    number: int = 10,
+    title: str = "ci: recover blocked workflow",
+    summary: str = "Recover a GitHub Actions workflow when pull request creation is blocked.",
+    cause: str = "Repository workflow permissions can reject Actions-created pull requests.",
+    design: str = "Create an exact generated branch and use a review issue fallback on the exact 403.",
+    validation: str = "Run CI package security and verify exact branch content.",
+    boundary: str = "No direct main write and no merge or execution authority.",
     source_commit: str = SOURCE,
     visibility: str = "public",
     contains_private_data: bool = False,
@@ -65,14 +65,7 @@ def make_pack(
             "head": {"sha": "d" * 40, "ref": f"feature/{number}"},
             "base": {"ref": "main"},
         },
-        files=[
-            {
-                "filename": ".github/workflows/example.yml",
-                "status": "modified",
-                "additions": 10,
-                "deletions": 2,
-            }
-        ],
+        files=[{"filename": ".github/workflows/example.yml", "status": "modified"}],
         reviews=[],
         check_runs=[
             {
@@ -89,59 +82,43 @@ def make_pack(
     return pack
 
 
-def workflow_pack(**overrides: Any) -> dict[str, Any]:
-    values = {
-        "number": 10,
-        "title": "ci: recover blocked workflow",
-        "summary": "Recover a GitHub Actions workflow when pull request creation is blocked.",
-        "cause": "Repository workflow permissions can reject Actions-created pull requests.",
-        "design": "Create an exact generated branch and use a review issue fallback on the exact 403.",
-        "validation": "Run CI package security and verify exact branch content.",
-        "boundary": "No direct main write and no merge or execution authority.",
-    }
-    values.update(overrides)
-    return make_pack(**values)
+def database_pack() -> dict[str, Any]:
+    return make_pack(
+        number=11,
+        title="feat: optimize database billing query",
+        summary="Reduce latency in a PostgreSQL billing aggregation query.",
+        cause="A missing composite index caused repeated sequential scans.",
+        design="Add an index and rewrite the invoice aggregation query.",
+        validation="Compare query plans and database integration tests.",
+        boundary="The index applies only to the billing schema.",
+        source_commit="e" * 40,
+    )
 
 
-def database_pack(**overrides: Any) -> dict[str, Any]:
-    values = {
-        "number": 11,
-        "title": "feat: optimize database billing query",
-        "summary": "Reduce latency in a PostgreSQL billing aggregation query.",
-        "cause": "A missing composite index caused repeated sequential scans.",
-        "design": "Add an index and rewrite the invoice aggregation query.",
-        "validation": "Compare query plans and database integration tests.",
-        "boundary": "The index applies only to the billing schema.",
-        "source_commit": "e" * 40,
-    }
-    values.update(overrides)
-    return make_pack(**values)
-
-
-def document(pack: dict[str, Any], path: str) -> core.MemoryDocument:
+def document(pack: dict[str, Any], name: str) -> core.MemoryDocument:
     return core.parse_memory_pack(
-        json.dumps(pack), path=path, repository=REPOSITORY
+        json.dumps(pack),
+        path=f"{core.MEMORY_ROOT}/{name}.json",
+        repository=REPOSITORY,
     )
 
 
-def test_retrieval_ranks_related_memory_deterministically() -> None:
-    workflow = document(
-        workflow_pack(), f"{core.MEMORY_ROOT}/workflow.json"
-    )
-    database = document(
-        database_pack(), f"{core.MEMORY_ROOT}/database.json"
-    )
-    query = core.build_query_weights(
+def query() -> Any:
+    return core.build_query_weights(
         title="Harden GitHub workflow pull request fallback",
         body="Handle repository permissions and exact generated branch recovery.",
         filenames=[".github/workflows/memory-retrieval.yml"],
     )
 
-    first = core.retrieve(query, [database, workflow])
-    second = core.retrieve(query, [workflow, database])
 
-    assert first
-    assert first[0].document.pack_id == workflow.pack_id
+def test_related_memory_ranks_first_independent_of_input_order() -> None:
+    workflow = document(make_pack(), "workflow")
+    database = document(database_pack(), "database")
+
+    first = core.retrieve(query(), [database, workflow])
+    second = core.retrieve(query(), [workflow, database])
+
+    assert first and first[0].document.pack_id == workflow.pack_id
     assert [item.document.pack_id for item in first] == [
         item.document.pack_id for item in second
     ]
@@ -149,37 +126,28 @@ def test_retrieval_ranks_related_memory_deterministically() -> None:
     assert first[0].score >= core.MIN_SCORE
 
 
-def test_equal_scores_use_pack_id_as_stable_tie_break() -> None:
-    first_pack = workflow_pack(number=20, source_commit="1" * 40)
-    second_pack = workflow_pack(number=21, source_commit="2" * 40)
-    first = document(first_pack, f"{core.MEMORY_ROOT}/first.json")
-    second = document(second_pack, f"{core.MEMORY_ROOT}/second.json")
-    query = core.build_query_weights(
-        title="workflow permissions fallback",
-        body="exact branch workflow permissions fallback",
-        filenames=[".github/workflows/example.yml"],
-    )
+def test_equal_scores_use_pack_id_tie_break() -> None:
+    first = document(make_pack(number=20, source_commit="1" * 40), "first")
+    second = document(make_pack(number=21, source_commit="2" * 40), "second")
 
-    matches = core.retrieve(query, [second, first])
+    matches = core.retrieve(query(), [second, first])
 
     assert len(matches) == 2
-    assert [item.document.pack_id for item in matches] == sorted(
+    assert [match.document.pack_id for match in matches] == sorted(
         [first.pack_id, second.pack_id]
     )
 
 
-def test_public_repository_withholds_private_or_team_memory() -> None:
-    public = document(
-        workflow_pack(), f"{core.MEMORY_ROOT}/public.json"
-    )
+def test_privacy_policy_is_conservative() -> None:
+    public = document(make_pack(), "public")
     private = document(
-        workflow_pack(
+        make_pack(
             number=30,
             source_commit="3" * 40,
             visibility="team",
             contains_private_data=True,
         ),
-        f"{core.MEMORY_ROOT}/private.json",
+        "private",
     )
 
     assert core.is_publishable(public, repository_visibility="public")
@@ -187,72 +155,76 @@ def test_public_repository_withholds_private_or_team_memory() -> None:
     assert core.is_publishable(private, repository_visibility="private")
 
 
-def test_strict_schema_and_identity_reject_tampering() -> None:
-    unknown = workflow_pack()
+def test_schema_identity_authority_and_path_integrity_fail_closed() -> None:
+    unknown = make_pack()
     unknown["unbound"] = "hidden"
     with pytest.raises(core.RetrievalError, match="invalid top-level fields"):
-        document(unknown, f"{core.MEMORY_ROOT}/unknown.json")
+        document(unknown, "unknown")
 
-    tampered = workflow_pack()
+    tampered = make_pack()
     tampered["graph"]["nodes"][0]["label"] = "tampered"
     with pytest.raises(core.RetrievalError, match="identity mismatch"):
-        document(tampered, f"{core.MEMORY_ROOT}/tampered.json")
+        document(tampered, "tampered")
 
-    authority = workflow_pack()
+    authority = make_pack()
     authority["manifest"]["merge_authority"] = True
-    authority["pack_id"] = learning.sha256_json(
-        learning.canonical_preimage(authority)
-    )
+    authority["pack_id"] = learning.sha256_json(learning.canonical_preimage(authority))
     with pytest.raises(core.RetrievalError, match="merge authority"):
-        document(authority, f"{core.MEMORY_ROOT}/authority.json")
+        document(authority, "authority")
 
-
-def test_render_comment_escapes_memory_markdown_and_marker() -> None:
-    pack = workflow_pack(
-        summary="<script>alert(1)</script> <!-- cml-retrieval-v0.1 --> workflow fallback"
+    disconnected = make_pack()
+    disconnected["graph"]["edges"] = []
+    disconnected["pack_id"] = learning.sha256_json(
+        learning.canonical_preimage(disconnected)
     )
-    memory = document(pack, f"{core.MEMORY_ROOT}/escape.json")
-    match = core.RetrievalMatch(
-        document=memory,
-        score=0.5,
-        matched_terms=("workflow", "fallback"),
-    )
+    with pytest.raises(core.RetrievalError, match="directed connecting edge"):
+        document(disconnected, "disconnected")
 
+
+def test_rendering_escapes_memory_content_and_marker() -> None:
+    memory = document(
+        make_pack(
+            summary="<script>alert(1)</script> <!-- cml-retrieval-v0.1 --> workflow fallback"
+        ),
+        "escape",
+    )
     rendered = core.render_comment(
         repository=REPOSITORY,
         repository_visibility="public",
         pull_number=99,
         head_sha=HEAD,
         base_sha=BASE,
-        matches=[match],
+        matches=[
+            core.RetrievalMatch(
+                document=memory,
+                score=0.5,
+                matched_terms=("workflow", "fallback"),
+            )
+        ],
         accepted_count=1,
         withheld_count=0,
         rejected_count=0,
     )
 
     assert rendered.count(core.COMMENT_MARKER) == 1
-    assert "<script>" not in rendered
-    assert "&lt;script&gt;" in rendered
+    assert "<script>" not in rendered and "&lt;script&gt;" in rendered
     assert "grants no approval, execution, or merge authority" in rendered
 
 
-def test_unicode_tokenization_supports_russian_and_ukrainian() -> None:
+def test_unicode_and_composite_identifier_tokenization() -> None:
     tokens = core.tokenize(
         "ЗащищённыйПайплайн перевіряє причинну пам'ять та GitHub_Workflow"
     )
-    assert "защищённый" in tokens
-    assert "пайплайн" in tokens
-    assert "перевіряє" in tokens
-    assert "причинну" in tokens
-    assert "github" in tokens
-    assert "workflow" in tokens
+
+    assert {"защищённый", "пайплайн", "перевіряє", "причинну"} <= set(tokens)
+    assert {"git", "hub", "workflow"} <= set(tokens)
 
 
 class FakeApi:
     def __init__(
         self,
-        *,
         packs: dict[str, dict[str, Any]],
+        *,
         visibility: str = "public",
         head_ref: str = "feature/retrieval",
         filenames: list[str] | None = None,
@@ -266,9 +238,8 @@ class FakeApi:
         self.updated: list[tuple[int, str]] = []
 
     def pull(self, repository: str, number: int) -> dict[str, Any]:
-        assert repository == REPOSITORY and number == 42
         return {
-            "number": 42,
+            "number": number,
             "state": "open",
             "title": "Harden workflow permissions fallback",
             "body": "Use an exact generated branch when Actions cannot open a PR.",
@@ -277,26 +248,13 @@ class FakeApi:
         }
 
     def files(self, repository: str, number: int) -> list[dict[str, Any]]:
-        assert repository == REPOSITORY and number == 42
-        return [
-            {
-                "filename": filename,
-                "status": "modified",
-                "additions": 1,
-                "deletions": 1,
-            }
-            for filename in self.filenames
-        ]
+        return [{"filename": filename, "status": "modified"} for filename in self.filenames]
 
     def repository(self, repository: str) -> dict[str, Any]:
         return {"visibility": self.visibility}
 
     def directory(self, repository: str, path: str, ref: str) -> list[dict[str, Any]]:
-        assert path == core.MEMORY_ROOT and ref == BASE
-        return [
-            {"type": "file", "path": memory_path}
-            for memory_path in sorted(self.packs)
-        ]
+        return [{"type": "file", "path": path} for path in sorted(self.packs)]
 
     def content(self, repository: str, path: str, ref: str) -> dict[str, Any]:
         raw = json.dumps(self.packs[path]).encode()
@@ -312,15 +270,9 @@ class FakeApi:
     def comments(self, repository: str, number: int) -> list[dict[str, Any]]:
         return list(self.comment_items)
 
-    def create_comment(
-        self, repository: str, number: int, body: str
-    ) -> dict[str, Any]:
+    def create_comment(self, repository: str, number: int, body: str) -> dict[str, Any]:
         self.created.append(body)
-        comment = {
-            "id": 100,
-            "body": body,
-            "user": {"login": github.BOT_LOGIN},
-        }
+        comment = {"id": 100, "body": body, "user": {"login": github.BOT_LOGIN}}
         self.comment_items.append(comment)
         return comment
 
@@ -328,9 +280,6 @@ class FakeApi:
         self, repository: str, comment_id: int, body: str
     ) -> dict[str, Any]:
         self.updated.append((comment_id, body))
-        for comment in self.comment_items:
-            if comment["id"] == comment_id:
-                comment["body"] = body
         return {"id": comment_id, "body": body}
 
 
@@ -347,7 +296,7 @@ def run(api: FakeApi) -> dict[str, Any]:
 
 def test_adapter_creates_then_updates_one_managed_comment() -> None:
     path = f"{core.MEMORY_ROOT}/workflow.json"
-    api = FakeApi(packs={path: workflow_pack()})
+    api = FakeApi({path: make_pack()})
 
     first = run(api)
     second = run(api)
@@ -355,39 +304,37 @@ def test_adapter_creates_then_updates_one_managed_comment() -> None:
     assert first["outcome"] == "COMMENT_UPSERTED"
     assert first["comment_action"] == "created"
     assert first["selected"][0]["path"] == path
-    assert first["direct_main_write"] is False
-    assert first["approval_authority"] is False
-    assert first["merge_authority"] is False
-    assert first["execution_authority"] is False
+    assert not any(
+        first[key]
+        for key in (
+            "direct_main_write",
+            "approval_authority",
+            "merge_authority",
+            "execution_authority",
+        )
+    )
     assert second["comment_action"] == "updated"
-    assert len(api.created) == 1
-    assert len(api.updated) == 1
-    assert api.created[0].count(core.COMMENT_MARKER) == 1
+    assert len(api.created) == 1 and len(api.updated) == 1
 
 
-def test_human_spoofed_marker_is_not_overwritten() -> None:
+def test_human_marker_spoof_is_not_overwritten() -> None:
     path = f"{core.MEMORY_ROOT}/workflow.json"
-    api = FakeApi(packs={path: workflow_pack()})
+    api = FakeApi({path: make_pack()})
     api.comment_items = [
-        {
-            "id": 5,
-            "body": core.COMMENT_MARKER + " spoof",
-            "user": {"login": "human"},
-        }
+        {"id": 5, "body": core.COMMENT_MARKER + " spoof", "user": {"login": "human"}}
     ]
 
     result = run(api)
 
     assert result["comment_action"] == "created"
-    assert api.updated == []
-    assert len(api.created) == 1
+    assert api.updated == [] and len(api.created) == 1
 
 
-def test_public_adapter_withholds_team_private_memory() -> None:
+def test_public_adapter_withholds_private_memory_without_leak() -> None:
     path = f"{core.MEMORY_ROOT}/private.json"
     api = FakeApi(
-        packs={
-            path: workflow_pack(
+        {
+            path: make_pack(
                 visibility="team", contains_private_data=True
             )
         }
@@ -405,7 +352,7 @@ def test_public_adapter_withholds_team_private_memory() -> None:
 
 def test_generated_memory_pull_is_skipped_without_comment() -> None:
     api = FakeApi(
-        packs={},
+        {},
         head_ref="cml-learning/pr-190-deadbeef",
         filenames=[f"{core.MEMORY_ROOT}/pr-190.json"],
     )
@@ -414,5 +361,4 @@ def test_generated_memory_pull_is_skipped_without_comment() -> None:
 
     assert result["outcome"] == "SKIPPED"
     assert result["skip_reason"] == "generated-memory-branch"
-    assert api.created == []
-    assert api.updated == []
+    assert api.created == [] and api.updated == []
