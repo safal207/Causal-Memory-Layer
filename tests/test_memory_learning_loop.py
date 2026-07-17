@@ -92,8 +92,14 @@ def checks() -> list[dict[str, Any]]:
             "name": "CI",
             "status": "completed",
             "conclusion": "success",
+            "details_url": "https://example.invalid/check/2",
+        },
+        {
+            "name": "CI",
+            "status": "completed",
+            "conclusion": "success",
             "details_url": "https://example.invalid/check/1",
-        }
+        },
     ]
 
 
@@ -111,7 +117,10 @@ def rendered_pack() -> str:
 def encoded_content(text: str, *, line_wrapped: bool = False) -> dict[str, str]:
     encoded = base64.b64encode(text.encode()).decode()
     if line_wrapped:
-        encoded = "\n".join(encoded[index : index + 24] for index in range(0, len(encoded), 24))
+        encoded = "\n".join(
+            encoded[index : index + 24]
+            for index in range(0, len(encoded), 24)
+        )
     return {"encoding": "base64", "content": encoded}
 
 
@@ -365,7 +374,12 @@ def test_open_proposal_with_extra_files_fails_closed() -> None:
     }
     api.branch_content = encoded_content(rendered_pack())
     api.proposal_file_payload.append(
-        {"filename": "unexpected.txt", "status": "added", "additions": 1, "deletions": 0}
+        {
+            "filename": "unexpected.txt",
+            "status": "added",
+            "additions": 1,
+            "deletions": 0,
+        }
     )
 
     with pytest.raises(core.LearningLoopError, match="unexpected changed files"):
@@ -413,7 +427,9 @@ def test_existing_branch_with_different_content_fails_closed() -> None:
 
 def test_real_content_decoder_accepts_github_line_wrapped_base64() -> None:
     api = github.GitHubApi("token")
-    assert api.content_text(encoded_content("hello\n", line_wrapped=True)) == "hello\n"
+    assert api.content_text(
+        encoded_content("hello\n", line_wrapped=True)
+    ) == "hello\n"
 
 
 def test_workflow_is_protected_bounded_and_never_runs_pr_code() -> None:
@@ -441,7 +457,7 @@ def test_workflow_is_protected_bounded_and_never_runs_pr_code() -> None:
     assert "checks: read" in workflow
     assert "contents: write" in workflow
     assert "pull-requests: write" in workflow
-    assert "cancel-in-progress: false" in workflow
+    assert "cancel-in-progress: true" in workflow
     assert "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10" in workflow
     assert "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1" in workflow
     assert (
@@ -458,5 +474,8 @@ def test_workflow_is_protected_bounded_and_never_runs_pr_code() -> None:
     assert '"base": "main"' in adapter
     assert "direct_main_write" in adapter
     assert "VALIDATION_WORKFLOWS" in adapter
-    assert "open generated proposal does not contain the exact expected memory pack" in adapter
+    assert (
+        "open generated proposal does not contain the exact expected memory pack"
+        in adapter
+    )
     assert "open generated proposal contains unexpected changed files" in adapter
