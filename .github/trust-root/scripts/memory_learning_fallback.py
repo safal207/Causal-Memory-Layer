@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Mapping
 
 import memory_learning_core as core
 import memory_learning_github as github
@@ -13,6 +13,31 @@ PR_CREATION_BLOCKED = (
     "GitHub Actions is not permitted to create or approve pull requests."
 )
 FALLBACK_TITLE_PREFIX = "memory proposal blocked for merged PR #"
+TOP_FIELDS = {
+    "schema_version",
+    "pack_id",
+    "manifest",
+    "graph",
+    "evidence",
+    "redactions",
+}
+MANIFEST_FIELDS = {
+    "project",
+    "source_repository",
+    "source_commit",
+    "created_at",
+    "visibility",
+    "license",
+    "contains_private_data",
+    "merge_authority",
+    "execution_authority",
+    "description",
+}
+GRAPH_FIELDS = {"nodes", "edges", "selected_path"}
+NODE_FIELDS = {"id", "kind", "label", "status", "confidence", "attributes"}
+EDGE_FIELDS = {"id", "source", "target", "relation", "strength", "evidence_ids"}
+EVIDENCE_FIELDS = {"id", "kind", "digest", "locator", "description"}
+REDACTION_FIELDS = {"path", "reason"}
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -22,6 +47,58 @@ def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
             raise core.LearningLoopError(f"duplicate JSON key: {key}")
         result[key] = value
     return result
+
+
+def _require_fields(
+    payload: Mapping[str, Any], *, expected: set[str], label: str
+) -> None:
+    if set(payload) != expected:
+        missing = sorted(expected - set(payload))
+        unknown = sorted(set(payload) - expected)
+        details: list[str] = []
+        if missing:
+            details.append(f"missing={','.join(missing)}")
+        if unknown:
+            details.append(f"unknown={','.join(unknown)}")
+        raise core.LearningLoopError(
+            f"blocked-PR fallback found invalid {label} fields: {'; '.join(details)}"
+        )
+
+
+def _validate_schema(pack: Mapping[str, Any]) -> None:
+    _require_fields(pack, expected=TOP_FIELDS, label="top-level")
+    if pack.get("schema_version") != core.MEMORY_PACK_SCHEMA:
+        raise core.LearningLoopError(
+            "blocked-PR fallback found an unexpected schema version"
+        )
+    manifest = core.mapping(pack.get("manifest"), label="Memory Pack manifest")
+    graph = core.mapping(pack.get("graph"), label="Memory Pack graph")
+    _require_fields(manifest, expected=MANIFEST_FIELDS, label="manifest")
+    _require_fields(graph, expected=GRAPH_FIELDS, label="graph")
+    for raw in core.sequence(graph.get("nodes"), label="Memory Pack nodes"):
+        _require_fields(
+            core.mapping(raw, label="Memory Pack node"),
+            expected=NODE_FIELDS,
+            label="node",
+        )
+    for raw in core.sequence(graph.get("edges"), label="Memory Pack edges"):
+        _require_fields(
+            core.mapping(raw, label="Memory Pack edge"),
+            expected=EDGE_FIELDS,
+            label="edge",
+        )
+    for raw in core.sequence(pack.get("evidence"), label="Memory Pack evidence"):
+        _require_fields(
+            core.mapping(raw, label="Memory Pack evidence item"),
+            expected=EVIDENCE_FIELDS,
+            label="evidence",
+        )
+    for raw in core.sequence(pack.get("redactions"), label="Memory Pack redactions"):
+        _require_fields(
+            core.mapping(raw, label="Memory Pack redaction"),
+            expected=REDACTION_FIELDS,
+            label="redaction",
+        )
 
 
 def _is_exact_pr_creation_block(exc: BaseException, repository: str) -> bool:
@@ -48,6 +125,7 @@ def _load_exact_pack(
             "blocked-PR fallback found invalid generated JSON"
         ) from exc
     pack = core.mapping(payload, label="generated Memory Pack")
+    _validate_schema(pack)
     pack_id = pack.get("pack_id")
     if not isinstance(pack_id, str) or len(pack_id) != 64:
         raise core.LearningLoopError(
