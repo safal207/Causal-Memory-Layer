@@ -22,6 +22,8 @@ github = importlib.import_module("memory_learning_github")
 REPOSITORY = "safal207/Causal-Memory-Layer"
 HEAD = "a" * 40
 MERGE = "b" * 40
+BRANCH = "cml-learning/pr-181-bbbbbbbbbbbb"
+MEMORY_PATH = ".cml/memory/cycles/pr-181-bbbbbbbbbbbb.json"
 
 
 def pull(*, body: str | None = None, head_ref: str = "feature/example") -> dict[str, Any]:
@@ -56,8 +58,18 @@ The generated memory remains advisory and private by default.
 
 def files() -> list[dict[str, Any]]:
     return [
-        {"filename": "cml/integrations/memory_pack.py", "status": "added", "additions": 10, "deletions": 0},
-        {"filename": "tests/test_memory_pack.py", "status": "added", "additions": 5, "deletions": 0},
+        {
+            "filename": "cml/integrations/memory_pack.py",
+            "status": "added",
+            "additions": 10,
+            "deletions": 0,
+        },
+        {
+            "filename": "tests/test_memory_pack.py",
+            "status": "added",
+            "additions": 5,
+            "deletions": 0,
+        },
     ]
 
 
@@ -85,10 +97,36 @@ def checks() -> list[dict[str, Any]]:
     ]
 
 
+def rendered_pack() -> str:
+    pack = core.build_memory_pack(
+        repository=REPOSITORY,
+        pull=pull(),
+        files=files(),
+        reviews=reviews(),
+        check_runs=checks(),
+    )
+    return json.dumps(pack, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
+
+def encoded_content(text: str, *, line_wrapped: bool = False) -> dict[str, str]:
+    encoded = base64.b64encode(text.encode()).decode()
+    if line_wrapped:
+        encoded = "\n".join(encoded[index : index + 24] for index in range(0, len(encoded), 24))
+    return {"encoding": "base64", "content": encoded}
+
+
 class FakeApi:
     def __init__(self) -> None:
         self.pull_payload = pull()
         self.file_payload = files()
+        self.proposal_file_payload: list[dict[str, Any]] = [
+            {
+                "filename": MEMORY_PATH,
+                "status": "added",
+                "additions": 1,
+                "deletions": 0,
+            }
+        ]
         self.review_payload = reviews()
         self.check_payload = checks()
         self.main_content: dict[str, Any] | None = None
@@ -105,28 +143,38 @@ class FakeApi:
         return self.pull_payload
 
     def files(self, repository: str, number: int):
-        return self.file_payload
+        assert repository == REPOSITORY
+        if number == 181:
+            return self.file_payload
+        if number == 200:
+            return self.proposal_file_payload
+        raise AssertionError(f"unexpected pull number: {number}")
 
     def reviews(self, repository: str, number: int):
+        assert repository == REPOSITORY and number == 181
         return self.review_payload
 
     def checks(self, repository: str, sha: str):
-        assert sha == HEAD
+        assert repository == REPOSITORY and sha == HEAD
         return self.check_payload
 
     def content(self, repository: str, path: str, ref: str):
-        assert repository == REPOSITORY
+        assert repository == REPOSITORY and path == MEMORY_PATH
         if ref == "main":
             return self.main_content
+        assert ref == BRANCH
         return self.branch_content
 
     def proposal(self, repository: str, branch: str):
+        assert repository == REPOSITORY and branch == BRANCH
         return self.proposal_payload
 
     def ref(self, repository: str, branch: str):
+        assert repository == REPOSITORY and branch == BRANCH
         return self.branch_ref
 
     def create_ref(self, repository: str, branch: str, sha: str) -> None:
+        assert repository == REPOSITORY
         self.created_refs.append((branch, sha))
         self.branch_ref = {"object": {"sha": sha}}
 
@@ -139,16 +187,15 @@ class FakeApi:
         message: str,
         text: str,
     ) -> None:
+        assert repository == REPOSITORY
         self.created_contents.append(
             {"path": path, "branch": branch, "message": message, "text": text}
         )
-        self.branch_content = {
-            "encoding": "base64",
-            "content": base64.b64encode(text.encode()).decode(),
-        }
+        self.branch_content = encoded_content(text)
 
     def content_text(self, payload: dict[str, Any]) -> str:
-        return base64.b64decode(payload["content"]).decode()
+        normalized = "".join(payload["content"].split())
+        return base64.b64decode(normalized, validate=True).decode()
 
     def create_pull(
         self,
@@ -158,8 +205,13 @@ class FakeApi:
         branch: str,
         body: str,
     ):
+        assert repository == REPOSITORY
         self.created_pulls.append({"title": title, "branch": branch, "body": body})
-        return {"number": 200, "html_url": "https://example.invalid/pull/200", "state": "open"}
+        return {
+            "number": 200,
+            "html_url": "https://example.invalid/pull/200",
+            "state": "open",
+        }
 
     def dispatch_validation(self, repository: str, branch: str) -> None:
         self.dispatched.append((repository, branch))
@@ -225,20 +277,28 @@ def test_explicit_root_cause_is_used_but_not_invented() -> None:
         check_runs=[],
     )
 
-    cause_nodes = [node for node in with_cause["graph"]["nodes"] if node["kind"] == "cause"]
+    cause_nodes = [
+        node for node in with_cause["graph"]["nodes"] if node["kind"] == "cause"
+    ]
     assert len(cause_nodes) == 1
     assert cause_nodes[0]["attributes"]["inference"] is False
-    assert not [node for node in without_cause["graph"]["nodes"] if node["kind"] == "cause"]
+    assert not [
+        node for node in without_cause["graph"]["nodes"] if node["kind"] == "cause"
+    ]
 
 
 def test_recursion_and_memory_only_changes_are_skipped() -> None:
-    assert core.should_skip(pull(head_ref="cml-learning/pr-181-deadbeef"), files()) == "generated-memory-branch"
+    assert (
+        core.should_skip(pull(head_ref="cml-learning/pr-181-deadbeef"), files())
+        == "generated-memory-branch"
+    )
     generated_title = pull()
     generated_title["title"] = "memory: learn from merged PR #181"
     assert core.should_skip(generated_title, files()) == "generated-memory-title"
-    assert core.should_skip(
-        pull(), [{"filename": ".cml/memory/cycles/pr-1.json"}]
-    ) == "memory-only-change"
+    assert (
+        core.should_skip(pull(), [{"filename": ".cml/memory/cycles/pr-1.json"}])
+        == "memory-only-change"
+    )
 
 
 def test_first_delivery_creates_reviewable_branch_not_main_and_dispatches_validation() -> None:
@@ -250,24 +310,26 @@ def test_first_delivery_creates_reviewable_branch_not_main_and_dispatches_valida
     assert result["merge_authority"] is False
     assert result["execution_authority"] is False
     assert result["validation_dispatched"] is True
-    assert api.created_refs == [("cml-learning/pr-181-bbbbbbbbbbbb", MERGE)]
+    assert api.created_refs == [(BRANCH, MERGE)]
     assert len(api.created_contents) == 1
-    assert api.created_contents[0]["branch"].startswith("cml-learning/")
+    assert api.created_contents[0]["path"] == MEMORY_PATH
+    assert api.created_contents[0]["branch"] == BRANCH
     assert api.created_contents[0]["branch"] != "main"
     assert len(api.created_pulls) == 1
     assert api.created_pulls[0]["title"] == "memory: learn from merged PR #181"
-    assert api.dispatched == [(REPOSITORY, "cml-learning/pr-181-bbbbbbbbbbbb")]
+    assert api.dispatched == [(REPOSITORY, BRANCH)]
     pack = json.loads(api.created_contents[0]["text"])
     assert verify_memory_pack(memory_pack_from_mapping(pack)).passed()
 
 
-def test_open_proposal_is_idempotent_and_refreshes_validation() -> None:
+def test_open_proposal_is_idempotent_only_for_exact_single_file_content() -> None:
     api = FakeApi()
     api.proposal_payload = {
         "number": 200,
         "html_url": "https://example.invalid/pull/200",
         "state": "open",
     }
+    api.branch_content = encoded_content(rendered_pack(), line_wrapped=True)
 
     result = propose(api)
 
@@ -276,7 +338,40 @@ def test_open_proposal_is_idempotent_and_refreshes_validation() -> None:
     assert api.created_refs == []
     assert api.created_contents == []
     assert api.created_pulls == []
-    assert len(api.dispatched) == 1
+    assert api.dispatched == [(REPOSITORY, BRANCH)]
+
+
+def test_open_proposal_with_wrong_content_fails_closed() -> None:
+    api = FakeApi()
+    api.proposal_payload = {
+        "number": 200,
+        "html_url": "https://example.invalid/pull/200",
+        "state": "open",
+    }
+    api.branch_content = encoded_content("{}\n")
+
+    with pytest.raises(core.LearningLoopError, match="exact expected memory pack"):
+        propose(api)
+
+    assert api.dispatched == []
+
+
+def test_open_proposal_with_extra_files_fails_closed() -> None:
+    api = FakeApi()
+    api.proposal_payload = {
+        "number": 200,
+        "html_url": "https://example.invalid/pull/200",
+        "state": "open",
+    }
+    api.branch_content = encoded_content(rendered_pack())
+    api.proposal_file_payload.append(
+        {"filename": "unexpected.txt", "status": "added", "additions": 1, "deletions": 0}
+    )
+
+    with pytest.raises(core.LearningLoopError, match="unexpected changed files"):
+        propose(api)
+
+    assert api.dispatched == []
 
 
 def test_closed_proposal_is_not_recreated() -> None:
@@ -310,13 +405,15 @@ def test_already_accepted_memory_is_noop() -> None:
 def test_existing_branch_with_different_content_fails_closed() -> None:
     api = FakeApi()
     api.branch_ref = {"object": {"sha": "c" * 40}}
-    api.branch_content = {
-        "encoding": "base64",
-        "content": base64.b64encode(b"{}\n").decode(),
-    }
+    api.branch_content = encoded_content("{}\n")
 
     with pytest.raises(core.LearningLoopError, match="different memory proposal"):
         propose(api)
+
+
+def test_real_content_decoder_accepts_github_line_wrapped_base64() -> None:
+    api = github.GitHubApi("token")
+    assert api.content_text(encoded_content("hello\n", line_wrapped=True)) == "hello\n"
 
 
 def test_workflow_is_protected_bounded_and_never_runs_pr_code() -> None:
@@ -334,7 +431,10 @@ def test_workflow_is_protected_bounded_and_never_runs_pr_code() -> None:
     assert "pull_request:\n    branches: [main]\n    types: [closed]" in workflow
     assert "workflow_dispatch:" in workflow
     assert "github.event.pull_request.merged == true" in workflow
-    assert "ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}" in workflow
+    assert (
+        "ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}"
+        in workflow
+    )
     assert "persist-credentials: false" in workflow
     assert "permissions: {}" in workflow
     assert "actions: write" in workflow
@@ -344,13 +444,19 @@ def test_workflow_is_protected_bounded_and_never_runs_pr_code() -> None:
     assert "cancel-in-progress: false" in workflow
     assert "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10" in workflow
     assert "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1" in workflow
-    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
+    assert (
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+        in workflow
+    )
     assert ".github/trust-root/scripts/memory_learning_loop.py" in workflow
     assert "github.event.pull_request.head" not in workflow
     assert "subprocess" not in entrypoint
     assert "eval(" not in entrypoint
     assert "exec(" not in entrypoint
+    assert "REPOSITORY.fullmatch" in entrypoint
     assert '"branch": branch' in adapter
     assert '"base": "main"' in adapter
     assert "direct_main_write" in adapter
     assert "VALIDATION_WORKFLOWS" in adapter
+    assert "open generated proposal does not contain the exact expected memory pack" in adapter
+    assert "open generated proposal contains unexpected changed files" in adapter
