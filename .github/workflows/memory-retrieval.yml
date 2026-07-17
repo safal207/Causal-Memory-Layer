@@ -4,17 +4,11 @@ on:
   pull_request_target:
     branches: [main]
     types: [opened, reopened, synchronize, edited, ready_for_review]
-  workflow_dispatch:
-    inputs:
-      pull_number:
-        description: Open pull request number to retrieve memory for
-        required: true
-        type: string
 
 permissions: {}
 
 concurrency:
-  group: cml-memory-retrieval-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pull_number }}
+  group: cml-memory-retrieval-${{ github.repository }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
@@ -31,7 +25,7 @@ jobs:
       - name: Checkout trusted exact base
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 1
           persist-credentials: false
 
@@ -44,26 +38,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
-          CML_PULL_NUMBER: ${{ inputs.pull_number }}
         run: |
-          args=()
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
-            args+=(--pull-number "$CML_PULL_NUMBER")
-          fi
-          python .github/trust-root/scripts/memory_retrieval_loop.py \
+          python .github/trust-root/scripts/memory_retrieval_hardened_loop.py \
             --event-path "$GITHUB_EVENT_PATH" \
             --repository "$GITHUB_REPOSITORY" \
             --run-id "$GITHUB_RUN_ID" \
             --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --run-url "$RUN_URL" \
-            --output memory-retrieval-evidence.json \
-            "${args[@]}"
+            --output memory-retrieval-evidence.json
 
       - name: Upload exact-attempt retrieval evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: cml-memory-retrieval-${{ github.event.pull_request.number || inputs.pull_number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: cml-memory-retrieval-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: memory-retrieval-evidence.json
           if-no-files-found: error
           retention-days: 30
