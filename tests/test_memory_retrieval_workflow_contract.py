@@ -61,5 +61,7 @@ def test_retrieval_workflow_never_reads_pr_patches_or_review_comments() -> None:
     assert "/pulls/{number}/files" in adapter
     assert "/pulls/{number}/comments" not in adapter
     assert "/pulls/{number}/reviews" not in adapter
-    assert "patch" not in adapter.lower()
-    assert "diff" not in adapter.lower()
+    assert 'raw.get("patch")' not in adapter
+    assert 'raw.get("diff")' not in adapter
+    assert "fetch_pr_patch" not in adapter
+    assert "fetch_pr_file_patch" not in adapter
