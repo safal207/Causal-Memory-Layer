@@ -1,0 +1,73 @@
+name: CML Memory Learning Loop
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pull_number:
+        description: Merged pull request number to backfill
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: cml-memory-learning-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pull_number }}
+  cancel-in-progress: true
+
+jobs:
+  propose:
+    name: Propose merged-cycle memory
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      checks: read
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout trusted merged default branch
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Propose reviewable Memory Pack
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+          CML_PULL_NUMBER: ${{ inputs.pull_number }}
+        run: |
+          args=()
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            args+=(--pull-number "$CML_PULL_NUMBER")
+          fi
+          python .github/trust-root/scripts/memory_learning_loop.py \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --repository "$GITHUB_REPOSITORY" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --run-url "$RUN_URL" \
+            --output memory-learning-loop-evidence.json \
+            "${args[@]}"
+
+      - name: Upload exact-attempt learning evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-memory-learning-${{ github.event.pull_request.number || inputs.pull_number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: memory-learning-loop-evidence.json
+          if-no-files-found: error
+          retention-days: 30

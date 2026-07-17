@@ -1,11 +1,15 @@
 {
   "files": {
     ".bandit": "5568293d2e15266a57eb51cc81b0bef223c2b269",
+    ".github/trust-root/scripts/memory_learning_core.py": "9df0bfffac466dca5128d21d5f3cfba9f0b663b3",
+    ".github/trust-root/scripts/memory_learning_github.py": "d4d679ef1956e7ab072d95e496152675f2f298df",
+    ".github/trust-root/scripts/memory_learning_loop.py": "d88ece85c0d5a6cc0c9be287b0117b8335ea565c",
     ".github/trust-root/scripts/reviewer_fallback.py": "e17b2fb720cc46f91e82ab0482486091b456bc9e",
     ".github/trust-root/scripts/reviewer_fallback_entrypoint.py": "0cdf6a3f43724d8754361ad46fc996d98ef4b8b6",
     ".github/trust-root/scripts/reviewer_fallback_reconcile.py": "74b0bc06c899a9ee3462c203831215a9ac39af64",
     ".github/trust-root/scripts/reviewer_fallback_runtime.py": "041c602be70bf61f0f6c84b85c9e84e559986556",
     ".github/workflows/ci.yml": "ae103606ca5b4b99609ee48c2f867e6bde1d55ec",
+    ".github/workflows/memory-learning-loop.yml": "e5583f6bc9ed72e2c2b00c00d3eaebd69b9fb9f6",
     ".github/workflows/python-package-validation.yml": "13bd15e4010a1cc04f64b972a69c8da07f0e58a7",
     ".github/workflows/reviewer-fallback.yml": "0646491db9729279a36f89d3a14f3203c94e029c",
     ".github/workflows/security.yml": "cfcc265ec2d8b9a64a2e7c9f0318642430f81830",
@@ -16,6 +20,7 @@
     "scripts/ci/verify_workflow_contract.py": "85ef8222b10cd1731372fd9e58a586046f214cc0",
     "tests/test_ci_evidence.py": "2d080fc4c728f1d8d98c01311839c8cd456b2f90",
     "tests/test_ci_workflow_contract.py": "8e928b8504c1b0db6efddfc6ea9e64a99d066bf6",
+    "tests/test_memory_learning_loop.py": "5aea6b9571e721aaa9b5a1e502b0d49e82e9f37b",
     "tests/test_reviewer_fallback.py": "6655ef715f2c6f7c2aad3c2fd45acf2a52ec089f",
     "tests/test_reviewer_fallback_core_direct.py": "8fdbceadd05328fe4ba01d81468d577529a0da56",
     "tests/test_reviewer_fallback_event_surfaces.py": "8b356909a543e59ba5c6b96ec7099d3f00555eb2",
