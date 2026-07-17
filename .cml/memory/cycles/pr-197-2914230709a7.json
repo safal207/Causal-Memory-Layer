@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #197.",
+      "digest": "26a1d1368dd0827b349ff0e31fda3bcb0e5788e94a28c2ec413b7d33cb971152",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/38607dd0876d401d443a7670516c25cfaa8bbc5d/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #197.",
+      "digest": "cd58761363806399c6f20c94c7ff93969c19422a87dea9b3426ea4b1c807db18",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/197/files"
+    },
+    {
+      "description": "Merge commit for pull request #197.",
+      "digest": "9182171a27916c1a3e383a74253a9c7e319cf5ec6f9825ef18fdfab748b58720",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:2914230709a76db405e70dfaf46f0450a725db45"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #197.",
+      "digest": "e6f8c298989d67fa6c14d549adb9734f07467ddb282c541680fc571c0ddf42a2",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/197"
+    },
+    {
+      "description": "Normalized review snapshot for #197 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/197/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 7,
+          "head_sha": "38607dd0876d401d443a7670516c25cfaa8bbc5d",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #197: fix: harden CML Retrieval privacy and comment reconciliation",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 20,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #197 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "- source branch is never checked out or executed; - no patch, diff, review, review comment, issue comment, or prompt enters the corpus; - permissions remain `contents: read`, `pull-requests: read`, and `issues: write`; - no direct-main, approval, execution, or merge authority; - runtime remains stdlib-only and bounded.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #197: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "2914230709a76db405e70dfaf46f0450a725db45",
+          "merged_at": "2026-07-17T12:24:54.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #197 merged into main as 2914230709a76db405e70dfaf46f0450a725db45",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 197,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Addresses #196 and all three actionable findings from CodeRabbit's exact-head post-merge review of PR #193. **Current exact head:** `38607dd0876d401d443a7670516c25cfaa8bbc5d`",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-17T12:24:54.000Z",
+    "description": "Automatically proposed decision memory for merged PR #197; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "2914230709a76db405e70dfaf46f0450a725db45",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "bf67e15fcfe9186fc815b56ecff301cf51352f93a45f43c3fd0ae7af85026a10",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
