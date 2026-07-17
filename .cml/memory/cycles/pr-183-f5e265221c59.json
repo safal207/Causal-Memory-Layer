@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #183.",
+      "digest": "41fd7d589bf87df77432ebde7db01d5e301a8f2e0444f9663f91d8369ca41f06",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/504860f2f5a87fca149e800499d6cf7d88ab4db7/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #183.",
+      "digest": "dfcd6654560cae80368ffcb07b68c857c38bc984562e62dbbacfeee5ae8b08e6",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/183/files"
+    },
+    {
+      "description": "Merge commit for pull request #183.",
+      "digest": "37cb20b2ad34711703aeaa70d69ab0c1bdac4db76b3c19a0c50d4e42e240f70d",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:f5e265221c59c132cedd1eadd243def033742c14"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #183.",
+      "digest": "4f46d5e3efa6b6c2fba44da36d43a87eeacfc11645951884481ac95fc49a47a0",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/183"
+    },
+    {
+      "description": "Normalized review snapshot for #183 without review bodies.",
+      "digest": "6fb9eb3cb8df1b82071f0808d1e7840c9ca0de341500e8a0b2e0ea259764abdf",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/183/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 7,
+          "head_sha": "504860f2f5a87fca149e800499d6cf7d88ab4db7",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #183: ci: add protected post-merge Memory Learning Loop",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 14,
+          "review_count": 1
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "PRs created by `GITHUB_TOKEN` do not reliably start ordinary event-triggered workflows. The learning loop explicitly dispatches `ci.yml`, `python-package-validation.yml`, and `security.yml` against the generated branch.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "The ordinary `CML Trust Root Gate` is expected to reject the protected workflow/runtime additions. Merge requires green CI/package/security on this exact head, no unresolved actionable review findings, verified protected blob pins, and explicit maintainer bootstrap disposition.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #183: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "f5e265221c59c132cedd1eadd243def033742c14",
+          "merged_at": "2026-07-17T10:19:55.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #183 merged into main as f5e265221c59c132cedd1eadd243def033742c14",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 183,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Implements #182 with a protected post-merge learning loop that proposes one reviewable CML Memory Pack for each eligible pull request merged into `main`. **Current exact head:** `504860f2f5a87fca149e800499d6cf7d88ab4db7`",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-17T10:19:55.000Z",
+    "description": "Automatically proposed decision memory for merged PR #183; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "f5e265221c59c132cedd1eadd243def033742c14",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "420cb8817d98d77448301e41d5bf78da4c63fae385b36a84b3b68fcf204de57a",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
