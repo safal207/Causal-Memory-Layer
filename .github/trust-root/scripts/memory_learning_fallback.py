@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Mapping
+from typing import Any
 
 import memory_learning_core as core
 import memory_learning_github as github
@@ -13,6 +13,15 @@ PR_CREATION_BLOCKED = (
     "GitHub Actions is not permitted to create or approve pull requests."
 )
 FALLBACK_TITLE_PREFIX = "memory proposal blocked for merged PR #"
+
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise core.LearningLoopError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
 
 
 def _is_exact_pr_creation_block(exc: BaseException, repository: str) -> bool:
@@ -25,10 +34,70 @@ def _is_exact_pr_creation_block(exc: BaseException, repository: str) -> bool:
     )
 
 
-def _render_pack(pack: Mapping[str, Any]) -> str:
-    return json.dumps(
-        pack, indent=2, sort_keys=True, ensure_ascii=False
-    ) + "\n"
+def _load_exact_pack(
+    text: str,
+    *,
+    repository: str,
+    head_sha: str,
+    merge_sha: str,
+) -> str:
+    try:
+        payload = json.loads(text, object_pairs_hook=_unique_object)
+    except json.JSONDecodeError as exc:
+        raise core.LearningLoopError(
+            "blocked-PR fallback found invalid generated JSON"
+        ) from exc
+    pack = core.mapping(payload, label="generated Memory Pack")
+    pack_id = pack.get("pack_id")
+    if not isinstance(pack_id, str) or len(pack_id) != 64:
+        raise core.LearningLoopError(
+            "blocked-PR fallback found an invalid pack_id"
+        )
+    if core.sha256_json(core.canonical_preimage(pack)) != pack_id:
+        raise core.LearningLoopError(
+            "blocked-PR fallback found a Memory Pack identity mismatch"
+        )
+    manifest = core.mapping(pack.get("manifest"), label="Memory Pack manifest")
+    if manifest.get("source_repository") != f"https://github.com/{repository}":
+        raise core.LearningLoopError(
+            "blocked-PR fallback found a repository binding mismatch"
+        )
+    if manifest.get("source_commit") != merge_sha:
+        raise core.LearningLoopError(
+            "blocked-PR fallback found a merge binding mismatch"
+        )
+    if (
+        manifest.get("visibility") != "team"
+        or manifest.get("contains_private_data") is not True
+        or manifest.get("merge_authority") is not False
+        or manifest.get("execution_authority") is not False
+    ):
+        raise core.LearningLoopError(
+            "blocked-PR fallback found an unsafe manifest boundary"
+        )
+    graph = core.mapping(pack.get("graph"), label="Memory Pack graph")
+    nodes = core.sequence(graph.get("nodes"), label="Memory Pack nodes")
+    head_bound = False
+    proposed_lesson = False
+    for raw in nodes:
+        node = core.mapping(raw, label="Memory Pack node")
+        attributes = node.get("attributes")
+        if isinstance(attributes, dict) and attributes.get("head_sha") == head_sha:
+            head_bound = True
+        if node.get("kind") == "lesson" and node.get("status") == "proposed":
+            if isinstance(attributes, dict) and attributes.get(
+                "human_review_required"
+            ) is True:
+                proposed_lesson = True
+    if not head_bound:
+        raise core.LearningLoopError(
+            "blocked-PR fallback found no exact source-head binding"
+        )
+    if not proposed_lesson:
+        raise core.LearningLoopError(
+            "blocked-PR fallback found no human-reviewed proposed lesson"
+        )
+    return pack_id
 
 
 def _expected_proposal(
@@ -40,21 +109,14 @@ def _expected_proposal(
     pull = api.pull(repository, pull_number)
     if pull.get("merged") is not True:
         raise core.LearningLoopError("pull request is not merged")
-    source_files = api.files(repository, pull_number)
-    if core.should_skip(pull, core.normalize_files(source_files)):
+    source_files = core.normalize_files(api.files(repository, pull_number))
+    if core.should_skip(pull, source_files):
         raise core.LearningLoopError(
             "blocked-PR fallback cannot be created for an excluded merge"
         )
     head = core.mapping(pull.get("head"), label="pull request head")
     head_sha = core.full_sha(
         head.get("sha"), label="pull request head SHA"
-    )
-    pack = core.build_memory_pack(
-        repository=repository,
-        pull=pull,
-        files=source_files,
-        reviews=api.reviews(repository, pull_number),
-        check_runs=api.checks(repository, head_sha),
     )
     merge_sha = core.full_sha(
         pull.get("merge_commit_sha"), label="merge commit SHA"
@@ -64,23 +126,27 @@ def _expected_proposal(
     memory_path = (
         f"{core.GENERATED_ROOT}/pr-{pull_number}-{short_sha}.json"
     )
-    rendered = _render_pack(pack)
 
     if api.content(repository, memory_path, "main") is not None:
         raise core.LearningLoopError(
             "blocked-PR fallback found memory already accepted on main"
         )
-    branch_ref = api.ref(repository, branch)
-    if branch_ref is None:
+    if api.ref(repository, branch) is None:
         raise core.LearningLoopError(
             "blocked-PR fallback cannot find the generated branch"
         )
     branch_content = api.content(repository, memory_path, branch)
-    if branch_content is None or api.content_text(branch_content) != rendered:
+    if branch_content is None:
         raise core.LearningLoopError(
-            "blocked-PR fallback cannot authenticate the exact generated pack"
+            "blocked-PR fallback cannot find the generated pack"
         )
-    return branch, memory_path, pack["pack_id"], head_sha, merge_sha
+    pack_id = _load_exact_pack(
+        api.content_text(branch_content),
+        repository=repository,
+        head_sha=head_sha,
+        merge_sha=merge_sha,
+    )
+    return branch, memory_path, pack_id, head_sha, merge_sha
 
 
 def _find_existing_issue(
