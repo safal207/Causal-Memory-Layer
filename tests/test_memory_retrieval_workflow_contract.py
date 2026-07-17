@@ -29,10 +29,9 @@ def test_retrieval_workflow_uses_only_trusted_exact_base_code() -> None:
     assert "inputs.pull_number" not in workflow
     assert "permissions: {}" in workflow
     assert "contents: read" in workflow
-    assert "issues: write" in workflow
-    assert "pull-requests: read" in workflow
+    assert "pull-requests: write" in workflow
+    assert "issues: write" not in workflow
     assert "contents: write" not in workflow
-    assert "pull-requests: write" not in workflow
     assert "actions: write" not in workflow
     assert "cancel-in-progress: true" in workflow
     assert "ref: ${{ github.event.pull_request.base.sha }}" in workflow
