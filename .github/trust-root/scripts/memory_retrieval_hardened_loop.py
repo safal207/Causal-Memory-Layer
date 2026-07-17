@@ -76,6 +76,32 @@ def _positive_int(value: object, *, label: str) -> int:
     return parsed
 
 
+def pull_number_from_event(event: dict[str, Any]) -> int:
+    """Bind to the required top-level pull-request webhook number."""
+
+    pull = event.get("pull_request")
+    if not isinstance(pull, dict):
+        raise core.RetrievalError("event pull_request must be an object")
+
+    raw_number = event.get("number")
+    if isinstance(raw_number, bool) or not isinstance(raw_number, int):
+        raise core.RetrievalError("event number must be a positive integer")
+    if raw_number < 1:
+        raise core.RetrievalError("event number must be positive")
+
+    nested_number = pull.get("number")
+    if nested_number is not None:
+        if (
+            isinstance(nested_number, bool)
+            or not isinstance(nested_number, int)
+            or nested_number != raw_number
+        ):
+            raise core.RetrievalError(
+                "event pull request number binding mismatch"
+            )
+    return raw_number
+
+
 def _failure_result(args: argparse.Namespace, exc: Exception) -> dict[str, Any]:
     return {
         "schema_version": core.SCHEMA_VERSION,
@@ -115,12 +141,7 @@ def main() -> None:
         if not isinstance(repository, str) or not REPOSITORY.fullmatch(repository):
             raise core.RetrievalError("repository must use owner/name format")
         event = read_event(args.event_path)
-        pull = event.get("pull_request")
-        if not isinstance(pull, dict):
-            raise core.RetrievalError(
-                "event pull_request must be an object"
-            )
-        pull_number = _positive_int(pull.get("number"), label="pull number")
+        pull_number = pull_number_from_event(event)
         result = hardened.retrieve_for_pull(
             api=legacy.GitHubApi(os.environ.get("GITHUB_TOKEN", "")),
             repository=repository,
