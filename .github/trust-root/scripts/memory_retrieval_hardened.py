@@ -8,9 +8,43 @@ from typing import Any, Mapping, Sequence
 import memory_retrieval_core as core
 import memory_retrieval_github as legacy
 
+FAILURE_STAGES = frozenset(
+    {
+        "pull-api",
+        "pull-validate",
+        "files-api",
+        "repository-api",
+        "corpus-load",
+        "query-rank",
+        "comment-render",
+        "comment-list",
+        "comment-create",
+        "comment-update",
+        "comment-delete",
+        "comment-verify",
+    }
+)
+
 
 class RetrievalHardeningError(core.RetrievalError):
     """Raised when privacy or managed-comment reconciliation fails closed."""
+
+
+def mark_failure_stage(exc: Exception, stage: str) -> None:
+    """Attach one allowlisted non-sensitive stage without replacing root cause."""
+
+    if stage not in FAILURE_STAGES:
+        raise RetrievalHardeningError("invalid retrieval failure stage")
+    current = getattr(exc, "cml_failure_stage", None)
+    if current is None:
+        try:
+            setattr(exc, "cml_failure_stage", stage)
+        except Exception as attribute_error:
+            wrapped = RetrievalHardeningError(
+                f"CML retrieval failed at stage {stage}"
+            )
+            setattr(wrapped, "cml_failure_stage", stage)
+            raise wrapped from attribute_error
 
 
 def _managed_comments(
@@ -63,46 +97,57 @@ def reconcile_managed_comment(
 ) -> tuple[str, int, int]:
     """Upsert and verify exactly one bot-authored managed comment."""
 
-    initial = _managed_comments(api, repository, pull_number)
-    created_id: int | None = None
-    if initial:
-        canonical_id = _comment_id(initial[0])
-        api.update_comment(repository, canonical_id, body)
-        action = "updated"
-    else:
-        response = api.create_comment(repository, pull_number, body)
-        created_id = _comment_id(response)
-        canonical_id = created_id
-        action = "created"
+    stage = "comment-list"
+    try:
+        initial = _managed_comments(api, repository, pull_number)
+        created_id: int | None = None
+        if initial:
+            canonical_id = _comment_id(initial[0])
+            stage = "comment-update"
+            api.update_comment(repository, canonical_id, body)
+            action = "updated"
+        else:
+            stage = "comment-create"
+            response = api.create_comment(repository, pull_number, body)
+            created_id = _comment_id(response)
+            canonical_id = created_id
+            action = "created"
 
-    observed = _managed_comments(api, repository, pull_number)
-    if not observed:
-        raise RetrievalHardeningError(
-            "managed comment disappeared after create or update"
-        )
+        stage = "comment-verify"
+        observed = _managed_comments(api, repository, pull_number)
+        if not observed:
+            raise RetrievalHardeningError(
+                "managed comment disappeared after create or update"
+            )
 
-    canonical = observed[0]
-    canonical_id = _comment_id(canonical)
-    if canonical.get("body") != body:
-        api.update_comment(repository, canonical_id, body)
+        canonical = observed[0]
+        canonical_id = _comment_id(canonical)
+        if canonical.get("body") != body:
+            stage = "comment-update"
+            api.update_comment(repository, canonical_id, body)
 
-    duplicates = observed[1:]
-    for duplicate in duplicates:
-        _delete_comment(api, repository, _comment_id(duplicate))
+        duplicates = observed[1:]
+        stage = "comment-delete"
+        for duplicate in duplicates:
+            _delete_comment(api, repository, _comment_id(duplicate))
 
-    final = _managed_comments(api, repository, pull_number)
-    if len(final) != 1:
-        raise RetrievalHardeningError(
-            "managed comment reconciliation did not leave exactly one comment"
-        )
-    final_id = _comment_id(final[0])
-    if final_id != canonical_id or final[0].get("body") != body:
-        raise RetrievalHardeningError(
-            "managed comment reconciliation produced an unexpected canonical comment"
-        )
-    if created_id is not None and final_id != created_id:
-        action = "created-and-reconciled"
-    return action, final_id, len(duplicates)
+        stage = "comment-verify"
+        final = _managed_comments(api, repository, pull_number)
+        if len(final) != 1:
+            raise RetrievalHardeningError(
+                "managed comment reconciliation did not leave exactly one comment"
+            )
+        final_id = _comment_id(final[0])
+        if final_id != canonical_id or final[0].get("body") != body:
+            raise RetrievalHardeningError(
+                "managed comment reconciliation produced an unexpected canonical comment"
+            )
+        if created_id is not None and final_id != created_id:
+            action = "created-and-reconciled"
+        return action, final_id, len(duplicates)
+    except Exception as exc:
+        mark_failure_stage(exc, stage)
+        raise
 
 
 def render_privacy_safe_comment(
@@ -186,6 +231,7 @@ def _base_result(
         "run_url": run_url,
         "outcome": "SKIPPED" if skip_reason else "PENDING",
         "skip_reason": skip_reason,
+        "failure_stage": None,
         "accepted_count": 0,
         "publishable_count": 0,
         "withheld_count": 0,
@@ -223,112 +269,124 @@ def retrieve_for_pull(
 ) -> dict[str, Any]:
     """Retrieve accepted memory with privacy-safe evidence and exact-one comment."""
 
-    pull = api.pull(repository, pull_number)
-    if pull.get("state") != "open":
-        raise RetrievalHardeningError(
-            "retrieval only accepts open pull requests"
-        )
-    head = pull.get("head")
-    base = pull.get("base")
-    if not isinstance(head, dict) or not isinstance(base, dict):
-        raise RetrievalHardeningError("pull request refs must be objects")
-    head_sha = legacy._string(head.get("sha"), label="head SHA").lower()
-    base_sha = legacy._string(base.get("sha"), label="base SHA").lower()
-    if not legacy.re_full_sha(head_sha) or not legacy.re_full_sha(base_sha):
-        raise RetrievalHardeningError(
-            "pull request refs must be full lowercase SHAs"
-        )
-    if legacy._string(base.get("ref"), label="base ref") != "main":
-        raise RetrievalHardeningError(
-            "retrieval only accepts pull requests targeting main"
-        )
+    stage = "pull-api"
+    try:
+        pull = api.pull(repository, pull_number)
+        stage = "pull-validate"
+        if pull.get("state") != "open":
+            raise RetrievalHardeningError(
+                "retrieval only accepts open pull requests"
+            )
+        head = pull.get("head")
+        base = pull.get("base")
+        if not isinstance(head, dict) or not isinstance(base, dict):
+            raise RetrievalHardeningError("pull request refs must be objects")
+        head_sha = legacy._string(head.get("sha"), label="head SHA").lower()
+        base_sha = legacy._string(base.get("sha"), label="base SHA").lower()
+        if not legacy.re_full_sha(head_sha) or not legacy.re_full_sha(base_sha):
+            raise RetrievalHardeningError(
+                "pull request refs must be full lowercase SHAs"
+            )
+        if legacy._string(base.get("ref"), label="base ref") != "main":
+            raise RetrievalHardeningError(
+                "retrieval only accepts pull requests targeting main"
+            )
 
-    raw_files = api.files(repository, pull_number)
-    filenames = sorted(
-        {
-            raw["filename"]
-            for raw in raw_files
-            if isinstance(raw, dict) and isinstance(raw.get("filename"), str)
-        }
-    )
-    skip_reason = legacy._skip_reason(pull, filenames)
-    result = _base_result(
-        repository=repository,
-        pull_number=pull_number,
-        head_sha=head_sha,
-        base_sha=base_sha,
-        run_id=run_id,
-        run_attempt=run_attempt,
-        run_url=run_url,
-        skip_reason=skip_reason,
-    )
-    if skip_reason:
-        return result
-
-    repository_payload = api.repository(repository)
-    repository_visibility = legacy._string(
-        repository_payload.get("visibility"),
-        label="repository visibility",
-        default="unknown",
-    )
-    documents, accepted_count, withheld_count, rejected = (
-        legacy._load_documents(
-            api,
-            repository=repository,
-            base_sha=base_sha,
-            repository_visibility=repository_visibility,
+        stage = "files-api"
+        raw_files = api.files(repository, pull_number)
+        filenames = sorted(
+            {
+                raw["filename"]
+                for raw in raw_files
+                if isinstance(raw, dict) and isinstance(raw.get("filename"), str)
+            }
         )
-    )
-    query = core.build_query_weights(
-        title=legacy._string(pull.get("title"), label="pull title"),
-        body=legacy._string(
-            pull.get("body"), label="pull body", default=""
-        ),
-        filenames=filenames,
-    )
-    matches = core.retrieve(query, documents)
-    body = render_privacy_safe_comment(
-        repository=repository,
-        repository_visibility=repository_visibility,
-        pull_number=pull_number,
-        head_sha=head_sha,
-        base_sha=base_sha,
-        matches=matches,
-        accepted_count=accepted_count,
-        withheld_count=withheld_count,
-        rejected_count=len(rejected),
-    )
-    comment_action, comment_id, duplicate_count = (
-        reconcile_managed_comment(
-            api,
+        skip_reason = legacy._skip_reason(pull, filenames)
+        result = _base_result(
             repository=repository,
             pull_number=pull_number,
-            body=body,
+            head_sha=head_sha,
+            base_sha=base_sha,
+            run_id=run_id,
+            run_attempt=run_attempt,
+            run_url=run_url,
+            skip_reason=skip_reason,
         )
-    )
-    result.update(
-        {
-            "outcome": "COMMENT_UPSERTED",
-            "accepted_count": accepted_count,
-            "publishable_count": len(documents),
-            "withheld_count": withheld_count,
-            "rejected_count": len(rejected),
-            "rejected": rejected[:20],
-            "selected": [
-                {
-                    "path": match.document.path,
-                    "pack_id": match.document.pack_id,
-                    "source_commit": match.document.source_commit,
-                    "score": match.score,
-                    "matched_terms": list(match.matched_terms),
-                }
-                for match in matches
-            ],
-            "comment_action": comment_action,
-            "comment_id": comment_id,
-            "duplicate_managed_comments": duplicate_count,
-        }
-    )
-    if repository_visibility != "private":
-        _redact_non_private_evidence(result)
-    return result
+        if skip_reason:
+            return result
+
+        stage = "repository-api"
+        repository_payload = api.repository(repository)
+        repository_visibility = legacy._string(
+            repository_payload.get("visibility"),
+            label="repository visibility",
+            default="unknown",
+        )
+        stage = "corpus-load"
+        documents, accepted_count, withheld_count, rejected = (
+            legacy._load_documents(
+                api,
+                repository=repository,
+                base_sha=base_sha,
+                repository_visibility=repository_visibility,
+            )
+        )
+        stage = "query-rank"
+        query = core.build_query_weights(
+            title=legacy._string(pull.get("title"), label="pull title"),
+            body=legacy._string(
+                pull.get("body"), label="pull body", default=""
+            ),
+            filenames=filenames,
+        )
+        matches = core.retrieve(query, documents)
+        stage = "comment-render"
+        body = render_privacy_safe_comment(
+            repository=repository,
+            repository_visibility=repository_visibility,
+            pull_number=pull_number,
+            head_sha=head_sha,
+            base_sha=base_sha,
+            matches=matches,
+            accepted_count=accepted_count,
+            withheld_count=withheld_count,
+            rejected_count=len(rejected),
+        )
+        stage = "comment-list"
+        comment_action, comment_id, duplicate_count = (
+            reconcile_managed_comment(
+                api,
+                repository=repository,
+                pull_number=pull_number,
+                body=body,
+            )
+        )
+        result.update(
+            {
+                "outcome": "COMMENT_UPSERTED",
+                "accepted_count": accepted_count,
+                "publishable_count": len(documents),
+                "withheld_count": withheld_count,
+                "rejected_count": len(rejected),
+                "rejected": rejected[:20],
+                "selected": [
+                    {
+                        "path": match.document.path,
+                        "pack_id": match.document.pack_id,
+                        "source_commit": match.document.source_commit,
+                        "score": match.score,
+                        "matched_terms": list(match.matched_terms),
+                    }
+                    for match in matches
+                ],
+                "comment_action": comment_action,
+                "comment_id": comment_id,
+                "duplicate_managed_comments": duplicate_count,
+            }
+        )
+        if repository_visibility != "private":
+            _redact_non_private_evidence(result)
+        return result
+    except Exception as exc:
+        mark_failure_stage(exc, stage)
+        raise
