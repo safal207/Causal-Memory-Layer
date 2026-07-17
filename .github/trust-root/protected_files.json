@@ -2,7 +2,7 @@
   "files": {
     ".bandit": "5568293d2e15266a57eb51cc81b0bef223c2b269",
     ".github/trust-root/scripts/memory_learning_core.py": "106c8ce7638bdc1c07d5ed36e6ef38d90895702c",
-    ".github/trust-root/scripts/memory_learning_github.py": "d542ee1308fe15d39532a4c2841a7792ba1beb16",
+    ".github/trust-root/scripts/memory_learning_github.py": "d4d679ef1956e7ab072d95e496152675f2f298df",
     ".github/trust-root/scripts/memory_learning_loop.py": "d88ece85c0d5a6cc0c9be287b0117b8335ea565c",
     ".github/trust-root/scripts/reviewer_fallback.py": "e17b2fb720cc46f91e82ab0482486091b456bc9e",
     ".github/trust-root/scripts/reviewer_fallback_entrypoint.py": "0cdf6a3f43724d8754361ad46fc996d98ef4b8b6",
