@@ -15,7 +15,7 @@ permissions: {}
 
 concurrency:
   group: cml-memory-learning-${{ github.repository }}-${{ github.event.pull_request.number || inputs.pull_number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   propose:
