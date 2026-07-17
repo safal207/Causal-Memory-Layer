@@ -42,7 +42,9 @@ class GitHubApi:
         payload: Mapping[str, Any] | None = None,
         expected: Sequence[int] = (200,),
     ) -> tuple[int, bytes]:
-        data = None if payload is None else core.compact_json(payload).encode("utf-8")
+        data = None
+        if payload is not None:
+            data = core.compact_json(payload).encode("utf-8")
         request = Request(
             f"{self.api_url}{path}",
             data=data,
@@ -83,7 +85,9 @@ class GitHubApi:
         if not body:
             return None
         try:
-            return json.loads(body.decode("utf-8"), object_pairs_hook=_unique_object)
+            return json.loads(
+                body.decode("utf-8"), object_pairs_hook=_unique_object
+            )
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise core.LearningLoopError(
                 f"GitHub API returned invalid JSON for {method} {path}"
@@ -93,10 +97,18 @@ class GitHubApi:
         items: list[Any] = []
         separator = "&" if "?" in path else "?"
         for page in range(1, 11):
-            payload = self.json("GET", f"{path}{separator}per_page=100&page={page}")
-            page_items = payload.get(item_key) if item_key and isinstance(payload, dict) else payload
+            payload = self.json(
+                "GET", f"{path}{separator}per_page=100&page={page}"
+            )
+            page_items = (
+                payload.get(item_key)
+                if item_key and isinstance(payload, dict)
+                else payload
+            )
             if not isinstance(page_items, list):
-                raise core.LearningLoopError(f"invalid paginated response: {path}")
+                raise core.LearningLoopError(
+                    f"invalid paginated response: {path}"
+                )
             items.extend(page_items)
             if len(page_items) < 100:
                 return items
@@ -129,7 +141,9 @@ class GitHubApi:
         if status == 404:
             return None
         return core.mapping(
-            json.loads(body.decode("utf-8"), object_pairs_hook=_unique_object),
+            json.loads(
+                body.decode("utf-8"), object_pairs_hook=_unique_object
+            ),
             label="ref response",
         )
 
@@ -141,28 +155,37 @@ class GitHubApi:
             expected=(201,),
         )
 
-    def content(self, repository: str, path: str, ref: str) -> dict[str, Any] | None:
+    def content(
+        self, repository: str, path: str, ref: str
+    ) -> dict[str, Any] | None:
         status, body = self.request(
             "GET",
-            f"/repos/{repository}/contents/{quote(path, safe='/')}?ref={quote(ref, safe='')}",
+            f"/repos/{repository}/contents/{quote(path, safe='/')}"
+            f"?ref={quote(ref, safe='')}",
             expected=(200, 404),
         )
         if status == 404:
             return None
         return core.mapping(
-            json.loads(body.decode("utf-8"), object_pairs_hook=_unique_object),
+            json.loads(
+                body.decode("utf-8"), object_pairs_hook=_unique_object
+            ),
             label="content response",
         )
 
     def content_text(self, payload: Mapping[str, Any]) -> str:
         encoded = payload.get("content")
         if not isinstance(encoded, str) or payload.get("encoding") != "base64":
-            raise core.LearningLoopError("existing generated content is not base64")
+            raise core.LearningLoopError(
+                "existing generated content is not base64"
+            )
         normalized = "".join(encoded.split())
         try:
             return base64.b64decode(normalized, validate=True).decode("utf-8")
         except (ValueError, UnicodeDecodeError) as exc:
-            raise core.LearningLoopError("existing generated content is invalid") from exc
+            raise core.LearningLoopError(
+                "existing generated content is invalid"
+            ) from exc
 
     def create_content(
         self,
@@ -179,16 +202,21 @@ class GitHubApi:
             payload={
                 "message": message,
                 "branch": branch,
-                "content": base64.b64encode(text.encode("utf-8")).decode("ascii"),
+                "content": base64.b64encode(text.encode("utf-8")).decode(
+                    "ascii"
+                ),
             },
             expected=(201,),
         )
 
-    def proposal(self, repository: str, branch: str) -> dict[str, Any] | None:
+    def proposal(
+        self, repository: str, branch: str
+    ) -> dict[str, Any] | None:
         owner = repository.split("/", 1)[0]
         payload = self.json(
             "GET",
-            f"/repos/{repository}/pulls?state=all&head={quote(owner + ':' + branch, safe=':')}",
+            f"/repos/{repository}/pulls?state=all&head="
+            f"{quote(owner + ':' + branch, safe=':')}",
         )
         values = [
             core.mapping(item, label="proposal")
@@ -196,7 +224,10 @@ class GitHubApi:
         ]
         if not values:
             return None
-        return next((item for item in values if item.get("state") == "open"), values[0])
+        return next(
+            (item for item in values if item.get("state") == "open"),
+            values[0],
+        )
 
     def create_pull(
         self,
@@ -234,7 +265,12 @@ class GitHubApi:
 
 
 def evidence_template(
-    *, repository: str, number: int, run_id: int, run_attempt: int, run_url: str
+    *,
+    repository: str,
+    number: int,
+    run_id: int,
+    run_attempt: int,
+    run_url: str,
 ) -> dict[str, Any]:
     return {
         "schema_version": "cml-learning-loop-evidence-v1",
@@ -259,6 +295,42 @@ def evidence_template(
     }
 
 
+def _render_pack(pack: Mapping[str, Any]) -> str:
+    return json.dumps(
+        pack, indent=2, sort_keys=True, ensure_ascii=False
+    ) + "\n"
+
+
+def _verify_open_proposal(
+    api: GitHubApi,
+    *,
+    repository: str,
+    proposal: Mapping[str, Any],
+    branch: str,
+    memory_path: str,
+    rendered: str,
+) -> int:
+    proposal_number = core.positive_int(
+        proposal.get("number"), label="proposal pull number"
+    )
+    proposal_content = api.content(repository, memory_path, branch)
+    if (
+        proposal_content is None
+        or api.content_text(proposal_content) != rendered
+    ):
+        raise core.LearningLoopError(
+            "open generated proposal does not contain the exact expected memory pack"
+        )
+    proposal_files = core.normalize_files(
+        api.files(repository, proposal_number)
+    )
+    if [item["filename"] for item in proposal_files] != [memory_path]:
+        raise core.LearningLoopError(
+            "open generated proposal contains unexpected changed files"
+        )
+    return proposal_number
+
+
 def propose(
     *,
     api: GitHubApi,
@@ -271,34 +343,42 @@ def propose(
     pull = api.pull(repository, pull_number)
     if pull.get("merged") is not True:
         raise core.LearningLoopError("pull request is not merged")
-    files = core.normalize_files(api.files(repository, pull_number))
-    evidence = evidence_template(
+
+    source_files = api.files(repository, pull_number)
+    normalized_files = core.normalize_files(source_files)
+    result = evidence_template(
         repository=repository,
         number=pull_number,
         run_id=run_id,
         run_attempt=run_attempt,
         run_url=run_url,
     )
-    skip_reason = core.should_skip(pull, files)
+    skip_reason = core.should_skip(pull, normalized_files)
     if skip_reason:
-        evidence.update({"outcome": "NOOP", "skip_reason": skip_reason})
-        return evidence
+        result.update({"outcome": "NOOP", "skip_reason": skip_reason})
+        return result
 
     head = core.mapping(pull.get("head"), label="pull request head")
-    head_sha = core.full_sha(head.get("sha"), label="pull request head SHA")
+    head_sha = core.full_sha(
+        head.get("sha"), label="pull request head SHA"
+    )
     pack = core.build_memory_pack(
         repository=repository,
         pull=pull,
-        files=files,
-        reviews=core.normalize_reviews(api.reviews(repository, pull_number)),
-        check_runs=core.normalize_checks(api.checks(repository, head_sha)),
+        files=source_files,
+        reviews=api.reviews(repository, pull_number),
+        check_runs=api.checks(repository, head_sha),
     )
-    merge_sha = core.full_sha(pull.get("merge_commit_sha"), label="merge commit SHA")
+    merge_sha = core.full_sha(
+        pull.get("merge_commit_sha"), label="merge commit SHA"
+    )
     short_sha = merge_sha[:12]
-    memory_path = f"{core.GENERATED_ROOT}/pr-{pull_number}-{short_sha}.json"
+    memory_path = (
+        f"{core.GENERATED_ROOT}/pr-{pull_number}-{short_sha}.json"
+    )
     branch = f"{core.GENERATED_BRANCH_PREFIX}pr-{pull_number}-{short_sha}"
-    rendered = json.dumps(pack, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
-    evidence.update(
+    rendered = _render_pack(pack)
+    result.update(
         {
             "memory_path": memory_path,
             "memory_pack_id": pack["pack_id"],
@@ -307,8 +387,8 @@ def propose(
     )
 
     if api.content(repository, memory_path, "main") is not None:
-        evidence["outcome"] = "ALREADY_ACCEPTED_NOOP"
-        return evidence
+        result["outcome"] = "ALREADY_ACCEPTED_NOOP"
+        return result
 
     existing_proposal = api.proposal(repository, branch)
     if existing_proposal is not None:
@@ -316,7 +396,7 @@ def propose(
         proposal_number = core.positive_int(
             existing_proposal.get("number"), label="proposal pull number"
         )
-        evidence.update(
+        result.update(
             {
                 "outcome": "PROPOSAL_ALREADY_OPEN_NOOP"
                 if state == "open"
@@ -326,32 +406,37 @@ def propose(
             }
         )
         if state == "open":
-            proposal_content = api.content(repository, memory_path, branch)
-            if proposal_content is None or api.content_text(proposal_content) != rendered:
-                raise core.LearningLoopError(
-                    "open generated proposal does not contain the exact expected memory pack"
-                )
-            proposal_files = core.normalize_files(api.files(repository, proposal_number))
-            if [item["filename"] for item in proposal_files] != [memory_path]:
-                raise core.LearningLoopError(
-                    "open generated proposal contains unexpected changed files"
-                )
+            _verify_open_proposal(
+                api,
+                repository=repository,
+                proposal=existing_proposal,
+                branch=branch,
+                memory_path=memory_path,
+                rendered=rendered,
+            )
             api.dispatch_validation(repository, branch)
-            evidence["validation_dispatched"] = True
-        return evidence
+            result["validation_dispatched"] = True
+        return result
 
     branch_ref = api.ref(repository, branch)
-    branch_content = api.content(repository, memory_path, branch) if branch_ref else None
+    branch_content = (
+        api.content(repository, memory_path, branch) if branch_ref else None
+    )
     if branch_ref is None:
         api.create_ref(repository, branch, merge_sha)
     elif branch_content is None:
-        ref_object = core.mapping(branch_ref.get("object"), label="branch ref object")
+        ref_object = core.mapping(
+            branch_ref.get("object"), label="branch ref object"
+        )
         if ref_object.get("sha") != merge_sha:
             raise core.LearningLoopError(
-                "generated branch exists at an unexpected commit without the expected pack"
+                "generated branch exists at an unexpected commit without "
+                "the expected pack"
             )
     elif api.content_text(branch_content) != rendered:
-        raise core.LearningLoopError("generated branch contains a different memory proposal")
+        raise core.LearningLoopError(
+            "generated branch contains a different memory proposal"
+        )
 
     if branch_content is None:
         api.create_content(
@@ -377,12 +462,13 @@ def propose(
             "- contains private data: `true`\n"
             "- merge authority: `false`\n"
             "- execution authority: `false`\n\n"
-            "The generated lesson has `status=proposed`. Merging this draft accepts the "
-            "memory; closing it rejects the proposal. This PR is excluded from recursion."
+            "The generated lesson has `status=proposed`. Merging this draft "
+            "accepts the memory; closing it rejects the proposal. This PR is "
+            "excluded from recursion."
         ),
     )
     api.dispatch_validation(repository, branch)
-    evidence.update(
+    result.update(
         {
             "outcome": "PROPOSAL_CREATED",
             "proposal_pull_number": proposal.get("number"),
@@ -390,4 +476,4 @@ def propose(
             "validation_dispatched": True,
         }
     )
-    return evidence
+    return result
