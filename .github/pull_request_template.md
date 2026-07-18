@@ -21,6 +21,20 @@ Explain the causal-validity, operator, reviewer, privacy, or safety value.
 - [ ] I updated tests, examples, or evidence when semantics changed.
 - [ ] I kept the change bounded and stated any incomplete evidence.
 
+**Exact PR head SHA validated:**
+
+<!-- Paste the full 40-character PR head SHA covered by the evidence below. -->
+
+**Validation command:**
+
+```text
+
+```
+
+- [ ] Validation was run or rerun after the most recent head change.
+
+> Evidence becomes stale and must not support acceptance when the PR head changes. Rerun validation and update the exact SHA before review or merge.
+
 ## Lotus memory check 🌸
 
 > **Does this memory help us understand the cause without taking choice away from the person?**
@@ -39,4 +53,4 @@ Describe any schema, API, CLI, privacy, or backward-compatibility impact. State 
 
 ## Screenshots or evidence
 
-Add relevant output, evidence snapshots, or before/after examples when useful.
+Add relevant output, evidence snapshots, or before/after examples that apply to the exact PR head SHA recorded above.
