@@ -60,3 +60,15 @@ def test_english_and_russian_contracts_keep_core_acceptance_boundaries() -> None
     )
     for term in russian_terms:
         assert term in russian
+
+
+def test_english_and_russian_contracts_keep_the_no_authority_boundary() -> None:
+    text = LOTUS.read_text(encoding="utf-8")
+    english, russian = text.split("# Слой Лотоса CML", maxsplit=1)
+
+    assert "has no ownership, approval, execution, delivery, or merge authority" in english
+    assert "не имеет права собственности" in russian
+    assert "одобрения" in russian
+    assert "исполнения" in russian
+    assert "доставки или merge" in russian
+    assert "не скрытый policy engine" in russian
