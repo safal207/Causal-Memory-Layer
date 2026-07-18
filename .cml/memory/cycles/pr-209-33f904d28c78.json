@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #209.",
+      "digest": "bcdcafb3bd648d1ba47b3d375b036d3e0bd273d01f4161b5e75990f5fdd3c8e0",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/6c9c968170bab69853d7b7ca8f20191f776d618c/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #209.",
+      "digest": "ba835b263ab7159932bc2efdc6beaa30bcb41a880fb5ea0ae822fe9c67827bfe",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/209/files"
+    },
+    {
+      "description": "Merge commit for pull request #209.",
+      "digest": "151f7a45bb09f6c6e62b92f272202221940de88f48139310f69121a4cf47ecca",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:33f904d28c78a560aaab3b0be4f6fd501f22116d"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #209.",
+      "digest": "1acb7861f076f4b00c8a7553b554f80b6ad81be636b2e125846cee91b4b739c4",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/209"
+    },
+    {
+      "description": "Normalized review snapshot for #209 without review bodies.",
+      "digest": "b3737ea9d8fe4f25e031039841c03e4584b9b3a7bcfeaa1e9cc617fdfc989a76",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/209/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 6,
+          "head_sha": "6c9c968170bab69853d7b7ca8f20191f776d618c",
+          "source": "explicit-pr-section"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "- adds root `LOTUS.md` as the visible repository entry point; - adds `docs/assets/lotus.svg`, sharing the Lotus family identity with LS while describing CML-specific causal memory; - adds `docs/LOTUS.md` with seven memory principles in English and Russian; - adds a CML-specific pull-request template with a concrete Lotus memory check; - updates `docs/START_HERE.md` so contributors encounter the principles during onboarding; - adds `tests/test_lotus_docs_contract.py` to lock exact-head evidence,…",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 3
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #209 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "The Lotus Layer is not a runtime component, policy engine, approval mechanism, or autonomous actor. It grants no ownership, approval, execution, delivery, or merge authority. The pull-request prompt is reflective evidence for human review, not an automatic gate or substitute for tests and causal evidence.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #209: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "33f904d28c78a560aaab3b0be4f6fd501f22116d",
+          "merged_at": "2026-07-18T03:44:20.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #209 merged into main as 33f904d28c78a560aaab3b0be4f6fd501f22116d",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 209,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Introduces the CML Lotus Layer as a human-readable memory-governance layer for the repository. **Final exact head:** `6c9c968170bab69853d7b7ca8f20191f776d618c`",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-18T03:44:20.000Z",
+    "description": "Automatically proposed decision memory for merged PR #209; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "33f904d28c78a560aaab3b0be4f6fd501f22116d",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "06a67faef5d275dc7b3e276ba0f3d84a47af1bc488ff3379a03a9f025d7d838c",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
