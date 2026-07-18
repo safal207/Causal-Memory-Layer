@@ -28,7 +28,7 @@ def test_tradernet_lotus_memory_pack_is_canonical_and_advisory() -> None:
         pack.redactions,
     )
     assert pack.pack_id == (
-        "55949e3749460ead7c4f6afe9434e46443ec6807c208d2359aa6ac7cc47ca086"
+        "f5bac00f1be20c9ca5717236b0e5d0b2c433bc8ff780101736fa267e1c097609"
     )
     assert pack.manifest.contains_private_data is False
     assert pack.manifest.execution_authority is False
