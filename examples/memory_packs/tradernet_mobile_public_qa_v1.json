@@ -1,0 +1,221 @@
+{
+  "schema_version": "cml-memory-pack-v1",
+  "pack_id": "55949e3749460ead7c4f6afe9434e46443ec6807c208d2359aa6ac7cc47ca086",
+  "manifest": {
+    "project": "Tradernet Lotus public QA memory",
+    "source_repository": "https://github.com/safal207/pythiaLabs",
+    "source_commit": "aa169a3a897a61bb578816ea9e8fb3e374405b34",
+    "created_at": "2026-07-18T22:55:00.000Z",
+    "visibility": "public",
+    "license": "MIT",
+    "contains_private_data": false,
+    "merge_authority": false,
+    "execution_authority": false,
+    "description": "Public causal memory linking confirmed Tradernet mobile-web findings while preserving the unproven shared-branch hypothesis."
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "action-test-mobile-branch",
+        "kind": "action",
+        "label": "Run controlled device-routing and responsive-resource experiments before claiming one shared root cause",
+        "status": "proposed",
+        "confidence": 95,
+        "attributes": {
+          "external_authority": false,
+          "scope": "public passive browser experiments"
+        }
+      },
+      {
+        "id": "cause-mobile-device-branch",
+        "kind": "cause",
+        "label": "A shared device-routing or responsive-resource branch may contribute to repeated mobile-only defects",
+        "status": "proposed",
+        "confidence": 75,
+        "attributes": {
+          "causal_identity": "unproven",
+          "must_not_be_reported_as_fact": true
+        }
+      },
+      {
+        "id": "check-preserve-unknowns",
+        "kind": "check",
+        "label": "Keep live quotes, render-context errors, minute labels, and single-run chart latency outside confirmed findings",
+        "status": "verified",
+        "confidence": 100,
+        "attributes": {
+          "judgment": "ESCALATE",
+          "security_claim": false
+        }
+      },
+      {
+        "id": "lesson-bounded-mobile-cluster",
+        "kind": "lesson",
+        "label": "Repeated mobile-only defects justify a bounded cluster investigation, not automatic root-cause certainty",
+        "status": "verified",
+        "confidence": 100,
+        "attributes": {
+          "human_review_required": true
+        }
+      },
+      {
+        "id": "outcome-confirmed-findings",
+        "kind": "outcome",
+        "label": "Four public-web findings are sufficiently supported for separate human-reviewed reports",
+        "status": "verified",
+        "confidence": 100,
+        "attributes": {
+          "finding_ids": [
+            "mobile-chart-user-agent-404",
+            "mobile-hero-late-discovery",
+            "terminal-hidden-mobile-asset",
+            "terminal-missing-onboarding-asset"
+          ]
+        }
+      },
+      {
+        "id": "situation-repeated-mobile-defects",
+        "kind": "situation",
+        "label": "Independent audits found mobile chart routing failure, late mobile hero discovery, and a hidden mobile terminal asset",
+        "status": "observed",
+        "confidence": 100,
+        "attributes": {
+          "evidence_prs": [
+            54,
+            58,
+            60
+          ],
+          "platform": "Tradernet"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-action-check",
+        "source": "action-test-mobile-branch",
+        "target": "check-preserve-unknowns",
+        "relation": "requires",
+        "strength": 100,
+        "evidence_ids": [
+          "e-pythia-judgment"
+        ]
+      },
+      {
+        "id": "edge-cause-action",
+        "source": "cause-mobile-device-branch",
+        "target": "action-test-mobile-branch",
+        "relation": "leads_to",
+        "strength": 90,
+        "evidence_ids": [
+          "e-pythia-judgment"
+        ]
+      },
+      {
+        "id": "edge-check-lesson",
+        "source": "check-preserve-unknowns",
+        "target": "lesson-bounded-mobile-cluster",
+        "relation": "leads_to",
+        "strength": 100,
+        "evidence_ids": [
+          "e-pythia-judgment"
+        ]
+      },
+      {
+        "id": "edge-outcome-lesson",
+        "source": "outcome-confirmed-findings",
+        "target": "lesson-bounded-mobile-cluster",
+        "relation": "supports",
+        "strength": 95,
+        "evidence_ids": [
+          "e-pythia-judgment"
+        ]
+      },
+      {
+        "id": "edge-situation-cause",
+        "source": "situation-repeated-mobile-defects",
+        "target": "cause-mobile-device-branch",
+        "relation": "supports",
+        "strength": 75,
+        "evidence_ids": [
+          "e-hidden-asset",
+          "e-hero-preload",
+          "e-mobile-route"
+        ]
+      },
+      {
+        "id": "edge-situation-outcome",
+        "source": "situation-repeated-mobile-defects",
+        "target": "outcome-confirmed-findings",
+        "relation": "leads_to",
+        "strength": 100,
+        "evidence_ids": [
+          "e-hidden-asset",
+          "e-hero-preload",
+          "e-mobile-route",
+          "e-terminal-loading"
+        ]
+      }
+    ],
+    "selected_path": [
+      "situation-repeated-mobile-defects",
+      "cause-mobile-device-branch",
+      "action-test-mobile-branch",
+      "check-preserve-unknowns",
+      "lesson-bounded-mobile-cluster"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "e-cross-domain",
+      "kind": "artifact",
+      "digest": "a950e15191d2486839a75674082cf5fe9985a76d01cc6834bcf3ee4427f72b68",
+      "locator": "github-actions:29661088488",
+      "description": "Tradernet six-surface portfolio evidence showing recurring shared frontend debt."
+    },
+    {
+      "id": "e-hero-preload",
+      "kind": "artifact",
+      "digest": "1b13ec0135eacbf2ac622963e616f06b0cd608a4723fe5788bdb56bb1bc327ec",
+      "locator": "github-actions:29661704633",
+      "description": "Alternating mobile baseline/preload experiment supporting a 3764 ms median LCP improvement."
+    },
+    {
+      "id": "e-hidden-asset",
+      "kind": "artifact",
+      "digest": "7a5ff63a0b9a79ddbe37535046dbfbc6d581a9df9a1b7a54aef82b5521a194c1",
+      "locator": "github-actions:29663762367",
+      "description": "Mobile terminal visibility probe proving the downloaded 2x image renders at 0x0."
+    },
+    {
+      "id": "e-mobile-route",
+      "kind": "artifact",
+      "digest": "223d10431960d0ca5fe181fbf22fe238e408ff72188ddb8daaca2d7e67d71395",
+      "locator": "github-actions:29662815487",
+      "description": "Four-way user-agent and viewport matrix isolating the mobile chart 404 to user-agent routing."
+    },
+    {
+      "id": "e-pythia-judgment",
+      "kind": "document",
+      "digest": "8aa933cd153a4805a1e2d930b8a7afe2ebb40aa68f52ecd76032a0af64372651",
+      "locator": "github:safal207/pythiaLabs@aa169a3a897a61bb578816ea9e8fb3e374405b34/examples/lotus-cases/tradernet-public-web-judgment-v1.json",
+      "description": "Pythia audit-only ESCALATE packet separating confirmed findings, passes, hypotheses, and unknowns."
+    },
+    {
+      "id": "e-terminal-loading",
+      "kind": "artifact",
+      "digest": "19fe1f0515fac24a2c45bb93ec39058d14fe14698478a417af507d1d9729b570",
+      "locator": "github-actions:29663675619",
+      "description": "Desktop/mobile public terminal loading evidence including the missing first-party asset."
+    }
+  ],
+  "redactions": [
+    {
+      "path": "evidence[*].raw_payload",
+      "reason": "Raw browser traces and screenshots remain in bounded workflow artifacts and are not duplicated in this portable public pack."
+    },
+    {
+      "path": "graph.nodes[*].attributes.private_notes",
+      "reason": "No private operator notes are included in the public projection."
+    }
+  ]
+}
