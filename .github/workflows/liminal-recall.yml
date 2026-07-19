@@ -1,0 +1,33 @@
+name: Liminal Recall Hackathon
+
+on:
+  pull_request:
+    paths:
+      - "hackathons/liminal-recall/**"
+      - ".github/workflows/liminal-recall.yml"
+  push:
+    branches: [main]
+    paths:
+      - "hackathons/liminal-recall/**"
+      - ".github/workflows/liminal-recall.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: hackathons/liminal-recall
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: hackathons/liminal-recall/requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - run: python -m py_compile app/*.py
