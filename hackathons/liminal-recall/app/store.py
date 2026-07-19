@@ -2,11 +2,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from typing import Protocol
-
-import psycopg
-from psycopg.rows import dict_row
-from psycopg.types.json import Jsonb
+from typing import Any, Protocol
 
 from .models import MemoryCreate, MemoryRecord
 
@@ -27,7 +23,13 @@ class CockroachMemoryStore:
     def from_env(cls) -> "CockroachMemoryStore":
         return cls(os.environ.get("DATABASE_URL", ""))
 
-    def _connect(self) -> psycopg.Connection:
+    def _connect(self) -> Any:
+        # Import the database driver only when a live CockroachDB connection is used.
+        # This keeps the pure decision engine testable inside CML's protected CI
+        # without changing the parent package dependency contract.
+        import psycopg
+        from psycopg.rows import dict_row
+
         return psycopg.connect(
             self.database_url,
             row_factory=dict_row,
@@ -36,6 +38,8 @@ class CockroachMemoryStore:
         )
 
     def create_memory(self, memory: MemoryCreate) -> MemoryRecord:
+        from psycopg.types.json import Jsonb
+
         memory_id = str(uuid.uuid4())
         with self._connect() as conn:
             if memory.parent_memory_id is not None:
@@ -88,7 +92,7 @@ class CockroachMemoryStore:
         return [_to_record(row) for row in rows]
 
 
-def _to_record(row: dict) -> MemoryRecord:
+def _to_record(row: dict[str, Any]) -> MemoryRecord:
     return MemoryRecord(
         id=str(row["id"]),
         session_id=str(row["session_id"]),
