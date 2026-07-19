@@ -1,0 +1,41 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Liminal Recall - CockroachDB-backed agent memory on AWS Lambda
+
+Parameters:
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: CockroachDB connection string
+
+Resources:
+  LiminalRecallFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: app.handler.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - GET
+            - POST
+          AllowHeaders:
+            - content-type
+
+Outputs:
+  FunctionUrl:
+    Description: Public Liminal Recall demo endpoint
+    Value: !GetAtt LiminalRecallFunctionUrl.FunctionUrl
