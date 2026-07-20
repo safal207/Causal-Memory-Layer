@@ -1,0 +1,149 @@
+{
+  "schema_version": "cml-memory-pack-v1",
+  "pack_id": "d9b886e7b4985dd9c4932232a69a5bfb5caaf70f597051a87dd93357560c4654",
+  "manifest": {
+    "project": "Tradernet product funnel audit memory",
+    "source_repository": "https://github.com/safal207/pythiaLabs",
+    "source_commit": "323705b4f7a8ecca3c5a475e2504f2c41e231188",
+    "created_at": "2026-07-20T21:20:00.000Z",
+    "visibility": "public",
+    "license": "MIT",
+    "contains_private_data": false,
+    "merge_authority": false,
+    "execution_authority": false,
+    "description": "Public causal memory preserving confirmed Tradernet findings separately from authenticated product hypotheses and bounded funnel experiments."
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "action-run-authenticated-validation",
+        "kind": "action",
+        "label": "Run the authorised desktop and mobile validation matrix before claiming order, KYC, cancellation, protection, or recovery defects",
+        "status": "proposed",
+        "confidence": 100,
+        "attributes": {
+          "account_authority_required": true,
+          "bounded_experiments": [
+            "intent-segmented-entry",
+            "demo-first-activation",
+            "mobile-task-cards",
+            "complete-order-preview"
+          ],
+          "external_submission": false
+        }
+      },
+      {
+        "id": "constraint-authenticated-journeys-unproven",
+        "kind": "constraint",
+        "label": "Authenticated order, KYC, funding, cancellation, protection, and mobile recovery journeys remain unproven",
+        "status": "verified",
+        "confidence": 100,
+        "attributes": {
+          "defect_claim_allowed": false,
+          "required_labels": [
+            "HYPOTHESIS",
+            "NEEDS_AUTHENTICATED_EVIDENCE",
+            "UNKNOWN"
+          ],
+          "source_judgment": "ESCALATE"
+        }
+      },
+      {
+        "id": "lesson-product-memory-without-overclaim",
+        "kind": "lesson",
+        "label": "Preserve strong product recommendations without converting them into defects before exact-build evidence exists",
+        "status": "verified",
+        "confidence": 100,
+        "attributes": {
+          "clickfunnels_role": "pattern_reference_only",
+          "false_urgency": false,
+          "human_review_required": true,
+          "pressure_to_trade": false
+        }
+      },
+      {
+        "id": "situation-evidence-separated-product-audit",
+        "kind": "situation",
+        "label": "LiminalQA and Pythia produced a Tradernet product audit separating four confirmed public findings from authenticated hypotheses",
+        "status": "observed",
+        "confidence": 100,
+        "attributes": {
+          "confirmed_findings": [
+            "mobile-chart-user-agent-404",
+            "mobile-hero-late-discovery",
+            "terminal-hidden-mobile-asset",
+            "terminal-missing-onboarding-asset"
+          ],
+          "liminalqa_pr": 102,
+          "pythia_pr": 238
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-action-lesson",
+        "source": "action-run-authenticated-validation",
+        "target": "lesson-product-memory-without-overclaim",
+        "relation": "leads_to",
+        "strength": 100,
+        "evidence_ids": [
+          "e-liminalqa-product-audit",
+          "e-pythia-product-judgment"
+        ]
+      },
+      {
+        "id": "edge-constraint-action",
+        "source": "constraint-authenticated-journeys-unproven",
+        "target": "action-run-authenticated-validation",
+        "relation": "requires",
+        "strength": 100,
+        "evidence_ids": [
+          "e-pythia-product-judgment"
+        ]
+      },
+      {
+        "id": "edge-situation-constraint",
+        "source": "situation-evidence-separated-product-audit",
+        "target": "constraint-authenticated-journeys-unproven",
+        "relation": "supports",
+        "strength": 100,
+        "evidence_ids": [
+          "e-liminalqa-product-audit",
+          "e-pythia-product-judgment"
+        ]
+      }
+    ],
+    "selected_path": [
+      "situation-evidence-separated-product-audit",
+      "constraint-authenticated-journeys-unproven",
+      "action-run-authenticated-validation",
+      "lesson-product-memory-without-overclaim"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "e-liminalqa-product-audit",
+      "kind": "document",
+      "digest": "e408a1dd3827d378fcc7750f1b46175880f0a3f9a2b7a6afa0958ac18450ec31",
+      "locator": "github:safal207/LiminalQAengineer@d14d0e0cf434000c10609dc8627c288df5306df6/audits/tradernet/product-funnel-audit-v1.json",
+      "description": "SHA-256 of the canonical locator string for the exact LiminalQA product-funnel audit document."
+    },
+    {
+      "id": "e-pythia-product-judgment",
+      "kind": "document",
+      "digest": "fbfe64097894703ff780090bad7f703c46149eef306c5444ab60e4ac5ee3b907",
+      "locator": "github:safal207/pythiaLabs@323705b4f7a8ecca3c5a475e2504f2c41e231188/examples/lotus-cases/tradernet-product-funnel-judgment-v1.json",
+      "description": "SHA-256 of the canonical locator string for the exact Pythia product-funnel judgment document."
+    }
+  ],
+  "redactions": [
+    {
+      "path": "evidence[*].raw_payload",
+      "reason": "Raw screenshots, browser traces, and authenticated account evidence are not included in this public memory pack."
+    },
+    {
+      "path": "graph.nodes[*].attributes.private_account_data",
+      "reason": "The source audit contains no private account, portfolio, credential, or order data."
+    }
+  ]
+}
