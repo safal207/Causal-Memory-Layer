@@ -1,0 +1,21 @@
+name: GPT-5.6 Review Fabric
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: gpt56-review-fabric-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fabric:
+    name: GPT-5.6 Review Fabric
+    permissions:
+      contents: read
+    uses: safal207/pythiaLabs/.github/workflows/gpt56-review-fabric-v1.yml@3fb6bbc91c288f169a49516efa514b9595544d18
+    with:
+      profile_path: .gpt56/review-profile.json
