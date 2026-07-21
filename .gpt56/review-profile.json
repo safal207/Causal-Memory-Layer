@@ -1,0 +1,26 @@
+{
+  "schema_version": "gpt56-review-profile-v1",
+  "repository": "safal207/Causal-Memory-Layer",
+  "profile_id": "causal-memory",
+  "required_roles": [
+    "causal_architect",
+    "temporal_provenance",
+    "adversarial_semantics",
+    "authority_safety",
+    "ci_reliability"
+  ],
+  "required_claim_kinds": ["fact", "observation", "hypothesis"],
+  "focus": [
+    "Verify that every memory pack is derived from an identifiable source state and preserves the source claim boundary.",
+    "Detect stale, superseded, private, invalid, or cross-head memory before retrieval or reuse.",
+    "Separate causal support from correlation and require dissent where several root causes remain compatible with evidence.",
+    "Prevent retrieval, ranking, or prior memory from becoming approval, execution, delivery, or merge authority.",
+    "Require deterministic ranking, bounded disclosure, exact-head manifests, and fail-closed workflow downgrade tests."
+  ],
+  "authority": {
+    "can_execute": false,
+    "can_approve": false,
+    "can_merge": false,
+    "can_deploy": false
+  }
+}
