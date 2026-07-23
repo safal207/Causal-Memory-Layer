@@ -54,6 +54,12 @@ The final deployment evidence must show `SHOW INDEX`, an `EXPLAIN` plan using ve
 - **Lambda Function URL** exposes the functional demo.
 - **CloudWatch and X-Ray** provide execution and trace evidence.
 
+## Validation boundary
+
+Focused unit tests exercise local handler, security, semantic-mode, and Bedrock contracts. The repository-level protected CI separately imports the application and locks the causal decision, vector-tool reporting, and Titan embedding shape into the parent repository's exact-head validation.
+
+Live vector index use, Bedrock inference, ccloud state, Lambda process replacement, and CockroachDB durability remain external evidence claims until captured from deployed infrastructure.
+
 ## Trust and authority boundary
 
 - Retrieved memory influences a recommendation; it never grants execution authority.
