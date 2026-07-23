@@ -1,12 +1,33 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: Liminal Recall - CockroachDB-backed agent memory on AWS Lambda
+Description: Liminal Recall - CockroachDB vector memory on AWS Lambda and Bedrock
 
 Parameters:
   DatabaseUrl:
     Type: String
     NoEcho: true
     Description: CockroachDB connection string
+  DemoApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Optional x-demo-key value for non-health routes
+  EmbeddingModelId:
+    Type: String
+    Default: amazon.titan-embed-text-v2:0
+    Description: Amazon Bedrock embedding model ID
+  EmbeddingDimensions:
+    Type: Number
+    Default: 256
+    AllowedValues:
+      - 256
+      - 512
+      - 1024
+  SimilarityThreshold:
+    Type: Number
+    Default: 0.35
+    MinValue: 0
+    MaxValue: 2
 
 Resources:
   LiminalRecallFunction:
@@ -19,11 +40,29 @@ Resources:
         - x86_64
       MemorySize: 512
       Timeout: 30
+      ReservedConcurrentExecutions: 5
+      Tracing: Active
       Environment:
         Variables:
           DATABASE_URL: !Ref DatabaseUrl
+          DEMO_API_KEY: !Ref DemoApiKey
+          EMBEDDING_MODEL_ID: !Ref EmbeddingModelId
+          EMBEDDING_DIMENSIONS: !Ref EmbeddingDimensions
+          SIMILARITY_THRESHOLD: !Ref SimilarityThreshold
       Policies:
         - AWSLambdaBasicExecutionRole
+        - Statement:
+            - Sid: InvokeTitanEmbeddings
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}::foundation-model/${EmbeddingModelId}
+            - Sid: WriteXRayTelemetry
+              Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+              Resource: '*'
       FunctionUrlConfig:
         AuthType: NONE
         Cors:
@@ -34,8 +73,12 @@ Resources:
             - POST
           AllowHeaders:
             - content-type
+            - x-demo-key
 
 Outputs:
   FunctionUrl:
     Description: Public Liminal Recall demo endpoint
     Value: !GetAtt LiminalRecallFunctionUrl.FunctionUrl
+  FunctionName:
+    Description: Lambda function name used by the restart evidence protocol
+    Value: !Ref LiminalRecallFunction
