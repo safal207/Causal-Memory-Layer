@@ -1,0 +1,24 @@
+{
+  "repository_commit_sha": "<40-character-final-commit-sha>",
+  "repository_url": "https://github.com/safal207/Causal-Memory-Layer/tree/<final-sha>/hackathons/liminal-recall",
+  "license_url": "https://github.com/safal207/Causal-Memory-Layer/blob/<final-sha>/LICENSE",
+  "lambda_function_url": "https://<function-id>.lambda-url.<region>.on.aws",
+  "video_url": "https://www.youtube.com/watch?v=<video-id>",
+  "devpost_submission_url": "https://devpost.com/software/<submission-slug>",
+  "ccloud_evidence_path": "ccloud-evidence.json",
+  "vector_explain_evidence_path": "vector-explain.txt",
+  "negative_outcome_id": "<uuid>",
+  "decision_memory_id_after": "<uuid>",
+  "runtime_instance_id_before": "<runtime-uuid-before>",
+  "runtime_instance_id_after": "<runtime-uuid-after>",
+  "retrieval_mode": "cockroachdb_vector_cosine",
+  "retrieval_tool": "distributed_vector_index",
+  "execution_authority": "advisory_only",
+  "judging_availability_end": "2026-09-15T17:00:00-04:00",
+  "testing_instructions": "Call /healthz, then use the private Devpost credential for the documented memory and decision requests.",
+  "screenshots": [
+    "vector-index.png",
+    "semantic-decision.png",
+    "restart-proof.png"
+  ]
+}
