@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import sys
 import uuid
@@ -10,6 +11,7 @@ from pathlib import Path
 APP_ROOT = Path(__file__).resolve().parents[1] / "hackathons" / "liminal-recall"
 sys.path.insert(0, str(APP_ROOT))
 
+from app.embeddings import BedrockTitanEmbedder
 from app.handler import lambda_handler, set_store_for_tests
 from app.models import MemoryCreate, MemoryRecord
 
@@ -36,6 +38,25 @@ class InMemoryStore:
     def list_memories(self, session_id: str, limit: int = 20) -> list[MemoryRecord]:
         matches = [
             record for record in reversed(self.records) if record.session_id == session_id
+        ]
+        return matches[:limit]
+
+
+class SemanticInMemoryStore(InMemoryStore):
+    def find_relevant_negative_outcomes(
+        self,
+        session_id: str,
+        proposed_action: str,
+        tags: list[str],
+        limit: int = 3,
+    ) -> list[MemoryRecord]:
+        del proposed_action, tags
+        matches = [
+            record
+            for record in reversed(self.records)
+            if record.session_id == session_id
+            and record.kind == "outcome"
+            and record.status == "negative"
         ]
         return matches[:limit]
 
@@ -81,6 +102,7 @@ def test_liminal_recall_uses_persistent_negative_memory_for_later_decision():
         assert status == 200
         assert decision["decision"] == "HUMAN_REVIEW"
         assert decision["memory_ids"] == [outcome["id"]]
+        assert decision["retrieval"]["mode"] == "deterministic_token_overlap"
         assert decision["execution"] == {
             "status": "NOT_EXECUTED",
             "authority": "advisory_only",
@@ -94,3 +116,47 @@ def test_liminal_recall_uses_persistent_negative_memory_for_later_decision():
         assert stored_decision.parent_memory_id == outcome["id"]
     finally:
         set_store_for_tests(None)
+
+
+def test_liminal_recall_reports_vector_tool_for_semantic_store():
+    store = SemanticInMemoryStore()
+    set_store_for_tests(store)
+    try:
+        outcome = store.create_memory(
+            MemoryCreate(
+                session_id="payments-agent",
+                kind="outcome",
+                content="Duplicate disbursement after a non-idempotent retry",
+                status="negative",
+                confidence=0.99,
+            )
+        )
+        status, decision = _call(
+            "POST",
+            "/decisions",
+            {
+                "session_id": "payments-agent",
+                "proposed_action": "Send the customer reimbursement again",
+            },
+        )
+        assert status == 200
+        assert decision["memory_ids"] == [outcome.id]
+        assert decision["retrieval"] == {
+            "mode": "cockroachdb_vector_cosine",
+            "memory_layer": "cockroachdb",
+            "tool": "distributed_vector_index",
+        }
+    finally:
+        set_store_for_tests(None)
+
+
+def test_titan_embedding_contract_is_stable():
+    class FakeClient:
+        def invoke_model(self, **kwargs):
+            request = json.loads(kwargs["body"])
+            assert request["dimensions"] == 256
+            assert request["normalize"] is True
+            return {"body": io.BytesIO(json.dumps({"embedding": [0.1] * 256}).encode())}
+
+    vector = BedrockTitanEmbedder(client=FakeClient()).embed("refund retry")
+    assert len(vector) == 256
