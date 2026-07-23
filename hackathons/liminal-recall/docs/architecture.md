@@ -4,16 +4,21 @@
 flowchart LR
     U[User or business agent] --> F[AWS Lambda Function URL]
     F --> H[Liminal Recall HTTP handler]
-    H --> E[Agent memory decision engine]
-    E --> R[Recall recent session memories]
-    R --> C[(CockroachDB Serverless)]
-    E --> D{Prior verified-negative overlap?}
-    D -->|No| A[ALLOW_WITH_MONITORING]
-    D -->|Yes| V[HUMAN_REVIEW]
+    H --> B[Amazon Bedrock Titan Embeddings V2]
+    B --> E[Normalized 256-dimensional embedding]
+    H --> D[Agent memory decision engine]
+    E --> V[Cosine similarity query]
+    V --> C[(CockroachDB persistent memory)]
+    C --> I[Distributed vector index]
+    I --> D
+    D --> Q{Relevant verified-negative outcome?}
+    Q -->|No| A[ALLOW_WITH_MONITORING]
+    Q -->|Yes| R[HUMAN_REVIEW]
     A --> P[Persist decision memory]
-    V --> P
+    R --> P
     P --> C
-    C --> M[Persistent observations decisions outcomes and causal links]
+
+    X[ccloud evidence agent] -. structured JSON and cluster state .-> C
 ```
 
 ## Memory model
@@ -23,33 +28,38 @@ Each record stores:
 - a stable UUID;
 - a session boundary;
 - one of `observation`, `decision`, or `outcome`;
-- human-readable content;
-- normalized tags;
+- human-readable content and normalized tags;
 - status and confidence;
 - an optional causal parent memory;
+- a normalized Bedrock embedding;
 - a database timestamp.
 
-The first demo uses exact tags and token overlap instead of pretending to have semantic certainty. This makes the decision reproducible and easy for judges to inspect.
+The vector index uses `session_id`, `kind`, and `status` as exact prefix filters before cosine ranking. This keeps semantic retrieval inside the relevant agent session and verified-negative outcome partition.
 
 ## Why CockroachDB is meaningful
 
-CockroachDB is not a decorative connection. It is the only durable source of agent memory. The Lambda process is disposable; after a cold start or redeployment, the agent reconstructs its decision context from CockroachDB records.
+CockroachDB is the only durable source of agent memory. Lambda compute is disposable. After a cold start or redeployment, the agent reconstructs decision context from transactional records and their vector embeddings in CockroachDB.
 
-The final deployment evidence will show:
+Two required CockroachDB tools have explicit roles:
 
-1. storing a negative outcome;
-2. invoking a decision that cites it;
-3. forcing a new Lambda execution environment or redeploy;
-4. repeating the decision;
-5. receiving the same persistent memory reference.
+1. **Distributed Vector Indexing** performs runtime semantic recall over persistent memory.
+2. **ccloud CLI** gives the deployment/evidence agent machine-readable cluster identity and state through `-o json`; the committed runbook redacts credentials before evidence is saved.
+
+The final deployment evidence must show `SHOW INDEX`, an `EXPLAIN` plan using vector search, a redacted ccloud evidence manifest, and the same outcome UUID recalled after the Lambda runtime ID changes.
 
 ## Why AWS is meaningful
 
-AWS Lambda runs the complete `remember / recall / decide` workflow and exposes the public demo through a Function URL. CloudWatch logs provide execution evidence. A later hardening step may move the database credential to AWS Secrets Manager, but that is not required to prove the first agent-memory loop.
+- **AWS Lambda** runs the complete `remember / recall / decide / persist` workflow.
+- **Amazon Bedrock** generates Titan Text Embeddings V2 vectors for stored memories and proposed actions.
+- **Lambda Function URL** exposes the functional demo.
+- **CloudWatch and X-Ray** provide execution and trace evidence.
 
 ## Trust and authority boundary
 
-- Retrieved memory influences a recommendation; it does not execute the proposed action.
-- A negative-memory match produces `HUMAN_REVIEW`, not an automatic destructive action.
-- Every response reports `execution.status = NOT_EXECUTED`.
-- The token-overlap heuristic is an inspectable MVP baseline, not a claim of complete semantic understanding.
+- Retrieved memory influences a recommendation; it never grants execution authority.
+- A relevant negative memory produces `HUMAN_REVIEW`, not an automatic destructive action.
+- Every decision reports `execution.status = NOT_EXECUTED` and `authority = advisory_only`.
+- Database or embedding failure returns a fail-closed `503` with `HUMAN_REVIEW`.
+- Optional `x-demo-key` authentication protects non-health routes.
+- `runtime_instance_id` proves process replacement; the stable memory UUID proves database durability.
+- Semantic similarity is thresholded evidence, not a claim of universal understanding.
