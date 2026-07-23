@@ -43,7 +43,7 @@ Every response also includes a `runtime_instance_id`. During the demo, Lambda co
 - Transactional records store content, tags, status, confidence, timestamps, and causal parent UUIDs.
 - **Distributed Vector Indexing** performs cosine similarity search over 256-dimensional Bedrock embeddings.
 - Prefix filters constrain the vector search to the exact `session_id`, `kind = outcome`, and `status = negative` partition.
-- **ccloud CLI** is used by a checked-in evidence agent runbook. It executes structured `-o json` commands, captures cluster identity/state, redacts sensitive values, and produces a reviewable deployment artifact.
+- **ccloud CLI** is used by a checked-in evidence agent. It executes structured JSON commands for identity, organization, and cluster state, redacts sensitive keys and credential-like strings, and creates a SHA-256 integrity sidecar.
 
 ### AWS
 
@@ -60,7 +60,10 @@ Every response also includes a `runtime_instance_id`. During the demo, Lambda co
 - optional constant-time `x-demo-key` authentication for non-health routes;
 - reserved Lambda concurrency to bound public-demo blast radius;
 - deterministic memory UUIDs and explicit causal links for reviewability;
-- focused tests plus protected repository CI for changed decisions, vector-retrieval reporting, Bedrock request shape, authentication, and authority separation.
+- one-command live deployment and process-replacement evidence runner;
+- generated cloud evidence is ignored by Git until a human reviews and deliberately selects it;
+- a fail-closed submission gate rejects placeholders, missing evidence, invalid URLs, identical runtime IDs, and credential-like values;
+- focused tests plus protected repository CI for changed decisions, vector retrieval, Bedrock request shape, evidence redaction, and authority separation.
 
 ## CockroachDB tools used
 
@@ -80,7 +83,7 @@ The live application stores Bedrock embeddings in `VECTOR(256)` and queries them
 
 ### 2. ccloud CLI
 
-The deployment/evidence agent runs `ccloud ... -o json` to retrieve authenticated organization and cluster state. A checked-in Python runbook redacts credentials before writing the evidence manifest. This makes the infrastructure proof repeatable and machine-readable instead of relying on manually curated screenshots.
+The deployment evidence agent runs current `ccloud auth whoami`, `ccloud organization get`, and `ccloud cluster info` commands using structured JSON output. It redacts credentials before writing the evidence manifest and records a checksum. This makes infrastructure proof repeatable and machine-readable instead of relying only on manually curated screenshots.
 
 Final submission language must only say these tools were used after the live vector plan and ccloud evidence are captured from the deployed cluster.
 
@@ -121,7 +124,7 @@ A repeated request in the same warm Lambda process does not prove durable memory
 
 ### Making platform-tool use reviewable
 
-The project does not merely initialize CockroachDB tools. Runtime responses identify vector retrieval, SQL evidence shows the vector-search plan, and the ccloud runbook produces structured, redacted control-plane evidence.
+The project does not merely initialize CockroachDB tools. Runtime responses identify vector retrieval, SQL evidence shows the vector-search plan, and the ccloud evidence agent produces structured, redacted control-plane evidence.
 
 ## Accomplishments
 
@@ -132,15 +135,17 @@ The project does not merely initialize CockroachDB tools. Runtime responses iden
 - causal parent links between failures and later decisions;
 - reproducible `HUMAN_REVIEW` after a semantically related negative outcome;
 - advisory-only execution boundary and fail-closed behavior;
-- machine-readable ccloud deployment evidence;
-- protected CI coverage for semantic recall, causal linkage, and Titan embedding contracts;
-- AWS SAM deployment, tests, architecture, scorecard, and video protocol.
+- machine-readable ccloud deployment evidence with checksum;
+- protected CI coverage for semantic recall, causal linkage, Titan embedding, redaction, and submission contracts;
+- one-command AWS/CockroachDB deployment and restart-proof runner;
+- fail-closed final-submission manifest validator;
+- AWS SAM deployment, architecture, scorecard, and video protocol.
 
 ## What we learned
 
 Agent memory is most trustworthy when it is narrow, durable, and inspectable. A stable verified-outcome UUID can be more useful than a large unstructured transcript. Vector search improves recall, but the system still needs explicit boundaries between “this memory is relevant,” “this memory influenced the recommendation,” and “this action was authorized.”
 
-We also learned that process restarts, data durability, semantic relevance, and execution safety are four different claims and should have four different proofs.
+We also learned that process restarts, data durability, semantic relevance, execution safety, and submission evidence are separate claims and should have separate proofs.
 
 ## What's next
 
@@ -153,9 +158,9 @@ We also learned that process restarts, data durability, semantic relevance, and 
 - multi-parent causal graphs for decisions influenced by several outcomes;
 - controlled execution adapters requiring explicit human authorization.
 
-## New-project and reuse disclosure
+## New-project, license, and reuse disclosure
 
-Liminal Recall is new work created during the hackathon submission period. It is hosted in the pre-existing Causal Memory Layer repository for development convenience. The Lambda application, CockroachDB vector schema, Bedrock integration, ccloud evidence runbook, persistent-memory workflow, deployment assets, and demo scenario are new for this submission.
+Liminal Recall is new work created during the hackathon submission period. It is hosted in the pre-existing Causal Memory Layer repository for development convenience. The repository has an MIT license at its root. The Lambda application, CockroachDB vector schema, Bedrock integration, ccloud evidence agent, live deployment runner, submission gate, persistent-memory workflow, deployment assets, and demo scenario are new for this submission.
 
 The final entry must identify any reused pre-existing source file precisely and must not imply that the entire surrounding repository was created during the hackathon.
 
@@ -172,7 +177,7 @@ The final entry must identify any reused pre-existing source file precisely and 
 9. Repeat the decision and confirm the original outcome UUID is still cited.
 10. Review sanitized `SHOW INDEX`, vector `EXPLAIN`, ccloud JSON, and CloudWatch/X-Ray evidence.
 
-When a demo key is enabled, Devpost testing instructions must include the temporary `x-demo-key` credential privately and keep it valid through the judging period.
+The checked-in `scripts/live_deploy.py all` command automates this sequence and fails if any required marker is missing. When a demo key is enabled, Devpost testing instructions must include the temporary `x-demo-key` credential privately and keep it valid through the judging period.
 
 ## Demo video script — target 2:35
 
@@ -204,15 +209,26 @@ Replace the Lambda runtime. Show a different `runtime_instance_id`, repeat the r
 
 “CockroachDB gives agents durable, searchable memory. AWS runs disposable compute. Causal IDs make every safer decision reviewable without giving memory permission to act.”
 
+## Submission readiness gate
+
+Copy `docs/final-submission.example.json` into the private evidence directory, replace every placeholder, and run:
+
+```bash
+python scripts/submission_gate.py evidence/final-submission.json \
+  --report evidence/submission-gate-report.json
+```
+
+The gate must return `PASS` before submission. Generated evidence remains ignored by Git until each selected artifact is reviewed and deliberately added.
+
 ## Final fields still required from the live deployment
 
-- final public repository commit URL;
-- visible open-source license at repository root/About;
+- final public repository commit URL pinned to the submitted code;
 - public AWS demo URL;
-- valid testing credential if demo-key protection is enabled;
+- valid private testing credential if demo-key protection is enabled;
 - public YouTube or Vimeo video under three minutes;
 - screenshots of the vector plan, decision flow, causal record, and changed runtime ID;
 - redacted ccloud evidence generated from the live cluster;
-- final AWS/CockroachDB tool disclosures;
+- final AWS and CockroachDB tool disclosures;
 - testing availability through the end of judging;
-- final Devpost submission URL.
+- final Devpost submission URL;
+- a passing final-submission gate report.
