@@ -76,7 +76,7 @@ The captured plan must show vector-search/index behavior rather than a claim inf
 
 Do not publish the database password or complete connection string.
 
-## 3. Validate the final commit locally
+## 3. Validate the final commit locally and in protected CI
 
 From `hackathons/liminal-recall`:
 
@@ -88,23 +88,19 @@ pytest -q
 python -m py_compile app/*.py scripts/*.py
 ```
 
+The repository-level protected test `tests/test_liminal_recall_hackathon.py` must also pass. It protects the causal decision contract, semantic retrieval mode, and Titan embedding shape from drifting behind a green parent-repository CI result.
+
 Record:
 
 ```text
 repository_commit_sha:
-test_count:
-test_result:
+focused_test_count:
+focused_test_result:
+protected_ci_result:
+python_package_validation_result:
+security_baseline_result:
 validation_timestamp_utc:
 ```
-
-The unit suite must cover:
-
-- persistence contract and causal parent validation;
-- changed decision after negative memory;
-- distributed-vector retrieval reporting;
-- Bedrock embedding request/response validation;
-- optional demo-key protection;
-- fail-closed authority boundary.
 
 ## 4. Deploy to AWS Lambda and Bedrock
 
