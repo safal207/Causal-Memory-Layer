@@ -60,7 +60,7 @@ Every response also includes a `runtime_instance_id`. During the demo, Lambda co
 - optional constant-time `x-demo-key` authentication for non-health routes;
 - reserved Lambda concurrency to bound public-demo blast radius;
 - deterministic memory UUIDs and explicit causal links for reviewability;
-- tests for changed decisions, vector-retrieval reporting, Bedrock request shape, authentication, and authority separation.
+- focused tests plus protected root CI for changed decisions, vector-retrieval reporting, Bedrock request shape, authentication, and authority separation.
 
 ## CockroachDB tools used
 
@@ -133,6 +133,7 @@ The project does not merely initialize CockroachDB tools. Runtime responses iden
 - reproducible `HUMAN_REVIEW` after a semantically related negative outcome;
 - advisory-only execution boundary and fail-closed behavior;
 - machine-readable ccloud deployment evidence;
+- protected CI coverage for the semantic and embedding contracts;
 - AWS SAM deployment, tests, architecture, scorecard, and video protocol.
 
 ## What we learned
