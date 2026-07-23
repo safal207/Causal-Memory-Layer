@@ -6,7 +6,7 @@ Liminal Recall
 
 ## Tagline
 
-Persistent, causally linked memory that helps AI agents remember failures and avoid repeating them after restarts.
+Causally auditable memory that helps AI agents remember verified failures and avoid repeating them after restarts.
 
 ## Track fit
 
@@ -14,126 +14,204 @@ CockroachDB × AWS Hackathon — Build with Agentic Memory.
 
 ## Inspiration
 
-AI agents can call tools and finish workflows, but many lose the reason behind an earlier failure when a process restarts or a new session begins. Ordinary logs preserve events; they do not automatically turn a verified outcome into reusable decision context.
+Agents are increasingly trusted with refunds, deployments, incident response, and other workflows where a repeated mistake can cost money or harm users. Yet a restarted process often remembers only logs or chat history, not the exact verified outcome that should change the next decision.
 
-Liminal Recall gives an agent a durable memory loop:
+A payment agent that forgets a non-idempotent retry can send the same refund twice. Liminal Recall turns that outcome into durable, searchable, causally linked decision memory.
 
 ```text
-observe -> decide -> record outcome -> restart -> recall -> decide better
+observe -> decide -> record outcome -> restart -> semantic recall -> decide safer
 ```
 
 ## What it does
 
-Liminal Recall stores agent observations, decisions, and outcomes in CockroachDB with session boundaries and optional causal parent links. When a later proposed action overlaps with a previously recorded negative outcome, the agent returns `HUMAN_REVIEW` and cites the exact persistent memory records that changed the recommendation.
+Liminal Recall stores observations, decisions, and verified outcomes in CockroachDB. Amazon Bedrock Titan Text Embeddings V2 converts memories and proposed actions into normalized vectors. CockroachDB Distributed Vector Indexing retrieves semantically related negative outcomes within the same agent session, even when the later wording differs.
 
-The system deliberately remains advisory. It records the recommendation but never claims that the external action was executed.
+When a relevant failure is recalled, the agent:
+
+- returns `HUMAN_REVIEW`;
+- cites the exact persistent memory UUIDs that changed the recommendation;
+- stores the new decision with a causal parent link to the most influential outcome;
+- reports `execution.status = NOT_EXECUTED` and never pretends the external action occurred.
+
+Every response also includes a `runtime_instance_id`. During the demo, Lambda compute is replaced, the runtime ID changes, and the earlier CockroachDB memory UUID remains available. This distinguishes process replacement from durable memory.
 
 ## How we built it
 
-- **CockroachDB Serverless** is the durable memory layer.
-- **AWS Lambda** executes the remember, recall, and decision workflow.
-- **AWS Lambda Function URL** exposes the public demo API.
-- **Python 3.12 and Pydantic** validate the API contract.
-- **psycopg 3** connects to CockroachDB using the PostgreSQL wire protocol.
-- **AWS SAM** defines the reproducible deployment.
-- **GitHub Actions** runs unit tests and Python compilation checks.
+### CockroachDB
 
-The first decision baseline uses normalized tags and token overlap. This is intentionally inspectable and deterministic: judges can see exactly why a memory was selected instead of being asked to trust an opaque similarity score.
+- **CockroachDB Cloud** is the only durable memory layer.
+- Transactional records store content, tags, status, confidence, timestamps, and causal parent UUIDs.
+- **Distributed Vector Indexing** performs cosine similarity search over 256-dimensional Bedrock embeddings.
+- Prefix filters constrain the vector search to the exact `session_id`, `kind = outcome`, and `status = negative` partition.
+- **ccloud CLI** is used by a checked-in evidence agent runbook. It executes structured `-o json` commands, captures cluster identity/state, redacts sensitive values, and produces a reviewable deployment artifact.
+
+### AWS
+
+- **AWS Lambda** runs the `remember / recall / decide / persist` workflow.
+- **Amazon Bedrock Titan Text Embeddings V2** creates normalized embeddings for memories and proposed actions.
+- **Lambda Function URL** exposes the public functional demo.
+- **CloudWatch and X-Ray** provide execution and trace evidence.
+- AWS SAM defines the reproducible deployment and least-purpose Bedrock permission.
+
+### Engineering and safety
+
+- Python 3.12, Pydantic, psycopg 3, and boto3;
+- fail-closed behavior: database or embedding failure returns `HUMAN_REVIEW`;
+- optional constant-time `x-demo-key` authentication for non-health routes;
+- reserved Lambda concurrency to bound public-demo blast radius;
+- deterministic memory UUIDs and explicit causal links for reviewability;
+- tests for changed decisions, vector-retrieval reporting, Bedrock request shape, authentication, and authority separation.
 
 ## CockroachDB tools used
 
-Final submission fields should name the exact tools demonstrated:
+### 1. Distributed Vector Indexing
 
-- CockroachDB Serverless cluster as the production persistent memory layer;
-- CockroachDB SQL or `ccloud` tooling for schema setup and cluster inspection;
-- Managed MCP Server for reviewer-visible inspection, if included in the final live demo.
+The live application stores Bedrock embeddings in `VECTOR(256)` and queries them with cosine distance. The index uses exact prefix columns for session, memory kind, and status. The final evidence includes `SHOW INDEX`, a live `EXPLAIN` plan showing vector search, and an API response with:
 
-Do not claim an MCP or CLI integration until the final evidence shows it running.
+```json
+{
+  "retrieval": {
+    "mode": "cockroachdb_vector_cosine",
+    "memory_layer": "cockroachdb",
+    "tool": "distributed_vector_index"
+  }
+}
+```
+
+### 2. ccloud CLI
+
+The deployment/evidence agent runs `ccloud ... -o json` to retrieve authenticated organization and cluster state. A checked-in Python runbook redacts credentials before writing the evidence manifest. This makes the infrastructure proof repeatable and machine-readable instead of relying on manually curated screenshots.
+
+Final submission language must only say these tools were used after the live vector plan and ccloud evidence are captured from the deployed cluster.
 
 ## AWS services used
 
-- AWS Lambda for agent execution;
-- Lambda Function URL for the functional public demo;
-- CloudWatch Logs for execution evidence.
+- AWS Lambda — agent execution;
+- Amazon Bedrock — Titan Text Embeddings V2 inference;
+- Lambda Function URL — functional public demo;
+- CloudWatch Logs and AWS X-Ray — observability evidence.
 
-Optional hardening before submission: AWS Secrets Manager for `DATABASE_URL`.
+## Why this is agentic memory rather than ordinary logging or generic RAG
+
+Logs preserve events but do not necessarily change a later decision. Generic RAG often retrieves text without a stable authority or causal contract.
+
+Liminal Recall makes a verified outcome a first-class memory object. A later recommendation cites exact memory IDs, and the stored decision points back to the outcome that influenced it. Semantic relevance affects advice, but it never grants execution authority.
+
+## Real-world impact
+
+The first demo prevents a duplicate refund after a non-idempotent retry, but the same pattern applies to:
+
+- payout and settlement agents;
+- deployment and rollback agents;
+- security incident remediation;
+- healthcare workflow assistants;
+- customer-support agents handling irreversible actions.
+
+The product value is not merely “remember more.” It is “remember the verified failure that should change this decision, explain exactly which memory mattered, and remain safe when infrastructure restarts.”
 
 ## Challenges
 
-The key design challenge was separating memory from execution authority. A remembered failure should influence the next decision, but it should not silently perform or block an external action without review. The API therefore reports `execution.status = NOT_EXECUTED` and stores a decision record with a causal link to the remembered outcome.
+### Separating relevance from authority
+
+A semantically similar failure should influence a recommendation, but similarity alone should never authorize or execute an action. Liminal Recall therefore remains advisory and stores the causal relationship for human review.
+
+### Proving persistence honestly
+
+A repeated request in the same warm Lambda process does not prove durable memory. The demo exposes a runtime UUID, forces process replacement, and then shows a changed runtime UUID with the same CockroachDB outcome UUID.
+
+### Making platform-tool use reviewable
+
+The project does not merely initialize CockroachDB tools. Runtime responses identify vector retrieval, SQL evidence shows the vector-search plan, and the ccloud runbook produces structured, redacted control-plane evidence.
 
 ## Accomplishments
 
-- durable cross-session agent memory;
+- durable cross-session and cross-process agent memory;
+- semantic recall through CockroachDB Distributed Vector Indexing;
+- Bedrock-generated normalized embeddings;
 - explicit observation, decision, and outcome records;
-- causal parent links between outcomes and later decisions;
-- reproducible `HUMAN_REVIEW` behavior after a verified-negative memory;
-- disposable Lambda compute with durable CockroachDB state;
-- open-source tests, schema, deployment template, and evidence protocol.
+- causal parent links between failures and later decisions;
+- reproducible `HUMAN_REVIEW` after a semantically related negative outcome;
+- advisory-only execution boundary and fail-closed behavior;
+- machine-readable ccloud deployment evidence;
+- AWS SAM deployment, tests, architecture, scorecard, and video protocol.
 
 ## What we learned
 
-Agent memory is most useful when it is narrow and inspectable. A small verified-negative memory with a stable ID can be more trustworthy than a large unstructured chat transcript. The system also needs to distinguish “this memory influenced a recommendation” from “this memory authorized an action.”
+Agent memory is most trustworthy when it is narrow, durable, and inspectable. A stable verified-outcome UUID can be more useful than a large unstructured transcript. Vector search improves recall, but the system still needs explicit boundaries between “this memory is relevant,” “this memory influenced the recommendation,” and “this action was authorized.”
+
+We also learned that process restarts, data durability, semantic relevance, and execution safety are four different claims and should have four different proofs.
 
 ## What's next
 
-- distributed vector indexing for semantic recall;
-- memory supersession and forgetting policies;
+- memory supersession, correction, and forgetting policies;
 - confidence decay for stale observations;
-- Bedrock-based explanation generation while preserving deterministic memory citations;
-- multi-region failure and recovery evidence;
-- authenticated reviewer mode and Secrets Manager integration.
+- regional failure and recovery tests;
+- calibrated similarity thresholds by workflow risk;
+- authenticated reviewer dashboards;
+- AWS Secrets Manager for long-lived deployments;
+- multi-parent causal graphs for decisions influenced by several outcomes;
+- controlled execution adapters requiring explicit human authorization.
 
 ## New-project and reuse disclosure
 
-Liminal Recall is new work created during the hackathon submission period. It is hosted in the Causal Memory Layer repository for development convenience and reuses limited concepts and optional library components from that pre-existing open-source project. The CockroachDB schema, AWS Lambda application, persistent agent-memory workflow, deployment assets, and demo scenario are new for this hackathon. The final submission must link to this directory and identify any reused source file precisely.
+Liminal Recall is new work created during the hackathon submission period. It is hosted in the pre-existing Causal Memory Layer repository for development convenience. The Lambda application, CockroachDB vector schema, Bedrock integration, ccloud evidence runbook, persistent-memory workflow, deployment assets, and demo scenario are new for this submission.
+
+The final entry must identify any reused pre-existing source file precisely and must not imply that the entire surrounding repository was created during the hackathon.
 
 ## Testing instructions
 
-1. Open the public Lambda Function URL and call `GET /healthz`.
-2. Store a negative outcome for session `payments-agent` using `POST /memories`.
-3. Call `POST /decisions` with a matching refund retry action.
-4. Confirm the result is `HUMAN_REVIEW` and includes the stored outcome ID.
-5. Trigger a Lambda cold start or redeploy without clearing CockroachDB.
-6. Repeat the decision call and confirm the same persistent memory is cited.
-7. Call `GET /memories?session_id=payments-agent` to inspect the outcome and its descendant decision record.
+1. Open `GET /healthz` and record `runtime_instance_id`.
+2. Store a verified-negative duplicate-refund outcome using `POST /memories`.
+3. Save the returned outcome UUID.
+4. Call `POST /decisions` with different wording: “Send the customer reimbursement again.”
+5. Confirm `HUMAN_REVIEW`, `cockroachdb_vector_cosine`, `distributed_vector_index`, and the exact outcome UUID.
+6. Confirm the stored decision has `parent_memory_id` equal to the outcome UUID.
+7. Force a fresh Lambda execution environment without clearing CockroachDB.
+8. Confirm `runtime_instance_id` changes.
+9. Repeat the decision and confirm the original outcome UUID is still cited.
+10. Review sanitized `SHOW INDEX`, vector `EXPLAIN`, ccloud JSON, and CloudWatch/X-Ray evidence.
+
+When a demo key is enabled, Devpost testing instructions must include the temporary `x-demo-key` credential privately and keep it valid through the judging period.
 
 ## Demo video script — target 2:35
 
-### 0:00–0:20 — problem
+### 0:00–0:18 — costly failure
 
-“Agents restart, retry, and move across processes. When they forget a previous failure, they repeat it. Liminal Recall turns verified outcomes into durable decision memory.”
+“An agent retries a refund, forgets the earlier outcome after a restart, and pays twice. Logs preserve events; durable decision memory prevents repetition.”
 
-### 0:20–0:40 — architecture
+### 0:18–0:35 — architecture
 
-Show the architecture diagram: public request to AWS Lambda, decision engine, CockroachDB memory records, and causal links.
+Show Lambda, Bedrock embeddings, CockroachDB vector memory, causal links, and the ccloud evidence agent.
 
-### 0:40–1:05 — clean decision
+### 0:35–1:00 — store verified outcome
 
-Call `/decisions` for a read-only report in a fresh session. Show `ALLOW_WITH_MONITORING`, no cited negative memories, and `NOT_EXECUTED`.
+Store the duplicate-refund outcome. Show its stable UUID and CockroachDB record with an embedding.
 
-### 1:05–1:30 — store failure memory
+### 1:00–1:28 — semantic recall changes the decision
 
-Store the double-refund negative outcome. Show the returned stable UUID and the record in CockroachDB.
+Ask, “Send the customer reimbursement again,” using different wording. Show `HUMAN_REVIEW`, vector retrieval, the exact earlier UUID, `NOT_EXECUTED`, and the causal decision link.
 
-### 1:30–1:55 — agent learns
+### 1:28–1:50 — prove the platform tools
 
-Call `/decisions` for “Retry the customer refund payment.” Show `HUMAN_REVIEW`, the exact earlier memory ID, and the newly persisted decision record with its parent link.
+Show the CockroachDB vector index/query plan and the redacted ccloud JSON evidence.
 
-### 1:55–2:15 — persistence proof
+### 1:50–2:15 — prove persistence
 
-Show a fresh Lambda execution environment or redeploy. Repeat the call and show that CockroachDB returns the prior memory after the compute process changed.
+Replace the Lambda runtime. Show a different `runtime_instance_id`, repeat the request, and show the same CockroachDB memory UUID.
 
 ### 2:15–2:35 — close
 
-“CockroachDB gives the agent durable memory; AWS runs disposable agent compute; causal IDs make every changed decision reviewable.”
+“CockroachDB gives agents durable, searchable memory. AWS runs disposable compute. Causal IDs make every safer decision reviewable without giving memory permission to act.”
 
-## Final fields still required
+## Final fields still required from the live deployment
 
-- public repository URL pinned to the final commit;
+- final public repository commit URL;
+- visible open-source license at repository root/About;
 - public AWS demo URL;
+- valid testing credential if demo-key protection is enabled;
 - public YouTube or Vimeo video under three minutes;
-- screenshots of the decision flow and CockroachDB records;
-- exact CockroachDB tooling used;
-- exact AWS services used;
-- live-test instructions valid through the judging period.
+- screenshots of the vector plan, decision flow, causal record, and changed runtime ID;
+- redacted ccloud evidence generated from the live cluster;
+- final AWS/CockroachDB tool disclosures;
+- testing availability through the end of judging;
+- final Devpost submission URL.
