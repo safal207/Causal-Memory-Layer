@@ -89,10 +89,12 @@ def test_missing_file_diagnostic_does_not_echo_sensitive_path(tmp_path: Path) ->
     manifest["vector_explain_evidence_path"] = secret_path
 
     failures = MODULE.validate_manifest(manifest_path, manifest)
+    diagnostics = "\n".join(failures)
 
     assert failures
-    assert all(secret_path not in failure for failure in failures)
-    assert all("password" not in failure for failure in failures)
+    assert secret_path not in diagnostics
+    assert "user:password@example.test" not in diagnostics
+    assert "private-evidence.txt" not in diagnostics
 
 
 def test_public_manifest_rejects_credential_markers(tmp_path: Path) -> None:
