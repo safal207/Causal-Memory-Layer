@@ -89,7 +89,9 @@ Expected markers:
 }
 ```
 
-## Local validation
+## Validation layers
+
+Focused validation:
 
 ```bash
 cd hackathons/liminal-recall
@@ -100,7 +102,7 @@ pytest -q
 python -m py_compile app/*.py scripts/*.py
 ```
 
-The root protected CI also imports this application and verifies both the causal decision contract and semantic/Titan integration contract. Live CockroachDB, Bedrock, and Lambda behavior must still be proven separately with the deployment evidence protocol.
+Protected repository CI imports this application and verifies the causal decision contract, semantic vector-tool reporting, and Titan embedding shape. Live CockroachDB, Bedrock, and Lambda behavior must still be proven separately with the deployment evidence protocol.
 
 ## CockroachDB setup
 
