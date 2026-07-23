@@ -44,10 +44,6 @@ REQUIRED_TEXT_FIELDS = (
 )
 
 
-class SubmissionGateError(RuntimeError):
-    pass
-
-
 def _is_http_url(value: str) -> bool:
     parsed = urlparse(value)
     return parsed.scheme == "https" and bool(parsed.netloc)
@@ -58,7 +54,9 @@ def _require_file(manifest_path: Path, value: str, field: str, failures: list[st
     if not candidate.is_absolute():
         candidate = (manifest_path.parent / candidate).resolve()
     if not candidate.is_file():
-        failures.append(f"{field} does not point to an existing file: {value}")
+        # Never copy a user-supplied path into diagnostics. A path can contain
+        # embedded credentials or other sensitive deployment details.
+        failures.append(f"{field} does not point to an existing reviewed file")
 
 
 def validate_manifest(manifest_path: Path, manifest: dict[str, Any]) -> list[str]:
@@ -167,7 +165,6 @@ def main() -> int:
 
     failures = validate_manifest(args.manifest.resolve(), manifest)
     report = {
-        "manifest": str(args.manifest),
         "ready": not failures,
         "failure_count": len(failures),
         "failures": failures,
