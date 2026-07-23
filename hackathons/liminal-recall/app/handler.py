@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import base64
+import hmac
 import json
 import os
+import uuid
 from typing import Any
 
 from pydantic import ValidationError
 
+from .embeddings import DEFAULT_DIMENSIONS, DEFAULT_MODEL_ID
 from .engine import decide
 from .models import DecisionRequest, MemoryCreate
 from .store import CockroachMemoryStore, MemoryStore
 
 
 _store: MemoryStore | None = None
+_RUNTIME_INSTANCE_ID = str(uuid.uuid4())
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -27,8 +31,19 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     "status": "ok",
                     "service": "liminal-recall",
                     "database_configured": bool(os.getenv("DATABASE_URL")),
+                    "semantic_recall_configured": bool(
+                        os.getenv("DATABASE_URL")
+                        and os.getenv("EMBEDDING_MODEL_ID", DEFAULT_MODEL_ID)
+                    ),
+                    "embedding_model": os.getenv("EMBEDDING_MODEL_ID", DEFAULT_MODEL_ID),
+                    "embedding_dimensions": int(
+                        os.getenv("EMBEDDING_DIMENSIONS", str(DEFAULT_DIMENSIONS))
+                    ),
                 },
             )
+
+        if not _authorized(event):
+            return _response(401, {"error": "unauthorized"})
 
         store = _get_store()
 
@@ -82,6 +97,18 @@ def _get_store() -> MemoryStore:
     return _store
 
 
+def _authorized(event: dict[str, Any]) -> bool:
+    expected = os.getenv("DEMO_API_KEY", "")
+    if not expected:
+        return True
+    headers = {
+        str(key).casefold(): str(value)
+        for key, value in (event.get("headers") or {}).items()
+    }
+    supplied = headers.get("x-demo-key", "")
+    return hmac.compare_digest(supplied, expected)
+
+
 def _route(event: dict[str, Any]) -> tuple[str, str]:
     http = ((event.get("requestContext") or {}).get("http") or {})
     method = str(http.get("method") or event.get("httpMethod") or "GET").upper()
@@ -104,11 +131,13 @@ def _body(event: dict[str, Any]) -> dict[str, Any]:
 
 
 def _response(status_code: int, body: dict[str, Any]) -> dict[str, Any]:
+    response_body = dict(body)
+    response_body.setdefault("runtime_instance_id", _RUNTIME_INSTANCE_ID)
     return {
         "statusCode": status_code,
         "headers": {
             "content-type": "application/json; charset=utf-8",
             "access-control-allow-origin": "*",
         },
-        "body": json.dumps(body, ensure_ascii=False, default=str),
+        "body": json.dumps(response_body, ensure_ascii=False, default=str),
     }
