@@ -80,7 +80,19 @@ def test_placeholders_and_missing_evidence_fail_closed(tmp_path: Path) -> None:
     failures = MODULE.validate_manifest(manifest_path, manifest)
 
     assert any("placeholder remains" in failure for failure in failures)
-    assert any("does not point to an existing file" in failure for failure in failures)
+    assert any("does not point to an existing reviewed file" in failure for failure in failures)
+
+
+def test_missing_file_diagnostic_does_not_echo_sensitive_path(tmp_path: Path) -> None:
+    manifest_path, manifest = complete_manifest(tmp_path)
+    secret_path = "postgresql://user:password@example.test/private-evidence.txt"
+    manifest["vector_explain_evidence_path"] = secret_path
+
+    failures = MODULE.validate_manifest(manifest_path, manifest)
+
+    assert failures
+    assert all(secret_path not in failure for failure in failures)
+    assert all("password" not in failure for failure in failures)
 
 
 def test_public_manifest_rejects_credential_markers(tmp_path: Path) -> None:
