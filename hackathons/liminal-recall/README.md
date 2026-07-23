@@ -100,7 +100,7 @@ pytest -q
 python -m py_compile app/*.py scripts/*.py
 ```
 
-The unit suite uses in-memory stores and a fake Bedrock client. Live CockroachDB, Bedrock, and Lambda behavior must be proven separately with the deployment evidence protocol.
+The root protected CI also imports this application and verifies both the causal decision contract and semantic/Titan integration contract. Live CockroachDB, Bedrock, and Lambda behavior must still be proven separately with the deployment evidence protocol.
 
 ## CockroachDB setup
 
