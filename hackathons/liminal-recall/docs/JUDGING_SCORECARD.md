@@ -41,7 +41,8 @@ Evidence:
 - CockroachDB stores vectors beside transactional memory records;
 - a prefix-aware distributed vector index accelerates filtered cosine search;
 - `ccloud` emits structured JSON that the evidence script redacts and preserves;
-- tests cover embedding request shape, retrieval mode, authentication, causal linkage, and fail-closed behavior.
+- tests cover embedding request shape, retrieval mode, authentication, causal linkage, and fail-closed behavior;
+- root protected CI includes the semantic retrieval and Titan embedding contract, preventing the hackathon implementation from drifting behind a green parent-repository check.
 
 Target proof: `EXPLAIN` shows a vector-search plan and the live API reports `retrieval.mode=cockroachdb_vector_cosine`.
 
