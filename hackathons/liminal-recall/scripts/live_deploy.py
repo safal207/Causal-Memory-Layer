@@ -17,7 +17,7 @@ from typing import Any
 APP_ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = APP_ROOT / "evidence"
 REQUIRED_ENV = ("DATABASE_URL", "COCKROACH_CLUSTER", "AWS_REGION", "STACK_NAME")
-REQUIRED_TOOLS = ("aws", "sam", "ccloud", "cockroach")
+REQUIRED_TOOLS = ("aws", "sam", "ccloud", "cockroach", "git")
 
 
 class DeploymentError(RuntimeError):
@@ -26,6 +26,21 @@ class DeploymentError(RuntimeError):
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _redact_text(value: str) -> str:
+    sanitized = value
+    for name in (
+        "DATABASE_URL",
+        "DEMO_API_KEY",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+    ):
+        secret = os.getenv(name)
+        if secret:
+            sanitized = sanitized.replace(secret, "[REDACTED]")
+    return sanitized
 
 
 def _run(
@@ -46,7 +61,7 @@ def _run(
             text=True,
         )
     except subprocess.CalledProcessError as exc:
-        detail = (exc.stderr or exc.stdout or "command failed").strip()
+        detail = _redact_text((exc.stderr or exc.stdout or "command failed").strip())
         raise DeploymentError(f"{label} failed: {detail[:1200]}") from exc
 
 
@@ -86,7 +101,10 @@ def preflight() -> dict[str, Any]:
         label="verify AWS identity",
     )
     _run(["ccloud", "auth", "whoami"], label="verify CockroachDB Cloud identity")
-    _run(["sam", "validate", "--template-file", "template.yaml"], label="validate SAM template")
+    _run(
+        ["sam", "validate", "--template-file", "template.yaml"],
+        label="validate SAM template",
+    )
 
     return {
         "checked_at": _utc_now(),
@@ -133,6 +151,18 @@ def deploy() -> dict[str, str]:
     dimensions = os.getenv("EMBEDDING_DIMENSIONS", "256")
     threshold = os.getenv("SIMILARITY_THRESHOLD", "0.35")
 
+    parameter_overrides = [
+        f"ParameterKey=DatabaseUrl,ParameterValue={values['DATABASE_URL']}",
+        f"ParameterKey=EmbeddingModelId,ParameterValue={model_id}",
+        f"ParameterKey=EmbeddingDimensions,ParameterValue={dimensions}",
+        f"ParameterKey=SimilarityThreshold,ParameterValue={threshold}",
+    ]
+    if demo_key:
+        parameter_overrides.insert(
+            1,
+            f"ParameterKey=DemoApiKey,ParameterValue={demo_key}",
+        )
+
     _run(["sam", "build", "--no-cached"], label="build AWS SAM application")
     _run(
         [
@@ -148,11 +178,7 @@ def deploy() -> dict[str, str]:
             "--no-confirm-changeset",
             "--no-fail-on-empty-changeset",
             "--parameter-overrides",
-            f"ParameterKey=DatabaseUrl,ParameterValue={values['DATABASE_URL']}",
-            f"ParameterKey=DemoApiKey,ParameterValue={demo_key}",
-            f"ParameterKey=EmbeddingModelId,ParameterValue={model_id}",
-            f"ParameterKey=EmbeddingDimensions,ParameterValue={dimensions}",
-            f"ParameterKey=SimilarityThreshold,ParameterValue={threshold}",
+            *parameter_overrides,
         ],
         label="deploy Lambda and Bedrock integration",
     )
@@ -204,7 +230,7 @@ def _request(
         with urllib.request.urlopen(request, timeout=30) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
+        detail = _redact_text(exc.read().decode("utf-8", errors="replace"))
         raise DeploymentError(f"HTTP {exc.code} from {url}: {detail[:800]}") from exc
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         raise DeploymentError(f"request failed for {url}: {type(exc).__name__}") from exc
@@ -390,7 +416,7 @@ def main() -> int:
             _write_json("deployment-outputs.json", outputs)
             capture_runtime_proof(outputs["function_url"], outputs["function_name"])
     except DeploymentError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
+        print(f"ERROR: {_redact_text(str(exc))}", file=sys.stderr)
         return 1
 
     print(f"Evidence directory: {EVIDENCE_DIR}")
