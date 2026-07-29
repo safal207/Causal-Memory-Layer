@@ -42,8 +42,10 @@ python -m unittest test_interoperability_demo.py
 Expected summary:
 
 ```json
-{"diverged":"diverged","happy":"verified","recovered":"verified"}
+{"caep_validation":"valid","diverged":"diverged","happy":"verified","recovered":"verified"}
 ```
+
+Before writing the bundle, the orchestrator loads the canonical parent-directory `caep.schema.json` and `validate_caep.py`. The happy record, divergent record, and recovered record with its exact parent must all validate successfully.
 
 ## Boundaries
 
