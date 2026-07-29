@@ -12,6 +12,9 @@ CAEP is meant to complement ordinary logs and provenance traces. It asks whether
 
 - `caep.schema.json` — JSON Schema Draft 2020-12.
 - `caep.example.json` — valid external-write example.
+- `caep.recovered.example.json` — divergence, compensation, and recovery example.
+- `caep.absurdity-trajectory.json` — multidimensional causal and temporal failure-injection scenario.
+- `ABSURDITY_TRAJECTORY.md` — explanation, graph, orientation center, trajectory candidates, and guardrails.
 - `validate_caep.py` — schema validation plus cross-field semantic checks.
 
 ## Validate locally
@@ -20,13 +23,17 @@ CAEP is meant to complement ordinary logs and provenance traces. It asks whether
 python -m pip install jsonschema
 python docs/experimental/caep/validate_caep.py \
   docs/experimental/caep/caep.example.json
+python docs/experimental/caep/validate_caep.py \
+  docs/experimental/caep/caep.recovered.example.json
 ```
 
-Expected result:
+Expected result for each CAEP record:
 
 ```text
 VALID
 ```
+
+`caep.absurdity-trajectory.json` is a companion failure-injection artifact rather than a single CAEP record. It describes the multidimensional event graph and references the CAEP examples.
 
 ## Core invariants
 
@@ -37,9 +44,13 @@ VALID
 5. `valid_time` and `recorded_time` are recorded separately.
 6. Write and destructive actions require explicit authorization and recovery metadata.
 7. Decision records contain reason codes and evidence references, not private chain-of-thought.
+8. Tool success is not treated as business success until postconditions are independently verified.
+9. Recovery follows the smallest justified reversible action toward a declared orientation center.
 
 ## Relationship to CML
 
 CML checks causal lineage such as missing parents, ambiguous roots, and broken responsibility paths. CAEP proposes a portable envelope that can carry those relationships across multi-server MCP workflows while also recording postconditions and recovery.
+
+The absurdity trajectory demonstrates how stale observations, late-recorded parallel events, and individually correct tools can produce a globally incorrect state. The recovery path preserves the failed history, contains propagation, performs compensation, and independently verifies the restored state.
 
 This prototype is intentionally non-normative. `org.causal-memory-layer.caep` and the `$id` URN are working identifiers, not official MCP registrations or security certification.
