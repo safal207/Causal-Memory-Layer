@@ -15,6 +15,10 @@ from typing import Any, Iterable
 from jsonschema import Draft202012Validator, FormatChecker
 
 
+WRITE_SIDE_EFFECTS = {"local_write", "external_write", "destructive"}
+ACCEPTED_STATUSES = {"verified", "recovered"}
+
+
 class DuplicateKeyError(ValueError):
     """Raised when a JSON object contains duplicate keys."""
 
@@ -82,6 +86,33 @@ def schema_errors(schema: dict[str, Any], record: Any) -> list[str]:
     ]
 
 
+def _actor_ref(value: Any) -> str | None:
+    """Return an actor reference from a schema-valid actor-shaped value."""
+    if isinstance(value, dict):
+        ref = value.get("ref")
+        if isinstance(ref, str) and ref:
+            return ref
+    return None
+
+
+def _parse_optional_time(
+    value: Any,
+    field_name: str,
+    errors: list[str],
+) -> datetime | None:
+    """Parse an optional timestamp and append a deterministic error on failure."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        errors.append(f"invalid {field_name}: expected string")
+        return None
+    try:
+        return parse_time(value)
+    except ValueError as exc:
+        errors.append(f"invalid {field_name}: {exc}")
+        return None
+
+
 def semantic_errors(record: dict[str, Any]) -> list[str]:
     """Check cross-field CAEP invariants not expressible in JSON Schema."""
     errors: list[str] = []
@@ -116,22 +147,39 @@ def semantic_errors(record: dict[str, Any]) -> list[str]:
             f"computed {computed_digest}"
         )
 
-    dispatch = (record.get("action") or {}).get("dispatch") or {}
+    status = record["status"]
+    action = record.get("action") or {}
+    dispatch = action.get("dispatch") or {}
     verification = record.get("verification") or {}
 
+    if (
+        status in ACCEPTED_STATUSES
+        and verification.get("independence") != "independent"
+    ):
+        errors.append(
+            f"record status {status} requires independent verification"
+        )
+
     if verification.get("independence") == "independent":
-        verifier = verification.get("verifier")
-        if not isinstance(verifier, dict) or not verifier.get("ref"):
+        verifier_ref = _actor_ref(verification.get("verifier"))
+        if verifier_ref is None:
             errors.append("independent verification requires verifier identity")
         else:
-            verifier_ref = verifier["ref"]
-            executor_ref = (dispatch.get("executor") or {}).get("ref")
-            if executor_ref and verifier_ref == executor_ref:
-                errors.append("independent verifier must differ from executor")
+            excluded_refs = {
+                ref
+                for ref in (
+                    _actor_ref(dispatch.get("executor")),
+                    _actor_ref((record.get("decision") or {}).get("maker")),
+                )
+                if ref is not None
+            }
+            if verifier_ref in excluded_refs:
+                errors.append(
+                    "independent verifier must differ from executor and decision maker"
+                )
 
-    postcondition_ids = [
-        item["id"] for item in record.get("expected_postconditions", [])
-    ]
+    postconditions = record.get("expected_postconditions", [])
+    postcondition_ids = [item["id"] for item in postconditions]
     if len(postcondition_ids) != len(set(postcondition_ids)):
         errors.append("expected postcondition ids must be unique")
 
@@ -144,7 +192,10 @@ def semantic_errors(record: dict[str, Any]) -> list[str]:
             "verification checks reference undeclared postconditions: "
             + ", ".join(unknown_targets)
         )
-    if verification.get("verdict") in {"verified", "diverged"} and uncovered_targets:
+    if (
+        verification.get("verdict") in {"verified", "diverged"}
+        and uncovered_targets
+    ):
         errors.append(
             "declared postconditions lack verification checks: "
             + ", ".join(uncovered_targets)
@@ -158,7 +209,32 @@ def semantic_errors(record: dict[str, Any]) -> list[str]:
     if verification.get("verdict") == "diverged" and "fail" not in results:
         errors.append("diverged verdict requires at least one failed check")
 
-    status = record["status"]
+    critical_ids = {
+        item["id"]
+        for item in postconditions
+        if item.get("severity") == "critical"
+    }
+    side_effect = action.get("side_effect")
+    if status in ACCEPTED_STATUSES and side_effect in WRITE_SIDE_EFFECTS:
+        if not critical_ids:
+            errors.append(
+                "accepted write transitions require at least one critical postcondition"
+            )
+        check_results = {
+            check.get("postcondition_id"): check.get("result")
+            for check in checks
+        }
+        failed_critical = sorted(
+            condition_id
+            for condition_id in critical_ids
+            if check_results.get(condition_id) != "pass"
+        )
+        if failed_critical:
+            errors.append(
+                "critical postconditions must pass for accepted transitions: "
+                + ", ".join(failed_critical)
+            )
+
     recovery = record.get("recovery") or {}
     if status == "recovered":
         if recovery.get("status") != "recovered":
@@ -181,6 +257,43 @@ def semantic_errors(record: dict[str, Any]) -> list[str]:
             errors.append("valid_time must not be later than recorded_time")
     except (KeyError, TypeError, ValueError) as exc:
         errors.append(f"invalid record time: {exc}")
+
+    started_at = _parse_optional_time(
+        dispatch.get("started_at"), "dispatch.started_at", errors
+    )
+    completed_at = _parse_optional_time(
+        dispatch.get("completed_at"), "dispatch.completed_at", errors
+    )
+    observed_at = _parse_optional_time(
+        (record.get("outcome") or {}).get("observed_at"),
+        "outcome.observed_at",
+        errors,
+    )
+    verified_at = _parse_optional_time(
+        verification.get("verified_at"),
+        "verification.verified_at",
+        errors,
+    )
+    expires_at = _parse_optional_time(
+        (record.get("authorization") or {}).get("expires_at"),
+        "authorization.expires_at",
+        errors,
+    )
+
+    if started_at and completed_at and started_at > completed_at:
+        errors.append("dispatch.started_at must not be later than completed_at")
+    if completed_at and observed_at and completed_at > observed_at:
+        errors.append(
+            "dispatch.completed_at must not be later than outcome.observed_at"
+        )
+    if observed_at and verified_at and observed_at > verified_at:
+        errors.append(
+            "outcome.observed_at must not be later than verification.verified_at"
+        )
+    if started_at and expires_at and started_at > expires_at:
+        errors.append(
+            "authorization must not expire before dispatch.started_at"
+        )
 
     return errors
 
@@ -221,6 +334,13 @@ def validate_parent_bindings(
                 f"expected {expected}, computed {computed}"
             )
 
+    unexpected_ids = sorted(set(parent_map) - set(expected_ids))
+    if unexpected_ids:
+        errors.append(
+            "supplied parent records not declared by causal_parent_ids: "
+            + ", ".join(unexpected_ids)
+        )
+
     return errors
 
 
@@ -229,7 +349,7 @@ def validate_record(
     record: Any,
     parents: Iterable[dict[str, Any]] = (),
 ) -> list[str]:
-    """Validate one CAEP record and optional causal-parent records."""
+    """Validate one CAEP record and resolve every declared causal parent."""
     messages = schema_errors(schema, record)
     if messages:
         return messages
@@ -263,7 +383,13 @@ def main() -> int:
         Draft202012Validator.check_schema(schema)
         record = load_json(args.record)
         parents = [load_json(path) for path in args.parent]
-    except (OSError, UnicodeError, json.JSONDecodeError, DuplicateKeyError, ValueError) as exc:
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        DuplicateKeyError,
+        ValueError,
+    ) as exc:
         print("INVALID")
         print(f"- input: {exc}")
         return 1
