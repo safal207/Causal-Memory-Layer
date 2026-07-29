@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "docs/pages/**"
+      - "docs/experimental/caep/trust_console/**"
+      - "docs/experimental/caep/caep.diverged.example.json"
+      - "docs/experimental/caep/caep.recovered.example.json"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -30,10 +33,27 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v6
 
+      - name: Build static site
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site/trust-console
+          cp -R docs/pages/. _site/
+          cp docs/experimental/caep/trust_console/index.html _site/trust-console/
+          cp docs/experimental/caep/trust_console/styles.css _site/trust-console/
+          cp docs/experimental/caep/trust_console/app.js _site/trust-console/
+          cp docs/experimental/caep/caep.diverged.example.json _site/
+          cp docs/experimental/caep/caep.recovered.example.json _site/
+          test -s _site/trust-console/index.html
+          test -s _site/trust-console/app.js
+          test -s _site/trust-console/styles.css
+          grep -q "CML Trust Console" _site/trust-console/index.html
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:
-          path: docs/pages
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
