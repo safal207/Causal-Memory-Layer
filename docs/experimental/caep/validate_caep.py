@@ -20,6 +20,7 @@ class DuplicateKeyError(ValueError):
 
 
 def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Build a JSON object while rejecting duplicate member names."""
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
@@ -29,6 +30,7 @@ def reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def load_json(path: Path) -> Any:
+    """Load strict JSON and reject ambiguous numeric or duplicate-key forms."""
     return json.loads(
         path.read_text(encoding="utf-8"),
         object_pairs_hook=reject_duplicate_keys,
@@ -39,6 +41,7 @@ def load_json(path: Path) -> Any:
 
 
 def parse_time(value: str) -> datetime:
+    """Parse an offset-aware ISO 8601 timestamp."""
     timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
         raise ValueError("timestamp must include a UTC offset")
@@ -62,10 +65,12 @@ def canonical_record_bytes(record: dict[str, Any]) -> bytes:
 
 
 def compute_record_digest(record: dict[str, Any]) -> str:
+    """Compute the SHA-256 digest for CAEP JSON v1 canonical bytes."""
     return hashlib.sha256(canonical_record_bytes(record)).hexdigest()
 
 
 def schema_errors(schema: dict[str, Any], record: Any) -> list[str]:
+    """Return deterministic JSON Schema diagnostics for a candidate record."""
     validator = Draft202012Validator(schema, format_checker=FormatChecker())
     errors = sorted(
         validator.iter_errors(record),
@@ -78,6 +83,7 @@ def schema_errors(schema: dict[str, Any], record: Any) -> list[str]:
 
 
 def semantic_errors(record: dict[str, Any]) -> list[str]:
+    """Check cross-field CAEP invariants not expressible in JSON Schema."""
     errors: list[str] = []
     episode_id = record["episode_id"]
     parent_ids = record.get("causal_parent_ids", [])
@@ -183,6 +189,7 @@ def validate_parent_bindings(
     record: dict[str, Any],
     parents: Iterable[dict[str, Any]],
 ) -> list[str]:
+    """Verify supplied causal parents and their digest bindings."""
     errors: list[str] = []
     parent_map: dict[str, dict[str, Any]] = {}
 
@@ -222,6 +229,7 @@ def validate_record(
     record: Any,
     parents: Iterable[dict[str, Any]] = (),
 ) -> list[str]:
+    """Validate one CAEP record and optional causal-parent records."""
     messages = schema_errors(schema, record)
     if messages:
         return messages
@@ -233,6 +241,7 @@ def validate_record(
 
 
 def main() -> int:
+    """Run the CAEP validator command-line interface."""
     parser = argparse.ArgumentParser()
     parser.add_argument("record", type=Path)
     parser.add_argument(
