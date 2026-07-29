@@ -16,8 +16,8 @@ CAEP complements ordinary logs and provenance traces by checking whether a tool 
 - `caep.recovered.example.json` — compensation record whose parent is the digest-bound divergence record.
 - `caep.absurdity-trajectory.json` — multidimensional causal and temporal failure-injection scenario.
 - `ABSURDITY_TRAJECTORY.md` — graph, orientation center, candidate paths, and guardrails.
-- `validate_caep.py` — schema, semantic, digest, duplicate-key, and parent-binding validation.
-- `test_validate_caep.py` — mutation and tamper tests.
+- `validate_caep.py` — schema, semantic, digest, duplicate-key, temporal-order, and parent-binding validation.
+- `test_validate_caep.py` — mutation, tamper, CLI, and lifecycle tests.
 
 ## Validate
 
@@ -38,7 +38,9 @@ python -m unittest \
   docs/experimental/caep/test_validate_caep.py
 ```
 
-Expected result for each record is `VALID`; the tests should pass.
+Expected result for each complete record bundle is `VALID`; the tests should pass.
+
+A non-root record is not considered valid unless every ID in `causal_parent_ids` is supplied and its content digest is recomputed successfully. This rule applies to both the Python API and the CLI.
 
 ## Integrity model
 
@@ -49,22 +51,61 @@ The SHA-256 record digest covers every field except:
 - `integrity.record_digest`;
 - `integrity.signature`.
 
-Every ID in `causal_parent_ids` must have a matching `integrity.parent_digests` entry. Validation of a non-root record requires each parent file through `--parent`; the validator recomputes both the parent's own digest and the child binding.
+Every ID in `causal_parent_ids` must have a matching `integrity.parent_digests` entry. The validator requires each parent record, recomputes both the parent's own digest and the child binding, and rejects undeclared supplied parents.
+
+Digests provide integrity, not authenticity. The optional signature structure is not exercised by these examples and no trust anchor or signature-verification policy is claimed.
+
+Artifact, request, response, and tool-schema digests in the examples use obvious repeated-hex placeholders. Only CAEP record digests and causal-parent bindings are computed from the example record content.
+
+## Accepted-transition rules
+
+For `status=verified` and `status=recovered`:
+
+- `verification.verdict` must be `verified`;
+- `verification.independence` must be `independent`;
+- the verifier must be identified and differ from the action executor and decision maker;
+- every declared postcondition must be covered by a verification check;
+- every verification check must pass;
+- accepted write or destructive transitions must declare at least one `critical` postcondition, and every critical postcondition must pass.
+
+`completed` remains a weaker lifecycle claim and does not imply independent business acceptance.
+
+## Temporal scope
+
+The validator enforces offset-aware timestamps and these intra-record relations when the relevant fields are present:
+
+```text
+valid_time ≤ recorded_time
+dispatch.started_at ≤ dispatch.completed_at
+dispatch.completed_at ≤ outcome.observed_at
+outcome.observed_at ≤ verification.verified_at
+dispatch.started_at ≤ authorization.expires_at
+```
+
+Cross-record temporal contradictions, such as a late-recorded parallel event, belong to the trajectory or bundle layer and are demonstrated in `caep.absurdity-trajectory.json`.
 
 ## Core invariants
 
 1. Intent, authorization, decision, dispatch, outcome, and verification remain separate.
 2. Every declared postcondition is covered by a verification check.
 3. Checks cannot target undeclared postconditions.
-4. Independent verification requires an identified verifier distinct from the executor.
+4. Accepted transitions require an identified independent verifier distinct from the executor and decision maker.
 5. `recovered` requires `recovery.status=recovered` and `verification.verdict=verified`.
-6. Write and destructive actions require explicit authorization and recovery metadata.
-7. `valid_time` and `recorded_time` are separate offset-aware timestamps.
-8. Tool success is not accepted as business success until postconditions pass.
-9. History is preserved through digest-bound causal parents rather than rewritten.
-10. Malformed or duplicate-key JSON fails closed without a traceback.
-11. Decision records contain reason codes and evidence references, not private chain-of-thought.
-12. Recovery follows the smallest justified reversible action toward a declared orientation center.
+6. Accepted writes require a passing critical postcondition.
+7. Write and destructive actions require explicit authorization and recovery metadata.
+8. `valid_time` and `recorded_time` are separate offset-aware timestamps.
+9. Tool success is not accepted as business success until postconditions pass.
+10. History is preserved through digest-bound causal parents rather than rewritten.
+11. Every declared causal parent must be supplied and content-verified.
+12. Malformed or duplicate-key JSON fails closed without a traceback.
+13. Decision records contain reason codes and evidence references, not private chain-of-thought.
+14. Recovery follows the smallest justified reversible action toward a declared orientation center.
+
+## Runtime boundary
+
+CAEP carries postcondition expressions but does not evaluate CEL, JSONPath, Rego, SQL, or other expression languages. Runtime evaluation and evidence production belong to the executing or verifying system. The envelope records the declared condition, result, and evidence references without claiming that the expression engine itself is standardized here.
+
+Artifact references are also not dereferenced or content-verified by this prototype. Their digests are envelope metadata unless an integrating system supplies an artifact resolver.
 
 ## Relationship to CML
 
