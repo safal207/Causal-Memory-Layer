@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #227.",
+      "digest": "fd874a1ddae3844953ed1aa4c9449c2b00bce7089c745f9ba68ceb235aad6f28",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/308e5f18427c596dab2ef82588e45ddb25a5b47e/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #227.",
+      "digest": "a45c3aeb1c018bf57d3035fd659c3b86d95eddd6ab55e8fb02f427ad5ad24740",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/227/files"
+    },
+    {
+      "description": "Merge commit for pull request #227.",
+      "digest": "a54aabac7c1cfaddcf67f27e9de9617e8ecb5d09f816f100478b6ca38e47c12a",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:af5fc7d441c7ae7730c94f9ddf48785be2becab0"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #227.",
+      "digest": "8237b3e788f1c7b0948fb81aa1a277a7c1f5452685ea700e40239ac0f083f725",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/227"
+    },
+    {
+      "description": "Normalized review snapshot for #227 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/227/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 6,
+          "head_sha": "308e5f18427c596dab2ef82588e45ddb25a5b47e",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #227: feat(caep): add human-readable Trust Console",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Executed against the submitted source: ```text python -m unittest -v test_trust_console.py Ran 2 tests — OK node --check app.js PASS HTTP asset smoke test PASS ``` The tests lock: - required user controls and evidence views; - canonical divergent/recovered demo paths; - browser-side digest code; - print support; - dependency-free JavaScript; - absence of external HTTP dependencies.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "The console is a viewer, not the normative validator. - `validate_caep.py` remains responsible for schema, semantic, temporal, complete parent-bundle, and normative digest validation. - browser digest checking is a convenience preview; - integrity is not authenticity; - signatures and external artifacts are not verified; - no official MCP registration or production security certification is claimed.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #227: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "af5fc7d441c7ae7730c94f9ddf48785be2becab0",
+          "merged_at": "2026-07-29T21:41:12.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #227 merged into main as af5fc7d441c7ae7730c94f9ddf48785be2becab0",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 227,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds **CML Trust Console v0.1**, a dependency-free browser viewer that turns CAEP execution records into human-readable Trust Receipts. The console is the product-facing layer for the CAEP schema, validator, and cross-process interoperability demo. It lets a user understand in seconds: - what they asked the AI to do; - which tool action was dispatched; - whether the tool merely returned success or the business outcome actually passed; - who independently verified the result; - how a divergence…",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-29T21:41:12.000Z",
+    "description": "Automatically proposed decision memory for merged PR #227; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "af5fc7d441c7ae7730c94f9ddf48785be2becab0",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "5e3cf18606606310d1fa50617d6795e9654d2f245aaed4fbcbaa92280ee51676",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
