@@ -28,6 +28,7 @@ class InteroperabilityDemoTests(unittest.TestCase):
                 text=True,
             )
             summary = json.loads(result.stdout)
+            self.assertEqual(summary["caep_validation"], "valid")
             self.assertEqual(summary["happy"], "verified")
             self.assertEqual(summary["diverged"], "diverged")
             self.assertEqual(summary["recovered"], "verified")
