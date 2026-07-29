@@ -1,0 +1,175 @@
+{
+  "profile": "org.causal-memory-layer.caep",
+  "schema_version": "0.1.0",
+  "episode_id": "caep_01",
+  "workflow_id": "workflow_123",
+  "status": "verified",
+  "causal_parent_ids": [
+    "caep_00"
+  ],
+  "supersedes": [],
+  "intent": {
+    "request_ref": "urn:request:42",
+    "initiator": {
+      "ref": "urn:actor:user:alex",
+      "type": "human",
+      "display_name": "Alex"
+    },
+    "code": "CREATE_PAYMENT",
+    "summary": "Create an authorized payment after validating the approved limit.",
+    "constraints": [
+      "amount <= approved_limit"
+    ]
+  },
+  "authorization": {
+    "decision": "authorized",
+    "scope": {
+      "action": "payments.create",
+      "resource": "urn:account:customer-17",
+      "constraints": [
+        "amount <= 1000"
+      ]
+    },
+    "approval_refs": [
+      "urn:approval:891"
+    ],
+    "policy_refs": [
+      "urn:policy:payments-v3"
+    ],
+    "actor": {
+      "ref": "urn:actor:policy-engine:main",
+      "type": "policy_engine"
+    },
+    "expires_at": "2026-07-29T18:00:00Z"
+  },
+  "decision": {
+    "code": "EXECUTE_AUTHORIZED_TRANSITION",
+    "maker": {
+      "ref": "urn:actor:agent:orchestrator",
+      "type": "agent"
+    },
+    "reason_codes": [
+      "USER_REQUEST_CONFIRMED",
+      "POLICY_CHECK_PASSED",
+      "PRECONDITIONS_SATISFIED"
+    ],
+    "record_ref": "urn:decision:17",
+    "summary": "Explicit approval and policy checks permit this bounded payment action."
+  },
+  "state_before": [
+    {
+      "ref": "urn:artifact:state-before",
+      "media_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "classification": "confidential"
+    }
+  ],
+  "action": {
+    "side_effect": "external_write",
+    "blast_radius": "single_resource",
+    "dispatch": {
+      "executor": {
+        "ref": "urn:actor:mcp-server:payments",
+        "type": "mcp_server"
+      },
+      "server_ref": "urn:mcp-server:payments.example",
+      "tool_name": "create_payment",
+      "protocol_version": "2026-07-28",
+      "request_ref": "urn:artifact:tool-request-17",
+      "request_digest": {
+        "algorithm": "sha256",
+        "value": "1111111111111111111111111111111111111111111111111111111111111111"
+      },
+      "tool_schema_digest": {
+        "algorithm": "sha256",
+        "value": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "correlation_id": "corr_17",
+      "idempotency_key": "payment_42_attempt_1",
+      "started_at": "2026-07-29T17:00:00Z",
+      "completed_at": "2026-07-29T17:00:02Z"
+    }
+  },
+  "expected_postconditions": [
+    {
+      "id": "payment_created",
+      "language": "cel",
+      "expression": "payment.status == 'created'",
+      "severity": "critical",
+      "evidence_refs": [
+        "urn:artifact:state-after"
+      ]
+    }
+  ],
+  "outcome": {
+    "status": "succeeded",
+    "result_type": "completed",
+    "response_ref": "urn:artifact:tool-response-17",
+    "response_digest": {
+      "algorithm": "sha256",
+      "value": "3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "observed_at": "2026-07-29T17:00:03Z"
+  },
+  "state_after": [
+    {
+      "ref": "urn:artifact:state-after",
+      "media_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "4444444444444444444444444444444444444444444444444444444444444444"
+      },
+      "classification": "confidential"
+    }
+  ],
+  "verification": {
+    "verdict": "verified",
+    "independence": "independent",
+    "verifier": {
+      "ref": "urn:actor:verifier:ledger-reader",
+      "type": "verifier"
+    },
+    "checks": [
+      {
+        "id": "check_01",
+        "postcondition_id": "payment_created",
+        "result": "pass",
+        "evidence_refs": [
+          "urn:artifact:state-after"
+        ]
+      }
+    ],
+    "verified_at": "2026-07-29T17:00:04Z"
+  },
+  "recovery": {
+    "reversibility": "compensatable",
+    "status": "available",
+    "rollback_tool": "cancel_payment",
+    "action_refs": []
+  },
+  "time": {
+    "valid_time": "2026-07-29T17:00:02Z",
+    "recorded_time": "2026-07-29T17:00:05Z",
+    "source_clock": "payments.example"
+  },
+  "integrity": {
+    "record_digest": {
+      "algorithm": "sha256",
+      "value": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "canonicalization": "jcs-rfc8785"
+  },
+  "privacy": {
+    "classification": "confidential",
+    "contains_personal_data": true,
+    "redacted_paths": [
+      "/state_before/0",
+      "/state_after/0"
+    ],
+    "retention_until": "2027-07-29T00:00:00Z"
+  },
+  "extensions": {}
+}
