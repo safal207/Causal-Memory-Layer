@@ -1,0 +1,199 @@
+{
+  "scenario_id": "caep-absurdity-trajectory-001",
+  "status": "experimental",
+  "title": "Payment is simultaneously created, duplicated, contained, and recovered",
+  "description": "Synthetic failure-injection scenario for testing causal reconstruction, temporal divergence, trajectory selection, and orientation-center recovery.",
+  "orientation_center": {
+    "invariant": "A payment is accepted only when intent, authorization, observable state change, and independent verification agree.",
+    "target_state": {
+      "successful_payment_count": 1,
+      "duplicate_payment_count": 0,
+      "authorization_bound_to_fresh_state": true,
+      "independently_verified": true,
+      "recovery_path_available": true
+    }
+  },
+  "dimensions": [
+    "intent",
+    "interpretation",
+    "authorization",
+    "observable_state",
+    "valid_time",
+    "recorded_time",
+    "causal_parentage",
+    "trust",
+    "risk",
+    "reversibility",
+    "verification"
+  ],
+  "events": [
+    {
+      "id": "N0",
+      "type": "user_intent",
+      "valid_time": "2026-07-29T17:09:00Z",
+      "recorded_time": "2026-07-29T17:09:00Z",
+      "state": {
+        "intent": "PAY_ORDER_IF_UNPAID",
+        "constraint": "maximum_one_successful_payment"
+      }
+    },
+    {
+      "id": "N1",
+      "type": "stale_observation",
+      "valid_time": "2026-07-29T17:09:10Z",
+      "recorded_time": "2026-07-29T17:09:50Z",
+      "state": {
+        "reported_payment_status": "unpaid",
+        "actual_payment_status": "processing",
+        "state_age_seconds": 40
+      }
+    },
+    {
+      "id": "N2",
+      "type": "authorization",
+      "valid_time": "2026-07-29T17:09:52Z",
+      "recorded_time": "2026-07-29T17:09:52Z",
+      "state": {
+        "decision": "authorized",
+        "basis": "N1",
+        "basis_fresh": false
+      }
+    },
+    {
+      "id": "N3",
+      "type": "hidden_parallel_event",
+      "valid_time": "2026-07-29T17:09:51Z",
+      "recorded_time": "2026-07-29T17:10:05Z",
+      "state": {
+        "payment_id": "payment_A",
+        "payment_status": "succeeded"
+      }
+    },
+    {
+      "id": "N4",
+      "type": "tool_outcome",
+      "valid_time": "2026-07-29T17:10:02Z",
+      "recorded_time": "2026-07-29T17:10:03Z",
+      "state": {
+        "tool": "create_payment",
+        "payment_id": "payment_B",
+        "tool_status": "success"
+      }
+    },
+    {
+      "id": "N5",
+      "type": "independent_verification",
+      "valid_time": "2026-07-29T17:10:04Z",
+      "recorded_time": "2026-07-29T17:10:04Z",
+      "state": {
+        "successful_payment_count": 2,
+        "postcondition": "successful_payment_count == 1",
+        "verdict": "diverged"
+      }
+    },
+    {
+      "id": "N6",
+      "type": "containment",
+      "valid_time": "2026-07-29T17:10:05Z",
+      "recorded_time": "2026-07-29T17:10:05Z",
+      "state": {
+        "order_payment_lock": true,
+        "new_retries_blocked": true,
+        "downstream_fulfilment_blocked": true
+      }
+    },
+    {
+      "id": "N7",
+      "type": "compensation",
+      "valid_time": "2026-07-29T17:10:06Z",
+      "recorded_time": "2026-07-29T17:10:06Z",
+      "state": {
+        "action": "cancel_payment",
+        "payment_id": "payment_B",
+        "status": "succeeded"
+      }
+    },
+    {
+      "id": "N8",
+      "type": "final_verification",
+      "valid_time": "2026-07-29T17:10:07Z",
+      "recorded_time": "2026-07-29T17:10:07Z",
+      "state": {
+        "successful_payment_count": 1,
+        "duplicate_payment_count": 0,
+        "independently_verified": true,
+        "orientation_center_reached": true
+      }
+    }
+  ],
+  "causal_edges": [
+    {"from": "N0", "to": "N1", "relation": "requests_state_check"},
+    {"from": "N1", "to": "N2", "relation": "authorizes_from_stale_basis"},
+    {"from": "N2", "to": "N4", "relation": "permits_dispatch"},
+    {"from": "N3", "to": "N5", "relation": "contributes_hidden_duplicate"},
+    {"from": "N4", "to": "N5", "relation": "contributes_visible_duplicate"},
+    {"from": "N5", "to": "N6", "relation": "triggers_containment"},
+    {"from": "N6", "to": "N7", "relation": "permits_bounded_recovery"},
+    {"from": "N7", "to": "N8", "relation": "restores_target_state"}
+  ],
+  "contradictions": [
+    "The tool reports success while the business postcondition fails.",
+    "The authorization is formally valid but causally invalid because its state basis is stale.",
+    "The hidden event occurs before dispatch in valid time but is recorded after dispatch.",
+    "Two locally correct actions create one globally incorrect state."
+  ],
+  "trajectory_candidates": [
+    {
+      "id": "T1",
+      "action": "do_nothing",
+      "harm": "high",
+      "reversibility": "low",
+      "intent_alignment": "none",
+      "selected": false
+    },
+    {
+      "id": "T2",
+      "action": "cancel_both_payments",
+      "harm": "medium",
+      "reversibility": "medium",
+      "intent_alignment": "low",
+      "selected": false
+    },
+    {
+      "id": "T3",
+      "action": "lock_order_then_cancel_latest_duplicate",
+      "harm": "low",
+      "reversibility": "high",
+      "intent_alignment": "high",
+      "selected": true,
+      "selection_reason": "smallest justified reversible action"
+    },
+    {
+      "id": "T4",
+      "action": "freeze_both_and_request_human_decision",
+      "harm": "medium",
+      "reversibility": "high",
+      "intent_alignment": "partial",
+      "selected": false
+    }
+  ],
+  "selected_trajectory": ["N5", "N6", "N7", "N8"],
+  "final_state": {
+    "successful_payment_count": 1,
+    "duplicate_payment_count": 0,
+    "incident_recorded": true,
+    "causal_gap_detected": true,
+    "future_guardrails": [
+      "fresh_state_age_seconds <= 5",
+      "authorization references current state digest",
+      "idempotency_key is present",
+      "independent postcondition verification is available"
+    ]
+  },
+  "caep_episode_refs": [
+    "caep_01",
+    "caep_02"
+  ],
+  "privacy_boundary": "No private chain-of-thought is captured; only observable events, reason codes, policy references, state evidence, and recovery decisions are represented.",
+  "disclosure": "Prepared with AI assistance under human direction and review."
+}
