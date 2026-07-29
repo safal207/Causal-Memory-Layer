@@ -2,16 +2,19 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from common import read_json, write_json
 from record_builder import build_record
 
 HERE = Path(__file__).resolve().parent
+CAEP_DIR = HERE.parent
 
 
 def call(script: str, *args: str) -> None:
@@ -25,6 +28,43 @@ def call(script: str, *args: str) -> None:
 def snapshot(source: Path, destination: Path) -> None:
     """Copy a ledger as deterministic JSON evidence."""
     write_json(destination, read_json(source))
+
+
+def load_caep_validator() -> Any:
+    """Load the canonical CAEP validator from the parent directory."""
+    spec = importlib.util.spec_from_file_location(
+        "validate_caep",
+        CAEP_DIR / "validate_caep.py",
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("unable to load the canonical CAEP validator")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def validate_caep_bundle(bundle: dict) -> None:
+    """Validate every generated record against the canonical profile."""
+    validator = load_caep_validator()
+    schema = validator.load_json(CAEP_DIR / "caep.schema.json")
+    happy = bundle["happy_path"]["record"]
+    diverged = bundle["recovery_path"]["diverged_record"]
+    recovered = bundle["recovery_path"]["recovered_record"]
+    failures = {
+        "happy": validator.validate_record(schema, happy),
+        "diverged": validator.validate_record(schema, diverged),
+        "recovered": validator.validate_record(
+            schema,
+            recovered,
+            [diverged],
+        ),
+    }
+    invalid = {name: errors for name, errors in failures.items() if errors}
+    if invalid:
+        raise RuntimeError(
+            "generated CAEP bundle is invalid: "
+            + json.dumps(invalid, sort_keys=True)
+        )
 
 
 def run_happy(workdir: Path) -> dict:
@@ -222,7 +262,7 @@ def run_recovery(workdir: Path) -> dict:
 
 
 def main() -> int:
-    """Run both scenarios and write one portable bundle."""
+    """Run both scenarios, validate them, and write one portable bundle."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -242,11 +282,13 @@ def main() -> int:
             "happy_path": run_happy(workdir),
             "recovery_path": run_recovery(workdir),
         }
+        validate_caep_bundle(bundle)
         write_json(args.output, bundle)
 
     print(
         json.dumps(
             {
+                "caep_validation": "valid",
                 "happy": bundle["happy_path"]["verification"]["verdict"],
                 "diverged": bundle["recovery_path"]
                 ["diverged_verification"]["verdict"],
