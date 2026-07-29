@@ -1,1 +1,199 @@
-{"profile":"org.causal-memory-layer.caep","schema_version":"0.1.0","episode_id":"caep_02","workflow_id":"workflow_123","status":"recovered","causal_parent_ids":["caep_01"],"supersedes":[],"intent":{"request_ref":"urn:request:43","initiator":{"ref":"urn:actor:user:alex","type":"human","display_name":"Alex"},"code":"CREATE_PAYMENT","summary":"Create a second authorized payment after validating the approved limit.","constraints":["amount <= approved_limit","one active payment per order"]},"authorization":{"decision":"authorized","scope":{"action":"payments.create","resource":"urn:order:customer-17:order-88","constraints":["amount <= 1000","no duplicate payment"]},"approval_refs":["urn:approval:892"],"policy_refs":["urn:policy:payments-v3"],"actor":{"ref":"urn:actor:policy-engine:main","type":"policy_engine"},"expires_at":"2026-07-29T18:30:00Z"},"decision":{"code":"EXECUTE_AUTHORIZED_TRANSITION","maker":{"ref":"urn:actor:agent:orchestrator","type":"agent"},"reason_codes":["USER_REQUEST_CONFIRMED","POLICY_CHECK_PASSED","PRECONDITIONS_SATISFIED"],"record_ref":"urn:decision:18","summary":"The pre-dispatch checks permitted one bounded payment creation attempt."},"state_before":[{"ref":"urn:artifact:state-before-02","media_type":"application/json","digest":{"algorithm":"sha256","value":"6666666666666666666666666666666666666666666666666666666666666666"},"classification":"confidential"}],"action":{"side_effect":"external_write","blast_radius":"single_resource","dispatch":{"executor":{"ref":"urn:actor:mcp-server:payments","type":"mcp_server"},"server_ref":"urn:mcp-server:payments.example","tool_name":"create_payment","protocol_version":"2026-07-28","request_ref":"urn:artifact:tool-request-18","request_digest":{"algorithm":"sha256","value":"7777777777777777777777777777777777777777777777777777777777777777"},"tool_schema_digest":{"algorithm":"sha256","value":"2222222222222222222222222222222222222222222222222222222222222222"},"correlation_id":"corr_18","idempotency_key":"payment_43_attempt_1","started_at":"2026-07-29T17:10:00Z","completed_at":"2026-07-29T17:10:02Z"}},"expected_postconditions":[{"id":"single_payment_created","language":"cel","expression":"payments.filter(p, p.order_id == 'order-88').size() == 1 && payment.status == 'created'","severity":"critical","evidence_refs":["urn:artifact:state-after-02"]}],"outcome":{"status":"succeeded","result_type":"completed","response_ref":"urn:artifact:tool-response-18","response_digest":{"algorithm":"sha256","value":"8888888888888888888888888888888888888888888888888888888888888888"},"observed_at":"2026-07-29T17:10:03Z"},"state_after":[{"ref":"urn:artifact:state-after-02","media_type":"application/json","digest":{"algorithm":"sha256","value":"9999999999999999999999999999999999999999999999999999999999999999"},"classification":"confidential"},{"ref":"urn:artifact:state-after-recovery-02","media_type":"application/json","digest":{"algorithm":"sha256","value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"classification":"confidential"}],"verification":{"verdict":"diverged","independence":"independent","verifier":{"ref":"urn:actor:verifier:ledger-reader","type":"verifier"},"checks":[{"id":"check_02","postcondition_id":"single_payment_created","result":"fail","evidence_refs":["urn:artifact:state-after-02"]}],"verified_at":"2026-07-29T17:10:04Z"},"recovery":{"reversibility":"compensatable","status":"recovered","rollback_tool":"cancel_payment","containment_deadline":"2026-07-29T17:10:30Z","action_refs":["urn:tool-call:cancel-duplicate-payment-19","urn:artifact:state-after-recovery-02"]},"time":{"valid_time":"2026-07-29T17:10:02Z","recorded_time":"2026-07-29T17:10:07Z","source_clock":"payments.example"},"integrity":{"record_digest":{"algorithm":"sha256","value":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"previous_record_digest":{"algorithm":"sha256","value":"5555555555555555555555555555555555555555555555555555555555555555"},"canonicalization":"jcs-rfc8785"},"privacy":{"classification":"confidential","contains_personal_data":true,"redacted_paths":["/state_before/0","/state_after/0","/state_after/1"],"retention_until":"2027-07-29T00:00:00Z"},"extensions":{}}
+{
+  "profile": "org.causal-memory-layer.caep",
+  "schema_version": "0.1.0",
+  "episode_id": "caep_02",
+  "workflow_id": "workflow_123",
+  "status": "recovered",
+  "causal_parent_ids": [
+    "caep_01"
+  ],
+  "supersedes": [],
+  "intent": {
+    "request_ref": "urn:incident:duplicate-payment-18",
+    "initiator": {
+      "ref": "urn:actor:agent:orchestrator",
+      "type": "agent",
+      "display_name": "CML recovery orchestrator"
+    },
+    "code": "RESTORE_SINGLE_PAYMENT",
+    "summary": "Contain the duplicate-payment incident and restore exactly one successful payment for the order.",
+    "constraints": [
+      "preserve the earliest valid payment",
+      "cancel only the newest duplicate",
+      "verify the ledger independently"
+    ]
+  },
+  "authorization": {
+    "decision": "authorized",
+    "scope": {
+      "action": "payments.cancel",
+      "resource": "urn:payment:payment_B",
+      "constraints": [
+        "payment_B is the newest duplicate",
+        "order payment attempts are locked during recovery"
+      ]
+    },
+    "approval_refs": [
+      "urn:approval:incident-recovery-19"
+    ],
+    "policy_refs": [
+      "urn:policy:payments-compensation-v1"
+    ],
+    "actor": {
+      "ref": "urn:actor:policy-engine:main",
+      "type": "policy_engine"
+    },
+    "expires_at": "2026-07-29T17:10:30Z"
+  },
+  "decision": {
+    "code": "EXECUTE_COMPENSATING_TRANSITION",
+    "maker": {
+      "ref": "urn:actor:agent:orchestrator",
+      "type": "agent"
+    },
+    "reason_codes": [
+      "POSTCONDITION_DIVERGED",
+      "DUPLICATE_PAYMENT_CONFIRMED",
+      "MINIMAL_REVERSIBLE_ACTION_SELECTED",
+      "RECOVERY_POLICY_PASSED"
+    ],
+    "record_ref": "urn:decision:recovery-19",
+    "summary": "Cancel payment_B because it is the newest duplicate and this is the smallest justified reversible action that preserves the user's original intent."
+  },
+  "state_before": [
+    {
+      "ref": "urn:artifact:ledger-two-payments-before-recovery",
+      "media_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "6666666666666666666666666666666666666666666666666666666666666666"
+      },
+      "classification": "confidential"
+    }
+  ],
+  "action": {
+    "side_effect": "external_write",
+    "blast_radius": "single_resource",
+    "dispatch": {
+      "executor": {
+        "ref": "urn:actor:mcp-server:payments",
+        "type": "mcp_server"
+      },
+      "server_ref": "urn:mcp-server:payments.example",
+      "tool_name": "cancel_payment",
+      "protocol_version": "2026-07-28",
+      "request_ref": "urn:artifact:cancel-payment-request-19",
+      "request_digest": {
+        "algorithm": "sha256",
+        "value": "7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "tool_schema_digest": {
+        "algorithm": "sha256",
+        "value": "2222222222222222222222222222222222222222222222222222222222222222"
+      },
+      "correlation_id": "corr_recovery_19",
+      "idempotency_key": "cancel_payment_B_once",
+      "started_at": "2026-07-29T17:10:05Z",
+      "completed_at": "2026-07-29T17:10:06Z"
+    }
+  },
+  "expected_postconditions": [
+    {
+      "id": "single_successful_payment_restored",
+      "language": "cel",
+      "expression": "payments.filter(p, p.order_id == 'order-88' && p.status == 'succeeded').size() == 1 && payment_B.status == 'cancelled'",
+      "severity": "critical",
+      "evidence_refs": [
+        "urn:artifact:ledger-after-recovery"
+      ]
+    }
+  ],
+  "outcome": {
+    "status": "succeeded",
+    "result_type": "completed",
+    "response_ref": "urn:artifact:cancel-payment-response-19",
+    "response_digest": {
+      "algorithm": "sha256",
+      "value": "8888888888888888888888888888888888888888888888888888888888888888"
+    },
+    "observed_at": "2026-07-29T17:10:06Z"
+  },
+  "state_after": [
+    {
+      "ref": "urn:artifact:ledger-after-recovery",
+      "media_type": "application/json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "classification": "confidential"
+    }
+  ],
+  "verification": {
+    "verdict": "verified",
+    "independence": "independent",
+    "verifier": {
+      "ref": "urn:actor:verifier:ledger-reader",
+      "type": "verifier"
+    },
+    "checks": [
+      {
+        "id": "check_recovery_19",
+        "postcondition_id": "single_successful_payment_restored",
+        "result": "pass",
+        "evidence_refs": [
+          "urn:artifact:ledger-after-recovery"
+        ]
+      }
+    ],
+    "verified_at": "2026-07-29T17:10:07Z"
+  },
+  "recovery": {
+    "reversibility": "compensatable",
+    "status": "recovered",
+    "rollback_tool": "restore_cancelled_payment",
+    "containment_deadline": "2026-07-29T17:10:30Z",
+    "action_refs": [
+      "urn:tool-call:lock-order-payment-attempts-18",
+      "urn:tool-call:cancel-payment-19",
+      "urn:artifact:ledger-after-recovery"
+    ]
+  },
+  "time": {
+    "valid_time": "2026-07-29T17:10:06Z",
+    "recorded_time": "2026-07-29T17:10:07Z",
+    "source_clock": "payments.example"
+  },
+  "integrity": {
+    "record_digest": {
+      "algorithm": "sha256",
+      "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "previous_record_digest": {
+      "algorithm": "sha256",
+      "value": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "canonicalization": "jcs-rfc8785"
+  },
+  "privacy": {
+    "classification": "confidential",
+    "contains_personal_data": true,
+    "redacted_paths": [
+      "/state_before/0",
+      "/state_after/0"
+    ],
+    "retention_until": "2027-07-29T00:00:00Z"
+  },
+  "extensions": {
+    "org.causal-memory-layer.orientation": {
+      "center": {
+        "successful_payment_count": 1,
+        "duplicate_payment_count": 0,
+        "independently_verified": true
+      },
+      "selected_trajectory": "lock_order_then_cancel_latest_duplicate",
+      "selection_rule": "smallest justified reversible action",
+      "orientation_center_reached": true
+    }
+  }
+}
