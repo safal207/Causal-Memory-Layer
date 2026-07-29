@@ -18,6 +18,20 @@ CAEP complements ordinary logs and provenance traces by checking whether a tool 
 - `ABSURDITY_TRAJECTORY.md` — graph, orientation center, candidate paths, and guardrails.
 - `validate_caep.py` — schema, semantic, digest, duplicate-key, temporal-order, and parent-binding validation.
 - `test_validate_caep.py` — mutation, tamper, CLI, and lifecycle tests.
+- `interoperability_demo/` — cross-process state, action, verifier, divergence, and recovery demo.
+- `trust_console/` — dependency-free browser viewer for human-readable Trust Receipts.
+
+## View a Trust Receipt
+
+From `docs/experimental/caep/`:
+
+```bash
+python -m http.server 8000
+```
+
+Open `http://localhost:8000/trust_console/` and choose **Load recovery demo**. The console presents intent, tool outcome, independent verification, recovery, causal lineage, and technical evidence without requiring a user to read raw CAEP JSON.
+
+The console is a presentation and browser-side digest-preview layer. The Python validator remains the normative prototype validation path.
 
 ## Validate
 
