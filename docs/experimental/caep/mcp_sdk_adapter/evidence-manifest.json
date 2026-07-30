@@ -1,0 +1,32 @@
+{
+  "profile": "org.causal-memory-layer.caep.mcp-sdk-evidence-manifest",
+  "schema_version": "0.1.0",
+  "source_commit": "f17292f3a136a843bacc548df2bad40d566f31d6",
+  "source_workflow_run": 30512063860,
+  "source_artifacts": {
+    "python_3_10": 8747480747,
+    "python_3_11": 8747479664,
+    "python_3_12": 8747478578
+  },
+  "python_versions": ["3.10", "3.11", "3.12"],
+  "cross_python_byte_identity": true,
+  "bundle_file": "mcp-sdk-bundle.json",
+  "bundle_media_type": "application/json",
+  "canonicalization": "UTF-8 JSON, keys sorted, compact separators, trailing newline",
+  "size_bytes": 14105,
+  "sha256": "b4765f234c9020e3c48c6b7d0f6834d14a93d934cc2cdc8644f9084976a03c36",
+  "git_blob_sha": "73bd80d7c1f1f9886631ce46ac8f2b0b9004133d",
+  "mcp_sdk_package": "mcp",
+  "mcp_sdk_version": "1.29.0",
+  "mcp_protocol_version": "2025-11-25",
+  "transport": "mcp-stdio",
+  "generated_at": "2026-07-30T03:46:41Z",
+  "validation": {
+    "canonical_caep_validator": "passed",
+    "happy_path": "verified",
+    "divergence": "detected",
+    "recovery": "verified",
+    "causal_parent_binding": "passed"
+  },
+  "trust_boundary": "The manifest proves reproducible integrity and CI provenance for the published demo. It does not establish publisher identity, production safety, or external endorsement."
+}
