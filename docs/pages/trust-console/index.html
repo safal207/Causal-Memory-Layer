@@ -5,42 +5,121 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="CML Trust Console turns CAEP records into human-readable receipts for AI actions, verification, divergence, and recovery.">
   <title>CML Trust Console</title>
-  <style>
-    :root{--ink:#0f172a;--muted:#64748b;--line:#dbe4ee;--paper:#fff;--bg:#f6f8fb;--blue:#2563eb;--good:#047857;--warn:#b45309;--bad:#b91c1c;--shadow:0 22px 70px rgba(15,23,42,.1)}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#dbeafe 0,transparent 28%),linear-gradient(180deg,#f8fafc,#eef2f7);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}button,input,textarea{font:inherit}button{cursor:pointer}.shell{max-width:1180px;margin:auto;padding:0 22px}.topbar{position:sticky;top:0;z-index:10;backdrop-filter:blur(18px);background:rgba(248,250,252,.86);border-bottom:1px solid rgba(203,213,225,.75)}.topbar .shell{min-height:74px;display:flex;align-items:center;justify-content:space-between;gap:18px}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}.mark{width:42px;height:42px;border-radius:14px;background:var(--ink);color:#fff;display:grid;place-items:center;font-weight:950}.brand span{display:grid}.brand small{color:var(--muted);font-size:12px;margin-top:2px}.actions{display:flex;flex-wrap:wrap;gap:10px}.btn{border:1px solid var(--line);background:#fff;color:var(--ink);min-height:44px;border-radius:14px;padding:0 15px;font-weight:850}.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}.btn.blue{background:var(--blue);border-color:var(--blue);color:#fff}.hero{padding:68px 0 40px;display:grid;grid-template-columns:1.15fr .85fr;gap:34px;align-items:center}.eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:12px;font-weight:950;color:var(--blue)}h1{font-size:clamp(42px,7vw,76px);line-height:.95;letter-spacing:-.065em;margin:16px 0 20px}h2{font-size:clamp(28px,4vw,42px);letter-spacing:-.04em;margin:8px 0}.lead{font-size:19px;line-height:1.65;color:var(--muted);max-width:760px}.privacy{color:var(--muted);font-size:13px;margin-top:14px}.hero-card{background:linear-gradient(150deg,#0f172a,#1e3a8a);border-radius:32px;color:#fff;padding:28px;box-shadow:var(--shadow);min-height:350px;display:grid;align-content:center;gap:14px}.hero-step{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:18px;padding:16px;display:flex;align-items:center;gap:14px}.hero-step b{width:34px;height:34px;border-radius:11px;background:#fff;color:#0f172a;display:grid;place-items:center}.workspace{padding:24px 0 64px}.workspace[hidden],.empty[hidden],#raw[hidden]{display:none}.workspace-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;margin-bottom:20px}.tabs{display:flex;gap:9px;overflow:auto;padding-bottom:10px}.tab{white-space:nowrap;border:1px solid var(--line);background:#fff;border-radius:999px;padding:10px 14px;font-weight:850}.tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}.receipt{background:rgba(255,255,255,.96);border:1px solid var(--line);border-radius:30px;box-shadow:var(--shadow);padding:28px}.statusrow{display:flex;justify-content:space-between;gap:16px;align-items:center}.badge{display:inline-flex;align-items:center;border-radius:999px;padding:8px 12px;font-size:13px;font-weight:950;background:#dcfce7;color:var(--good)}.badge.warn{background:#fef3c7;color:var(--warn)}.badge.bad{background:#fee2e2;color:var(--bad)}.digest{font-size:12px;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.headline{display:grid;grid-template-columns:72px 1fr;gap:18px;align-items:center;margin:26px 0}.icon{width:70px;height:70px;border-radius:23px;background:#dcfce7;color:var(--good);display:grid;place-items:center;font-size:34px;font-weight:950}.icon.warn{background:#fef3c7;color:var(--warn)}.icon.bad{background:#fee2e2;color:var(--bad)}.headline h2{font-size:clamp(28px,4vw,42px);margin:3px 0 8px}.headline p{margin:0;color:var(--muted);line-height:1.6}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.panel,.metric,.evidence{border:1px solid var(--line);border-radius:22px;background:#fff;padding:20px}.panel small,.metric span{color:var(--muted);font-weight:800}.panel h3,.evidence h3{margin:8px 0 10px}.panel p,.panel li{color:#475569;line-height:1.58}.panel ul{padding-left:18px}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.metric strong{display:block;font-size:20px;margin:8px 0}.metric small{color:var(--muted)}.section{margin-top:22px;background:rgba(255,255,255,.84);border:1px solid var(--line);border-radius:28px;padding:24px}.sectionhead{display:flex;justify-content:space-between;gap:16px;align-items:center}.timeline{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:20px}.node{position:relative;border:1px solid var(--line);background:#fff;border-radius:18px;padding:16px;min-height:150px}.node span{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--blue);font-weight:950}.node p{font-size:13px;line-height:1.45;color:var(--muted)}.evidencegrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}dl{margin:0}dl div{display:grid;grid-template-columns:130px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid #edf2f7}dt{color:var(--muted);font-size:13px}dd{margin:0;overflow-wrap:anywhere;font-weight:750;font-size:13px}.check{display:flex;gap:11px;align-items:flex-start;padding:10px 0}.check i{font-style:normal;width:28px;height:28px;border-radius:9px;background:#dcfce7;color:var(--good);display:grid;place-items:center;font-weight:950}.check i.fail{background:#fee2e2;color:var(--bad)}pre{overflow:auto;background:#0b1220;color:#dbeafe;border-radius:20px;padding:18px;font-size:12px;line-height:1.55}.empty{text-align:center;padding:34px 0 80px}.empty-card{max-width:720px;margin:auto;background:rgba(255,255,255,.86);border:1px solid var(--line);border-radius:28px;padding:34px;box-shadow:var(--shadow)}.empty p{color:var(--muted);line-height:1.6}.chips{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:18px}.chip{border:1px solid var(--line);border-radius:999px;padding:8px 11px;background:#fff;font-size:12px;font-weight:850;color:#475569}.paste{width:min(720px,calc(100vw - 34px));border:0;border-radius:24px;padding:0;box-shadow:var(--shadow)}.paste::backdrop{background:rgba(15,23,42,.55)}.pastebox{padding:22px}.paste textarea{width:100%;min-height:290px;border:1px solid var(--line);border-radius:15px;padding:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.footer{padding:24px 0 44px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;gap:16px}@media(max-width:900px){.hero,.grid,.metrics,.timeline,.evidencegrid{grid-template-columns:1fr}.hero{padding-top:42px}.topbar .shell,.workspace-head,.statusrow,.sectionhead,.footer{align-items:flex-start;flex-direction:column}.headline{grid-template-columns:1fr}.hero-card{min-height:auto}.node{min-height:auto}}
-    @media print{.topbar,.hero,.actions,.tabs,.empty,.footer,.no-print{display:none!important}body{background:#fff}.workspace{padding:0}.receipt,.section{box-shadow:none;break-inside:avoid}.shell{max-width:none}}
-  </style>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
 </head>
 <body>
-  <header class="topbar"><div class="shell"><a class="brand" href="#"><b class="mark">C</b><span><strong>CML Trust Console</strong><small>Human-readable AI action receipts</small></span></a><div class="actions"><button class="btn" id="demo">Load recovery demo</button><label class="btn primary" for="file">Open CAEP file</label><input id="file" type="file" accept="application/json,.json" hidden><button class="btn" id="paste">Paste JSON</button></div></div></header>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="./" aria-label="CML Trust Console home">
+        <b class="mark">C</b>
+        <span><strong>CML Trust Console</strong><small>Human-readable AI action receipts</small></span>
+      </a>
+      <div class="actions">
+        <button class="btn blue" id="mcpDemo">Load official MCP SDK demo</button>
+        <button class="btn" id="demo">Load compact recovery demo</button>
+        <label class="btn primary" for="file">Open CAEP file</label>
+        <input id="file" type="file" accept="application/json,.json" hidden>
+        <button class="btn" id="paste">Paste JSON</button>
+      </div>
+    </div>
+  </header>
+
   <main class="shell">
-    <section class="hero"><div><div class="eyebrow">Trust receipt for autonomous actions</div><h1>Did your AI fulfil your intent?</h1><p class="lead">See what you requested, what the system changed, who independently checked the result, and how it recovered when a successful tool call produced the wrong real-world outcome.</p><p class="privacy">Files are processed locally in your browser. Nothing is uploaded by this page.</p></div><div class="hero-card"><div class="hero-step"><b>1</b><span>Your intent and permission</span></div><div class="hero-step"><b>2</b><span>Exact tool dispatch and observed outcome</span></div><div class="hero-step"><b>3</b><span>Independent verification and recovery</span></div></div></section>
-    <section class="workspace" id="workspace" hidden><div class="workspace-head"><div><div class="eyebrow">Loaded evidence</div><h2 id="bundleTitle">Trust receipt</h2><p class="privacy" id="source"></p></div><div class="actions no-print"><button class="btn" id="print">Print / save PDF</button><button class="btn blue" id="download">Download receipt</button></div></div><div class="tabs" id="tabs" role="tablist"></div>
-      <article class="receipt"><div class="statusrow"><div><span class="badge" id="badge"></span> <span class="badge" id="digestBadge"></span></div><code class="digest" id="episode"></code></div><div class="headline"><div class="icon" id="icon">✓</div><div><div class="eyebrow" id="kicker"></div><h2 id="heading"></h2><p id="summary"></p></div></div><div class="grid"><div class="panel"><small>01 · Your intent</small><h3 id="intentTitle"></h3><p id="intent"></p><div class="chips" id="constraints"></div></div><div class="panel"><small>02 · What happened</small><h3 id="actionTitle"></h3><p id="outcome"></p></div><div class="panel"><small>03 · What the system did</small><h3>Recovery actions</h3><ul id="recovery"></ul></div><div class="panel"><small>04 · Current trusted state</small><h3 id="trustedTitle"></h3><p id="trusted"></p></div></div></article>
-      <div class="metrics"><div class="metric"><span>Intent alignment</span><strong id="mIntent"></strong><small id="mIntentNote"></small></div><div class="metric"><span>Independent verification</span><strong id="mVerify"></strong><small id="mVerifyNote"></small></div><div class="metric"><span>Critical conditions</span><strong id="mCritical"></strong><small id="mCriticalNote"></small></div><div class="metric"><span>Causal lineage</span><strong id="mLineage"></strong><small id="mLineageNote"></small></div></div>
-      <section class="section"><div class="sectionhead"><div><div class="eyebrow">Causal reconstruction</div><h2>Why this conclusion is justified</h2></div><small>History is preserved, not rewritten.</small></div><div class="timeline" id="timeline"></div></section>
-      <section class="section"><div class="sectionhead"><div><div class="eyebrow">Technical evidence</div><h2>Auditable details</h2></div><button class="btn no-print" id="toggle">Show raw record</button></div><div class="evidencegrid"><article class="evidence"><h3>Actors</h3><dl id="actors"></dl></article><article class="evidence"><h3>Integrity</h3><dl id="integrity"></dl></article><article class="evidence"><h3>Timing</h3><dl id="timing"></dl></article><article class="evidence"><h3>Verification checks</h3><div id="checks"></div></article></div><pre id="raw" hidden><code></code></pre></section>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Trust receipt for autonomous actions</div>
+        <h1>Did your AI fulfil your intent?</h1>
+        <p class="lead">See what you requested, what the system changed, who independently checked the result, and how it recovered when a successful tool call produced the wrong real-world outcome.</p>
+        <p class="privacy">Files are processed locally in your browser. Nothing is uploaded by this page.</p>
+        <div class="actions hero-actions">
+          <button class="btn blue" id="heroMcpDemo">Open verified MCP evidence</button>
+          <a class="btn" href="./evidence-manifest.json">View provenance manifest</a>
+          <a class="btn" href="./mcp-sdk-bundle.json.gz" download>Download evidence bundle</a>
+        </div>
+      </div>
+      <div class="hero-card" aria-label="Evidence flow">
+        <div class="hero-step"><b>1</b><span>Real MCP handshake and tool discovery</span></div>
+        <div class="hero-step"><b>2</b><span>Exact action, observed outcome, and independent verifier</span></div>
+        <div class="hero-step"><b>3</b><span>Divergence containment, compensation, and digest-bound recovery</span></div>
+      </div>
     </section>
-    <section class="empty" id="empty"><div class="empty-card"><div class="eyebrow">Evidence, not another dashboard</div><h2>Open a CAEP record or try the recovery demo.</h2><p>The console accepts a single record, an array, or a bundle containing nested CAEP records.</p><div class="chips"><span class="chip">Tool success ≠ business success</span><span class="chip">Independent verifier</span><span class="chip">Digest-bound recovery</span></div></div></section>
+
+    <section class="workspace" id="workspace" hidden>
+      <div class="workspace-head">
+        <div>
+          <div class="eyebrow">Loaded evidence</div>
+          <h2 id="bundleTitle">Trust receipt</h2>
+          <p class="privacy" id="source"></p>
+        </div>
+        <div class="actions no-print">
+          <button class="btn" id="print">Print / save PDF</button>
+          <button class="btn blue" id="download">Download receipt</button>
+        </div>
+      </div>
+      <div class="tabs" id="tabs" role="tablist"></div>
+
+      <article class="receipt">
+        <div class="statusrow">
+          <div><span class="badge" id="badge"></span> <span class="badge" id="digestBadge"></span></div>
+          <code class="digest" id="episode"></code>
+        </div>
+        <div class="headline">
+          <div class="icon" id="icon">✓</div>
+          <div><div class="eyebrow" id="kicker"></div><h2 id="heading"></h2><p id="summary"></p></div>
+        </div>
+        <div class="grid">
+          <div class="panel"><small>01 · Your intent</small><h3 id="intentTitle"></h3><p id="intent"></p><div class="chips left" id="constraints"></div></div>
+          <div class="panel"><small>02 · What happened</small><h3 id="actionTitle"></h3><p id="outcome"></p></div>
+          <div class="panel"><small>03 · What the system did</small><h3>Recovery actions</h3><ul id="recovery"></ul></div>
+          <div class="panel"><small>04 · Current trusted state</small><h3 id="trustedTitle"></h3><p id="trusted"></p></div>
+        </div>
+      </article>
+
+      <div class="metrics">
+        <div class="metric"><span>Intent alignment</span><strong id="mIntent"></strong><small id="mIntentNote"></small></div>
+        <div class="metric"><span>Independent verification</span><strong id="mVerify"></strong><small id="mVerifyNote"></small></div>
+        <div class="metric"><span>Critical conditions</span><strong id="mCritical"></strong><small id="mCriticalNote"></small></div>
+        <div class="metric"><span>Causal lineage</span><strong id="mLineage"></strong><small id="mLineageNote"></small></div>
+      </div>
+
+      <section class="section">
+        <div class="sectionhead"><div><div class="eyebrow">Causal reconstruction</div><h2>Why this conclusion is justified</h2></div><small>History is preserved, not rewritten.</small></div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section class="section">
+        <div class="sectionhead"><div><div class="eyebrow">Technical evidence</div><h2>Auditable details</h2></div><button class="btn no-print" id="toggle">Show raw record</button></div>
+        <div class="evidencegrid">
+          <article class="evidence"><h3>Actors</h3><dl id="actors"></dl></article>
+          <article class="evidence"><h3>Integrity</h3><dl id="integrity"></dl></article>
+          <article class="evidence"><h3>MCP transport proof</h3><dl id="protocol"></dl></article>
+          <article class="evidence"><h3>Timing</h3><dl id="timing"></dl></article>
+          <article class="evidence wide"><h3>Verification checks</h3><div id="checks"></div></article>
+        </div>
+        <pre id="raw" hidden><code></code></pre>
+      </section>
+    </section>
+
+    <section class="empty" id="empty">
+      <div class="empty-card">
+        <div class="eyebrow">Evidence, not another dashboard</div>
+        <h2>Open the official MCP SDK evidence in one click.</h2>
+        <p>The published bundle was generated through two independent stdio MCP server processes, validated by the canonical CAEP validator, and reproduced byte-for-byte on Python 3.10, 3.11, and 3.12.</p>
+        <div class="chips"><span class="chip">Real MCP session</span><span class="chip">Independent verifier</span><span class="chip">Digest-bound recovery</span><span class="chip">Cross-Python reproducible</span></div>
+      </div>
+    </section>
   </main>
-  <dialog class="paste" id="dialog"><div class="pastebox"><div class="sectionhead"><div><div class="eyebrow">Paste evidence</div><h2>CAEP JSON</h2></div><button class="btn" id="close">Close</button></div><textarea id="text" spellcheck="false" placeholder='{"profile":"org.causal-memory-layer.caep", ...}'></textarea><p id="error" style="color:var(--bad)"></p><div class="actions"><button class="btn primary" id="openPaste">Open receipt</button></div></div></dialog>
+
+  <dialog class="paste" id="dialog">
+    <div class="pastebox">
+      <div class="sectionhead"><div><div class="eyebrow">Paste evidence</div><h2>CAEP JSON</h2></div><button class="btn" id="close">Close</button></div>
+      <textarea id="text" spellcheck="false" placeholder='{"profile":"org.causal-memory-layer.caep", ...}'></textarea>
+      <p id="error" class="error"></p>
+      <div class="actions"><button class="btn primary" id="openPaste">Open receipt</button></div>
+    </div>
+  </dialog>
+
   <footer class="shell footer"><span>CML Trust Console · Experimental CAEP viewer</span><span>Integrity is not authenticity. The Python validator remains normative.</span></footer>
-<script>
-"use strict";
-const $=id=>document.getElementById(id),state={records:[],active:0,source:""};
-const copy={verified:{badge:"Verified",icon:"✓",tone:"good",kicker:"Operation independently verified",heading:"The requested outcome was achieved.",trusted:"The declared business outcome passed independent verification."},recovered:{badge:"Recovered",icon:"↺",tone:"good",kicker:"Divergence detected and repaired",heading:"The system restored the intended outcome.",trusted:"The smallest justified compensating action restored the target state and the result was independently verified."},contained:{badge:"Contained",icon:"!",tone:"warn",kicker:"Business outcome diverged",heading:"The tool succeeded, but the intended result did not.",trusted:"Further harm was contained. Recovery is required before this operation can be accepted."},completed:{badge:"Completed",icon:"…",tone:"warn",kicker:"Tool execution completed",heading:"The business result is not independently accepted.",trusted:"Independent verification has not established the final user outcome."},blocked:{badge:"Blocked",icon:"×",tone:"bad",kicker:"Action was not permitted",heading:"The action was blocked before dispatch.",trusted:"No accepted transition was performed."}};
-const esc=v=>String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;"),title=v=>String(v||"unknown").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase()),short=v=>{const p=String(v||"Not declared").split(/[/:]/).filter(Boolean);return p.at(-1)||String(v)},fmt=v=>{if(!v)return"Not recorded";const d=new Date(v);return Number.isNaN(d.valueOf())?v:new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"medium"}).format(d)};
-function isRecord(v){return!!(v&&typeof v==="object"&&v.profile==="org.causal-memory-layer.caep"&&v.episode_id)}
-function recordsFrom(v){if(Array.isArray(v))return v.filter(isRecord);if(isRecord(v))return[v];if(Array.isArray(v?.records))return v.records.filter(isRecord);const out=[];const visit=n=>{if(!n||typeof n!=="object")return;if(isRecord(n)){out.push(n);return}Object.values(n).forEach(visit)};visit(v);return[...new Map(out.map(r=>[r.episode_id,r])).values()]}
-function stable(v){if(Array.isArray(v))return`[${v.map(stable).join(",")}]`;if(v&&typeof v==="object")return`{${Object.keys(v).sort().map(k=>`${JSON.stringify(k)}:${stable(v[k])}`).join(",")}}`;return JSON.stringify(v)}
-async function integrity(r){const clone=structuredClone(r);delete clone.integrity?.record_digest;delete clone.integrity?.signature;const declared=r.integrity?.record_digest?.value?.toLowerCase(),parents=r.causal_parent_ids||[],bindings=r.integrity?.parent_digests||{},keys=parents.length===Object.keys(bindings).length&&parents.every(id=>bindings[id]);if(!crypto?.subtle||!declared)return{ok:null,label:"Digest not checked",keys};const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(stable(clone))),computed=[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("");return{ok:computed===declared&&keys,label:computed===declared&&keys?"Digest matches":"Digest or parent binding mismatch",computed,keys}}
-function rows(items){return items.map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
-function load(v,source){const rs=recordsFrom(v);if(!rs.length)throw Error("No CAEP records found");state.records=rs;state.active=Math.max(0,rs.findIndex(r=>["recovered","verified"].includes(r.status)));state.source=source;$("workspace").hidden=false;$("empty").hidden=true;$("bundleTitle").textContent=rs.length===1?"Trust receipt":`${rs.length} linked trust receipts`;$("source").textContent=`${source} · ${rs[0].workflow_id||"workflow not declared"}`;tabs();render();$("workspace").scrollIntoView({behavior:"smooth"})}
-function tabs(){$("tabs").innerHTML=state.records.map((r,i)=>`<button class="tab" role="tab" aria-selected="${i===state.active}" data-i="${i}">${esc(title(r.status))} · ${esc(short(r.action?.dispatch?.tool_name||r.episode_id))}</button>`).join("");document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{state.active=Number(b.dataset.i);tabs();render()})}
-function human(r){if(r.status==="recovered")return"An invalid duplicate state was detected, a bounded compensating action was executed, and the final business condition passed independent verification.";if(r.status==="contained")return"The tool reported success, but an independent verifier found that a critical business condition failed. Further actions were contained.";if(r.status==="verified")return"The tool result and independently observed state agree with the declared intent.";return r.decision?.summary||"One auditable action episode."}
-function recovery(r){const a=[];if(r.status==="contained")a.push("Blocked further retries or downstream harm.");(r.recovery?.action_refs||[]).forEach(x=>a.push(title(short(x).replaceAll("-"," "))+"."));if(r.action?.dispatch?.tool_name)a.push(`Executed ${r.action.dispatch.tool_name} as the bounded transition.`);if(r.verification?.verdict)a.push(`Recorded an independent ${r.verification.verdict} verdict.`);return[...new Set(a)].slice(0,5)}
-async function render(){const r=state.records[state.active],c=copy[r.status]||copy.completed,v=r.verification||{},checks=v.checks||[],critical=new Set((r.expected_postconditions||[]).filter(x=>x.severity==="critical").map(x=>x.id)),passed=checks.filter(x=>critical.has(x.postcondition_id)&&x.result==="pass").length,parents=r.causal_parent_ids||[];$("badge").textContent=c.badge;$("badge").className=`badge ${c.tone==="warn"?"warn":c.tone==="bad"?"bad":""}`;$("icon").textContent=c.icon;$("icon").className=`icon ${c.tone==="warn"?"warn":c.tone==="bad"?"bad":""}`;$("kicker").textContent=c.kicker;$("heading").textContent=c.heading;$("summary").textContent=human(r);$("episode").textContent=r.episode_id;$("intentTitle").textContent=title(r.intent?.code);$("intent").textContent=r.intent?.summary||"Intent not declared";$("constraints").innerHTML=(r.intent?.constraints||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join("")||'<span class="chip">No constraints declared</span>';const tool=r.action?.dispatch?.tool_name||"No dispatch",out=r.outcome?.status||"not performed",verdict=v.verdict||"not verified";$("actionTitle").textContent=title(tool);$("outcome").textContent=out==="succeeded"&&verdict==="diverged"?`${tool} returned success, but independent verification found that the business postcondition failed.`:`${tool} reported ${out}; verification verdict: ${verdict}.`;$("recovery").innerHTML=recovery(r).map(x=>`<li>${esc(x)}</li>`).join("");$("trustedTitle").textContent=c.badge;$("trusted").textContent=c.trusted;$("mIntent").textContent=["verified","recovered"].includes(r.status)?"Confirmed":"Not accepted";$("mIntentNote").textContent=r.intent?.code||"No intent code";$("mVerify").textContent=v.independence==="independent"?"Independent":title(v.independence||"missing");$("mVerifyNote").textContent=short(v.verifier?.ref);$("mCritical").textContent=critical.size?`${passed} / ${critical.size} pass`:"None declared";$("mCriticalNote").textContent=`Verdict: ${verdict}`;$("mLineage").textContent=parents.length?`${parents.length} parent bound`:"Root record";$("mLineageNote").textContent=parents.join(", ")||"No causal parent required";const nodes=[["Intent",title(r.intent?.code),r.intent?.summary],["Authorization",title(r.authorization?.decision),r.authorization?.scope?.action],["Decision",title(r.decision?.code),r.decision?.summary],["Dispatch",tool,`Executor: ${short(r.action?.dispatch?.executor?.ref)}`],["Verification",title(verdict),`${checks.length} postcondition check(s)`]];$("timeline").innerHTML=nodes.map(n=>`<article class="node"><span>${esc(n[0])}</span><h3>${esc(n[1])}</h3><p>${esc(n[2]||"Not declared")}</p></article>`).join("");$("actors").innerHTML=rows([["Initiator",short(r.intent?.initiator?.ref)],["Policy actor",short(r.authorization?.actor?.ref)],["Decision maker",short(r.decision?.maker?.ref)],["Executor",short(r.action?.dispatch?.executor?.ref)],["Verifier",short(v.verifier?.ref)]]);$("timing").innerHTML=rows([["Started",fmt(r.action?.dispatch?.started_at)],["Completed",fmt(r.action?.dispatch?.completed_at)],["Observed",fmt(r.outcome?.observed_at)],["Verified",fmt(v.verified_at)],["Recorded",fmt(r.time?.recorded_time)]]);$("checks").innerHTML=checks.map(x=>`<div class="check"><i class="${x.result==="pass"?"":"fail"}">${x.result==="pass"?"✓":"×"}</i><div><strong>${esc(x.postcondition_id)}</strong><br><small>${esc(title(x.result))}</small></div></div>`).join("")||"No checks recorded";$("raw").querySelector("code").textContent=JSON.stringify(r,null,2);$("raw").hidden=true;$("toggle").textContent="Show raw record";const x=await integrity(r);$("digestBadge").textContent=x.label;$("digestBadge").className=`badge ${x.ok===false?"bad":""}`;$("integrity").innerHTML=rows([["Declared digest",r.integrity?.record_digest?.value||"Missing"],["Computed digest",x.computed||"Unavailable"],["Parent keys",x.keys?"Consistent":"Mismatch"],["Canonicalization",r.integrity?.canonicalization||"Not declared"],["Signature",r.integrity?.signature?"Present (not verified)":"Not present"]])}
-function receipt(r){return{generated_at:new Date().toISOString(),episode_id:r.episode_id,workflow_id:r.workflow_id,status:r.status,intent:r.intent?.summary,action:r.action?.dispatch?.tool_name,tool_outcome:r.outcome?.status,verification:r.verification?.verdict,independent_verifier:r.verification?.verifier?.ref,recovery_status:r.recovery?.status,causal_parent_ids:r.causal_parent_ids,record_digest:r.integrity?.record_digest,notice:"Human-readable CAEP receipt. Integrity is not authenticity; signatures are not verified by this viewer."}}
-$("demo").onclick=async()=>{try{const r=await fetch("./demo-bundle.json");if(!r.ok)throw Error("Demo bundle unavailable");load(await r.json(),"Published recovery demo")}catch(e){alert(e.message)}};$("file").onchange=async e=>{const f=e.target.files?.[0];if(!f)return;try{load(JSON.parse(await f.text()),f.name)}catch(x){alert(`Could not open file: ${x.message}`)}e.target.value=""};$("paste").onclick=()=>{$("error").textContent="";$("dialog").showModal()};$("close").onclick=()=>$("dialog").close();$("openPaste").onclick=()=>{try{load(JSON.parse($("text").value),"Pasted JSON");$("dialog").close()}catch(e){$("error").textContent=e.message}};$("print").onclick=()=>print();$("download").onclick=()=>{const r=state.records[state.active],blob=new Blob([JSON.stringify(receipt(r),null,2)+"\n"],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`${r.episode_id}-trust-receipt.json`;a.click();URL.revokeObjectURL(a.href)};$("toggle").onclick=()=>{const h=!$("raw").hidden;$("raw").hidden=h;$("toggle").textContent=h?"Show raw record":"Hide raw record"};
-</script>
 </body>
 </html>
