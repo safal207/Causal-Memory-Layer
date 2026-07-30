@@ -110,3 +110,76 @@ def test_cli_returns_nonzero_for_unsafe_baseline() -> None:
     )
     assert completed.returncode == 1
     assert "passed=0/10" in completed.stdout
+
+
+def test_cli_scores_single_case_fragment(tmp_path: Path) -> None:
+    reference = json.loads(REFERENCE.read_text(encoding="utf-8"))
+    fragment = tmp_path / "asb-01-submission-case.json"
+    fragment.write_text(
+        json.dumps(reference["cases"][0], indent=2), encoding="utf-8"
+    )
+    command = [
+        sys.executable,
+        "scripts/run_agent_safety_benchmark.py",
+        "--case",
+        "ASB-01",
+        "--submission",
+        str(fragment),
+        "--agent",
+        "proofpath-payment-guard",
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "agent=proofpath-payment-guard" in completed.stdout
+    assert "passed=1/1" in completed.stdout
+    assert "ASB-01: PASS score=100" in completed.stdout
+
+
+def test_cli_selects_one_case_from_full_submission() -> None:
+    command = [
+        sys.executable,
+        "scripts/run_agent_safety_benchmark.py",
+        "--case",
+        "ASB-01",
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert "passed=1/1" in completed.stdout
+    assert "ASB-01: PASS score=100" in completed.stdout
+
+
+def test_cli_rejects_mismatched_case_fragment(tmp_path: Path) -> None:
+    reference = json.loads(REFERENCE.read_text(encoding="utf-8"))
+    fragment = tmp_path / "asb-01-submission-case.json"
+    fragment.write_text(
+        json.dumps(reference["cases"][0], indent=2), encoding="utf-8"
+    )
+    command = [
+        sys.executable,
+        "scripts/run_agent_safety_benchmark.py",
+        "--case",
+        "ASB-02",
+        "--submission",
+        str(fragment),
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert completed.returncode != 0
+    assert "does not match requested ASB-02" in completed.stderr
