@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import subprocess
@@ -48,11 +49,11 @@ def test_mcp_sdk_adapter(tmp_path: Path) -> None:
 
     canonical = (
         root
-        / "docs/experimental/caep/mcp_sdk_adapter/mcp-sdk-bundle.json"
+        / "docs/experimental/caep/mcp_sdk_adapter/mcp-sdk-bundle.json.gz"
     )
-    published = root / "docs/pages/trust-console/mcp-sdk-bundle.json"
-    if canonical.exists() or published.exists():
-        assert canonical.exists(), "canonical MCP bundle is missing"
-        assert published.exists(), "published MCP bundle is missing"
-        assert canonical.read_bytes() == bundle_bytes
-        assert published.read_bytes() == bundle_bytes
+    published = root / "docs/pages/trust-console/mcp-sdk-bundle.json.gz"
+    assert canonical.exists(), "canonical MCP evidence bundle is missing"
+    assert published.exists(), "published MCP evidence bundle is missing"
+    assert canonical.read_bytes() == published.read_bytes()
+    assert gzip.decompress(canonical.read_bytes()) == bundle_bytes
+    assert hashlib.sha256(gzip.decompress(published.read_bytes())).hexdigest() == digest
