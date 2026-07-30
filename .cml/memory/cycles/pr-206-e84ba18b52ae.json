@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #206.",
+      "digest": "1d1d2988c2f1f8794941b90a1fd065268739b6c40d1e15e75082f458a7beb285",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/774b23e4dd7d235a0520237d776657835d765ce9/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #206.",
+      "digest": "5d2bd30eee94c5a6164f62a68d36528a82a53ad1765083815c6aab0babb1e1af",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/206/files"
+    },
+    {
+      "description": "Merge commit for pull request #206.",
+      "digest": "05d2355f8c728f85702cbc22ab3537269ac26cefdb5e7d13bee7453d3698a6dd",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:e84ba18b52ae697789071ceae816e467ab5f36de"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #206.",
+      "digest": "9a9bd83a443af76f9f25c71ae237986d560c056cdfa448af7b0139d827ebee95",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/206"
+    },
+    {
+      "description": "Normalized review snapshot for #206 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/206/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 4,
+          "head_sha": "774b23e4dd7d235a0520237d776657835d765ce9",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #206: fix: use PR-write scope for Retrieval comments",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 19,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #206 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "- `contents: read` remains unchanged; - `pull-requests: write` is used only for managed PR comment list/create/update/delete/reconciliation; - no issue creation, code write, Actions write, approval, direct-main, execution, or merge authority; - exact-base `pull_request_target`, privacy filtering, exact-one reconciliation, and safe stage telemetry remain unchanged.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #206: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "e84ba18b52ae697789071ceae816e467ab5f36de",
+          "merged_at": "2026-07-17T13:00:18.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #206 merged into main as e84ba18b52ae697789071ceae816e467ab5f36de",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 206,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Fixes the live `comment-create` failure recorded by proof run `29581724497`. **Current exact head:** `774b23e4dd7d235a0520237d776657835d765ce9` The deployed job received `Issues: write` and `PullRequests: read`. GitHub's issue-comment endpoint supports resource-specific `Pull requests: write`; this change switches to that scope and removes `Issues: write`.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-17T13:00:18.000Z",
+    "description": "Automatically proposed decision memory for merged PR #206; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "e84ba18b52ae697789071ceae816e467ab5f36de",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "64d4c35e0643ff5d95d4e309f835213aee4d882da0e471da53b04e285c0c0132",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
