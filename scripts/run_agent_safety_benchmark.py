@@ -68,7 +68,12 @@ def _load_single_case(
         cases = {case["case_id"]: case for case in submission["cases"]}
         if case_id not in cases:
             raise ValueError(f"submission does not contain requested case: {case_id}")
-        return cases[case_id], agent_override or submission["agent"]
+        if agent_override is not None and agent_override != submission["agent"]:
+            raise ValueError(
+                "agent override does not match submission.agent "
+                f"({agent_override!r} != {submission['agent']!r})"
+            )
+        return cases[case_id], submission["agent"]
 
     agent = agent_override or f"single-case:{submission_path.stem}"
     envelope = {
