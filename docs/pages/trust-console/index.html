@@ -4,6 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="CML Trust Console turns CAEP records into human-readable receipts for AI actions, verification, divergence, and recovery.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CML Trust Console — verified MCP recovery evidence">
+  <meta property="og:description" content="Inspect a reproducible official MCP SDK action, divergence, independent verification, and digest-bound recovery in one link.">
+  <meta property="og:url" content="https://safal207.github.io/Causal-Memory-Layer/trust-console/?evidence=mcp&amp;record=mcp_sdk_duplicate_recovered">
+  <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="https://safal207.github.io/Causal-Memory-Layer/trust-console/">
   <title>CML Trust Console</title>
   <link rel="stylesheet" href="./styles.css">
   <script src="./app.js" defer></script>
@@ -34,6 +40,7 @@
         <p class="privacy">Files are processed locally in your browser. Nothing is uploaded by this page.</p>
         <div class="actions hero-actions">
           <button class="btn blue" id="heroMcpDemo">Open verified MCP evidence</button>
+          <a class="btn" href="?evidence=mcp&amp;record=mcp_sdk_duplicate_recovered">Open direct recovery link</a>
           <a class="btn" href="./evidence-manifest.json">View provenance manifest</a>
           <a class="btn" href="./mcp-sdk-bundle.json" download>Download evidence bundle</a>
         </div>
@@ -53,6 +60,7 @@
           <p class="privacy" id="source"></p>
         </div>
         <div class="actions no-print">
+          <button class="btn" id="copyLink">Copy evidence link</button>
           <button class="btn" id="print">Print / save PDF</button>
           <button class="btn blue" id="download">Download receipt</button>
         </div>
