@@ -12,7 +12,7 @@ def test_crosswalk_covers_every_agent_safety_case_once() -> None:
     benchmark = json.loads((ROOT / "benchmarks" / "agent_safety" / "benchmark.json").read_text(encoding="utf-8"))
     crosswalk = json.loads((PACK / "crosswalk.json").read_text(encoding="utf-8"))
 
-    benchmark_ids = [case["case_id"] for case in benchmark["cases"]]
+    benchmark_ids = [case["case_id"] for case in benchmark["scenarios"]]
     mapped_ids = [case["case_id"] for case in crosswalk["cases"]]
 
     assert mapped_ids == benchmark_ids
