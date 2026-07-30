@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 
@@ -75,18 +77,34 @@ def test_public_mcp_evidence_contract() -> None:
     ]
     assert extension["verifier_server_tools"] == ["verify_single_payment"]
 
-    index = (page_dir / "index.html").read_text(encoding="utf-8")
-    app = (page_dir / "app.js").read_text(encoding="utf-8")
+    index_path = page_dir / "index.html"
+    app_path = page_dir / "app.js"
+    index = index_path.read_text(encoding="utf-8")
+    app = app_path.read_text(encoding="utf-8")
     styles = (page_dir / "styles.css").read_text(encoding="utf-8")
     assert 'id="mcpDemo"' in index
     assert 'id="heroMcpDemo"' in index
+    assert 'id="copyLink"' in index
     assert 'id="protocol"' in index
     assert 'src="./app.js"' in index
     assert 'href="./styles.css"' in index
+    assert '?evidence=mcp&amp;record=mcp_sdk_duplicate_recovered' in index
+    assert 'property="og:url"' in index
     assert 'fetch("./mcp-sdk-bundle.json")' in app
     assert 'fetch("./evidence-manifest.json")' in app
     assert "manifest.sha256" in app
     assert "Published MCP evidence failed SHA-256 verification" in app
     assert "independent_server_processes" in app
     assert "Cross-Python identity" in app
+    assert 'r.status==="recovered"' in app
+    assert 'url.searchParams.set("evidence","mcp")' in app
+    assert 'url.searchParams.set("record",record.episode_id)' in app
+    assert 'history.replaceState(null,"",evidenceUrl().toString())' in app
+    assert 'navigator.clipboard.writeText(url)' in app
+    assert 'get("evidence")==="mcp"' in app
+    assert "openMcpDemo();" in app
     assert "@media(max-width:900px)" in styles
+
+    node = shutil.which("node")
+    if node:
+        subprocess.run([node, "--check", str(app_path)], check=True)
