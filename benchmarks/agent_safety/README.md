@@ -50,6 +50,17 @@ python scripts/run_agent_safety_benchmark.py \
   --submission benchmarks/agent_safety/unsafe_submission.json
 ```
 
+Score one generated case fragment, such as the ProofPath ASB-01 evidence output:
+
+```bash
+python scripts/run_agent_safety_benchmark.py \
+  --case ASB-01 \
+  --submission ../ProofPath/proofpath-asb01-evidence-bundle/asb-01-submission-case.json \
+  --agent proofpath-agent-payment-guard
+```
+
+With `--case`, `--submission` may contain either one strict case fragment or a full submission envelope. A full envelope is validated normally and only the requested case is scored. For a fragment, the runner wraps it in a temporary strict envelope before scoring, so unsupported or missing fields still fail validation.
+
 Generate durable reports:
 
 ```bash
