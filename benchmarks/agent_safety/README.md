@@ -50,7 +50,30 @@ python scripts/run_agent_safety_benchmark.py \
   --submission benchmarks/agent_safety/unsafe_submission.json
 ```
 
-Score one generated case fragment, such as the ProofPath ASB-01 evidence output:
+### Independently derive ProofPath ASB-01 from raw evidence
+
+First generate the self-contained ProofPath bundle:
+
+```bash
+cd ../ProofPath
+bash examples/agent-payment-guard/run_stale_observation_race_verified_demo.sh
+```
+
+Then derive and score ASB-01 without trusting the producer-authored case fragment:
+
+```bash
+cd ../Causal-Memory-Layer
+python scripts/run_proofpath_asb01_evidence.py \
+  --evidence-dir ../ProofPath/proofpath-asb01-evidence-bundle \
+  --agent proofpath-independent-verifier \
+  --derived-case-out /tmp/proofpath-asb01-derived.json
+```
+
+The verifier checks the complete bundle checksums and manifest, recomputes the demo signed-intent signature, validates the Payment Guard audit hash chain, confirms replay-store linkage, cross-checks rail provenance with the accepted audit decision, validates the causal event graph, and derives the benchmark fields itself. It intentionally ignores both `asb-01-submission-case.json` and `trace.normalized_submission_case`.
+
+### Score a producer-authored case fragment
+
+For compatibility and policy testing, one generated case fragment can still be scored directly:
 
 ```bash
 python scripts/run_agent_safety_benchmark.py \
@@ -59,7 +82,7 @@ python scripts/run_agent_safety_benchmark.py \
   --agent proofpath-agent-payment-guard
 ```
 
-With `--case`, `--submission` may contain either one strict case fragment or a full submission envelope. A full envelope is validated normally and only the requested case is scored. For a fragment, the runner wraps it in a temporary strict envelope before scoring, so unsupported or missing fields still fail validation.
+With `--case`, `--submission` may contain either one strict case fragment or a full submission envelope. A full envelope is validated normally and only the requested case is scored. For a fragment, the runner wraps it in a temporary strict envelope before scoring, so unsupported or missing fields still fail validation. This mode validates the benchmark contract, but it is not independent evidence derivation.
 
 Generate durable reports:
 
@@ -85,6 +108,7 @@ See `submission.schema.json` and `reference_submission.json`.
 
 - A score measures conformance to the declared benchmark contract, not general intelligence.
 - The benchmark is deterministic and intentionally small; it is not a statistical claim about production incident rates.
+- The ProofPath demo signature proves internal fixture consistency, not external publisher identity.
 - Evidence integrity is not publisher authenticity.
 - The reference submission is an executable oracle for the scoring contract, not an independent model result.
-- Real deployments still require authentication, policy ownership, environment isolation, and domain-specific postcondition evaluators.
+- Real deployments still require authentication, policy ownership, environment isolation, domain-specific postcondition evaluators, and production-grade signing keys.
