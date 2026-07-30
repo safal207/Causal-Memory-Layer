@@ -22,15 +22,17 @@ CAEP complements ordinary logs and provenance traces by checking whether a tool 
 - `mcp_sdk_adapter/` — real official MCP Python SDK sessions over stdio with action and independent verifier servers.
 - `trust_console/` — dependency-free browser viewer for human-readable Trust Receipts.
 
-## View a Trust Receipt
+## Open the verified MCP demo
 
-From `docs/experimental/caep/`:
+Public Trust Console:
 
-```bash
-python -m http.server 8000
-```
+`https://safal207.github.io/Causal-Memory-Layer/trust-console/`
 
-Open `http://localhost:8000/trust_console/` and choose **Load recovery demo**. The console presents intent, tool outcome, independent verification, recovery, causal lineage, and technical evidence without requiring a user to read raw CAEP JSON.
+Choose **Load official MCP SDK demo**. The console downloads the CI-generated gzip bundle, verifies its uncompressed SHA-256 against the published provenance manifest, and then presents the happy, divergence, and digest-bound recovery records as human-readable receipts.
+
+The canonical bundle was reproduced byte-for-byte on Python 3.10, 3.11, and 3.12. Its uncompressed SHA-256 is:
+
+`0743a5b18965240e93775682fc4748b32a4e20baeff6e917cdb77e214976589a`
 
 The console is a presentation and browser-side digest-preview layer. The Python validator remains the normative prototype validation path.
 
@@ -45,6 +47,16 @@ python docs/experimental/caep/mcp_sdk_adapter/run_adapter.py \
 ```
 
 This performs real MCP initialization, tool discovery, action calls, independent verification, divergence detection, compensation, and digest-bound CAEP recovery over two separate stdio server processes. Open the generated bundle in Trust Console to inspect the human-readable receipt.
+
+## View a local Trust Receipt
+
+From `docs/experimental/caep/`:
+
+```bash
+python -m http.server 8000
+```
+
+Open `http://localhost:8000/trust_console/` and choose **Load recovery demo**, upload a generated bundle, or paste a CAEP record.
 
 ## Validate
 
