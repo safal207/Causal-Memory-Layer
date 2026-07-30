@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #193.",
+      "digest": "d5767331334ed9e944f397fc5698dc212c38c208427ca8ef13980f88a99116d7",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/15b07752a63d1b2a6c1b0d53a67dac41d22b0941/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #193.",
+      "digest": "4cf87717063e9705c84d364cd9351122cb8279a18c912dab61cc1f7d0a5dbf72",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/193/files"
+    },
+    {
+      "description": "Merge commit for pull request #193.",
+      "digest": "c1278438a3b055767afa8701767d5f203c08e330aa22a3fdd3258c8cbc31c83e",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:f707139694622a3878d00440e67819a3a5a4c95a"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #193.",
+      "digest": "5c25b412c85cd35e01137143282a6a96e0c2382d068f5af0af6bff40599b16b1",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/193"
+    },
+    {
+      "description": "Normalized review snapshot for #193 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/193/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 8,
+          "head_sha": "15b07752a63d1b2a6c1b0d53a67dac41d22b0941",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #193: feat: add deterministic CML Memory Retrieval v0.1",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 16,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Functional head `abc5a3b338087b8f6426ba17d0860c2002fe2852` passed CI, Python 3.10/3.11/3.12, deterministic contracts, package build/install, dependency/source audit, CodeQL, secret scan, and Security Gate. The current head changes only the protected manifest to pin those passing blobs. Protected pins added: ```text core 433b4cd302e6bfd3e10bc188aaf5774919892052 adapter 2598b3f903676f3705f7f69399c9158257af462a entrypoint bea8f6ac10f2da9221f3ed52b41fee1daa3b1d79 workflow 14103f1c0f5b519d7c03b57328…",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "- workflow uses `pull_request_target` only with protected default-branch code; - checkout ref is the exact PR base SHA; - source-branch code is never checked out or executed; - no patch, diff, review body, issue comment, or prompt is ingested; - only PR title, body, refs, and changed filenames are tokenized; - public repositories surface only `visibility=public` and `contains_private_data=false` packs; - generated memory PRs and memory-only changes are skipped; - accepted-memory text is bounded…",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #193: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "f707139694622a3878d00440e67819a3a5a4c95a",
+          "merged_at": "2026-07-17T12:09:29.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #193 merged into main as f707139694622a3878d00440e67819a3a5a4c95a",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 193,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Implements #192 with a protected, deterministic retrieval layer that surfaces up to three relevant **accepted** CML Memory Packs on open pull requests. **Current exact head:** `15b07752a63d1b2a6c1b0d53a67dac41d22b0941`",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-17T12:09:29.000Z",
+    "description": "Automatically proposed decision memory for merged PR #193; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "f707139694622a3878d00440e67819a3a5a4c95a",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "9291ee449beaff75209e407ada12c66d84ce402ee1d968593121b8e2f7f8c300",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
