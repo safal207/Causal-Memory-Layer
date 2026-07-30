@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #241.",
+      "digest": "9018ae89c8710f5242557666c1709933cbd20a8b3e84f9ef154364b6a450ccd8",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/d72a42d26e6d41fd0b30ce221c36fc588b87e5f4/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #241.",
+      "digest": "830e5a27d37bdcab1de86e89f99670f5fba0f1bfa0dc9db42cb3d3b62fea4053",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/241/files"
+    },
+    {
+      "description": "Merge commit for pull request #241.",
+      "digest": "fd4719a0e913071cf960f76be4dd008ad1ba2580bb81dfaff13f1830fd25c583",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:a76915ce5b4f279a69e5e783f75d1f596449949c"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #241.",
+      "digest": "c72ead95868be57016e7a49cff2ef9c2c8d2357cc7bc6c236d105c46f21f2ca1",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/241"
+    },
+    {
+      "description": "Normalized review snapshot for #241 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/241/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 3,
+          "head_sha": "d72a42d26e6d41fd0b30ce221c36fc588b87e5f4",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #241: docs(outreach): add MCP sponsor and SEP submission pack",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #241 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "The draft standardizes an optional portable record profile with: - intent, authorization, decision, dispatch, outcome, and verification separation; - critical postconditions; - independent verifier semantics; - lifecycle statuses for completion, containment, verification, and recovery; - deterministic canonicalization and parent-digest binding; - privacy, security, backward-compatibility, and non-goal sections; - candidate conformance scenarios. Wire bindings, signatures, storage, policy langua…",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #241: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "a76915ce5b4f279a69e5e783f75d1f596449949c",
+          "merged_at": "2026-07-30T13:20:29.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #241 merged into main as a76915ce5b4f279a69e5e783f75d1f596449949c",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 241,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds the ordered MCP external-validation package for CAEP: - a progress-tracked submission README; - a concise sponsor/direction request for MCP Discussion #2493; - a provisional SEP draft using the current MCP SEP structure.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-30T13:20:29.000Z",
+    "description": "Automatically proposed decision memory for merged PR #241; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "a76915ce5b4f279a69e5e783f75d1f596449949c",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "d825321426222b28696cba770c59bb63dc577b1970b39487993a0bbd04d581ba",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
