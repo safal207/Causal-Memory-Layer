@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import gzip
 import hashlib
 import json
 from pathlib import Path
@@ -25,21 +24,23 @@ def test_public_mcp_evidence_contract() -> None:
     canonical_dir = root / "docs/experimental/caep/mcp_sdk_adapter"
     page_dir = root / "docs/pages/trust-console"
 
-    canonical_gzip = canonical_dir / "mcp-sdk-bundle.json.gz"
-    published_gzip = page_dir / "mcp-sdk-bundle.json.gz"
+    canonical_bundle = canonical_dir / "mcp-sdk-bundle.json"
+    published_bundle = page_dir / "mcp-sdk-bundle.json"
     canonical_manifest = canonical_dir / "evidence-manifest.json"
     published_manifest = page_dir / "evidence-manifest.json"
 
-    assert canonical_gzip.read_bytes() == published_gzip.read_bytes()
+    assert canonical_bundle.read_bytes() == published_bundle.read_bytes()
     assert canonical_manifest.read_bytes() == published_manifest.read_bytes()
 
-    bundle_bytes = gzip.decompress(published_gzip.read_bytes())
+    bundle_bytes = published_bundle.read_bytes()
     bundle = json.loads(bundle_bytes)
     manifest = json.loads(published_manifest.read_text(encoding="utf-8"))
     digest = hashlib.sha256(bundle_bytes).hexdigest()
 
-    assert digest == manifest["uncompressed_sha256"]
-    assert len(bundle_bytes) == manifest["uncompressed_size_bytes"]
+    assert digest == manifest["sha256"]
+    assert len(bundle_bytes) == manifest["size_bytes"]
+    assert manifest["bundle_file"] == "mcp-sdk-bundle.json"
+    assert manifest["bundle_media_type"] == "application/json"
     assert manifest["cross_python_byte_identity"] is True
     assert manifest["python_versions"] == ["3.10", "3.11", "3.12"]
     assert bundle["transport"] == "mcp-stdio"
@@ -82,10 +83,9 @@ def test_public_mcp_evidence_contract() -> None:
     assert 'id="protocol"' in index
     assert 'src="./app.js"' in index
     assert 'href="./styles.css"' in index
-    assert 'fetch("./mcp-sdk-bundle.json.gz")' in app
+    assert 'fetch("./mcp-sdk-bundle.json")' in app
     assert 'fetch("./evidence-manifest.json")' in app
-    assert 'new DecompressionStream("gzip")' in app
-    assert "manifest.uncompressed_sha256" in app
+    assert "manifest.sha256" in app
     assert "Published MCP evidence failed SHA-256 verification" in app
     assert "independent_server_processes" in app
     assert "Cross-Python identity" in app
