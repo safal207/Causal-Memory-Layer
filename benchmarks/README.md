@@ -37,4 +37,11 @@ Run the reference policy:
 python scripts/run_agent_safety_benchmark.py
 ```
 
+Compare it with the intentionally unsafe tool-success baseline:
+
+```bash
+python scripts/run_agent_safety_benchmark.py \
+  --submission benchmarks/agent_safety/unsafe_submission.json
+```
+
 See [`agent_safety/README.md`](agent_safety/README.md) for the scoring contract, schemas, unsafe baseline, and interpretation boundaries.
