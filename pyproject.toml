@@ -53,7 +53,7 @@ dev = [
   "uvicorn[standard]>=0.29",
   "python-multipart>=0.0.9",
   "slowapi>=0.1.9",
-  "mcp>=1.28,<2",
+  "mcp==1.29.0",
 ]
 
 [project.scripts]
