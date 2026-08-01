@@ -50,6 +50,7 @@ CML is not asking OWASP to adopt a product. The narrow request is:
 - [`CAUSAL_SPACE_TIME_MAP.md`](CAUSAL_SPACE_TIME_MAP.md): causal, spatial, temporal, and transition analysis;
 - [`causal_space_time_map.json`](causal_space_time_map.json): machine-readable 4D navigation model;
 - [`SOURCE_SNAPSHOT.md`](SOURCE_SNAPSHOT.md): dated official-source locations and freshness boundary;
+- [`PRIMARY_POST_CHECKLIST.md`](PRIMARY_POST_CHECKLIST.md): exact external-submission gate;
 - [`SLACK_MESSAGE.md`](SLACK_MESSAGE.md): concise first contact for the Agentic Security channel;
 - [`WORKSTREAM_MESSAGES.md`](WORKSTREAM_MESSAGES.md): ordered follow-ups for Red Teaming, MCP security, and Memory Guard;
 - [`MEETING_BRIEF.md`](MEETING_BRIEF.md): five-minute working-group presentation.
