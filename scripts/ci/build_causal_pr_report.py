@@ -41,38 +41,143 @@ SECTION_ALIASES = {
 }
 
 IMPLEMENTATION_ROOTS = (
-    "api/", "app/", "apps/", "cli/", "client/", "cml/", "deploy/",
-    "deployment/", "docker/", "hackathons/", "infra/", "infrastructure/",
-    "integrations/", "packages/", "scripts/", "server/", "services/",
-    "src/", "web/", ".github/actions/", ".github/trust-root/",
+    "api/",
+    "app/",
+    "apps/",
+    "cli/",
+    "client/",
+    "cml/",
+    "deploy/",
+    "deployment/",
+    "docker/",
+    "hackathons/",
+    "infra/",
+    "infrastructure/",
+    "integrations/",
+    "packages/",
+    "scripts/",
+    "server/",
+    "services/",
+    "src/",
+    "web/",
+    ".github/actions/",
+    ".github/trust-root/",
 )
 IMPLEMENTATION_SUFFIXES = {
-    ".bash", ".bat", ".c", ".cc", ".cfg", ".cjs", ".cmd", ".conf",
-    ".cpp", ".cs", ".css", ".cxx", ".env", ".fish", ".go", ".gql",
-    ".gradle", ".graphql", ".h", ".hcl", ".hpp", ".html", ".ini",
-    ".ipynb", ".java", ".js", ".json", ".jsonc", ".jsx", ".kt",
-    ".kts", ".less", ".lock", ".lua", ".mjs", ".php", ".properties",
-    ".proto", ".ps1", ".py", ".pyi", ".r", ".rb", ".rs", ".sass",
-    ".scala", ".scss", ".sh", ".sql", ".svelte", ".swift", ".tf",
-    ".tfvars", ".toml", ".ts", ".tsx", ".vue", ".xml", ".yaml",
-    ".yml", ".zsh",
+    ".bash",
+    ".bat",
+    ".c",
+    ".cc",
+    ".cfg",
+    ".cjs",
+    ".cmd",
+    ".conf",
+    ".cpp",
+    ".cs",
+    ".css",
+    ".cxx",
+    ".env",
+    ".fish",
+    ".go",
+    ".gql",
+    ".gradle",
+    ".graphql",
+    ".h",
+    ".hcl",
+    ".hpp",
+    ".html",
+    ".ini",
+    ".ipynb",
+    ".java",
+    ".js",
+    ".json",
+    ".jsonc",
+    ".jsx",
+    ".kt",
+    ".kts",
+    ".less",
+    ".lock",
+    ".lua",
+    ".mjs",
+    ".php",
+    ".properties",
+    ".proto",
+    ".ps1",
+    ".py",
+    ".pyi",
+    ".r",
+    ".rb",
+    ".rs",
+    ".sass",
+    ".scala",
+    ".scss",
+    ".sh",
+    ".sql",
+    ".svelte",
+    ".swift",
+    ".tf",
+    ".tfvars",
+    ".toml",
+    ".ts",
+    ".tsx",
+    ".vue",
+    ".xml",
+    ".yaml",
+    ".yml",
+    ".zsh",
 }
 IMPLEMENTATION_FILENAMES = {
-    "build.gradle", "build.gradle.kts", "cargo.lock", "cargo.toml",
-    "composer.json", "composer.lock", "containerfile", "dockerfile",
-    "gemfile", "gemfile.lock", "gnumakefile", "go.mod", "go.sum",
-    "gradlew", "gradlew.bat", "justfile", "makefile", "package-lock.json",
-    "package.json", "pipfile", "pipfile.lock", "pnpm-lock.yaml",
-    "poetry.lock", "pom.xml", "procfile", "pyproject.toml", "setup.cfg",
-    "setup.py", "terraform.lock.hcl", "tox.ini", "uv.lock", "yarn.lock",
+    "build.gradle",
+    "build.gradle.kts",
+    "cargo.lock",
+    "cargo.toml",
+    "composer.json",
+    "composer.lock",
+    "containerfile",
+    "dockerfile",
+    "gemfile",
+    "gemfile.lock",
+    "gnumakefile",
+    "go.mod",
+    "go.sum",
+    "gradlew",
+    "gradlew.bat",
+    "justfile",
+    "makefile",
+    "package-lock.json",
+    "package.json",
+    "pipfile",
+    "pipfile.lock",
+    "pnpm-lock.yaml",
+    "poetry.lock",
+    "pom.xml",
+    "procfile",
+    "pyproject.toml",
+    "setup.cfg",
+    "setup.py",
+    "terraform.lock.hcl",
+    "tox.ini",
+    "uv.lock",
+    "yarn.lock",
 }
 DOCUMENTATION_SUFFIXES = {".adoc", ".md", ".mdx", ".rst"}
 DOCUMENTATION_MEDIA_SUFFIXES = {
-    ".gif", ".jpeg", ".jpg", ".pdf", ".png", ".svg", ".webp",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".pdf",
+    ".png",
+    ".svg",
+    ".webp",
 }
 DOCUMENTATION_NAME_PREFIXES = (
-    "authors", "changelog", "code_of_conduct", "contributing", "license",
-    "notice", "readme",
+    "authors",
+    "changelog",
+    "code_of_conduct",
+    "contributing",
+    "license",
+    "notice",
+    "readme",
 )
 WORKFLOW_CONTRACT_PATHS = {
     "tests/test_ci_workflow_contract.py",
@@ -91,7 +196,11 @@ class Change:
 
 def _run_git(repo_root: Path, *args: str) -> str:
     completed = subprocess.run(
-        ["git", *args], cwd=repo_root, check=True, capture_output=True, text=True
+        ["git", *args],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
     )
     return completed.stdout.strip()
 
@@ -121,13 +230,17 @@ def extract_sections(body: str) -> dict[str, str]:
     for index, match in enumerate(matches):
         heading = _normalize_heading(match.group(1))
         canonical = next(
-            (name for name, aliases in SECTION_ALIASES.items() if heading in aliases),
+            (
+                name
+                for name, aliases in SECTION_ALIASES.items()
+                if heading in aliases
+            ),
             None,
         )
         if canonical is None:
             continue
         end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
-        sections[canonical] = body[match.end():end].strip()
+        sections[canonical] = body[match.end() : end].strip()
     return sections
 
 
@@ -252,7 +365,9 @@ def _safe_summary(value: str, limit: int = 180) -> str:
         lambda match: f"{match.group(1)}=[REDACTED]", sanitized
     )
     sanitized = " ".join(sanitized.split())
-    return sanitized if len(sanitized) <= limit else sanitized[: limit - 1] + "…"
+    if len(sanitized) > limit:
+        return sanitized[: limit - 1] + "…"
+    return sanitized
 
 
 def _contains_placeholder(value: str) -> bool:
@@ -335,7 +450,9 @@ def evaluate_transition(
                 "strict changes require changed tests or explicit existing test paths"
             )
 
-    if groups["workflows"] and not (WORKFLOW_CONTRACT_PATHS & set(groups["tests"])):
+    if groups["workflows"] and not (
+        WORKFLOW_CONTRACT_PATHS & set(groups["tests"])
+    ):
         violations.append(
             "workflow contract changes require a causal/workflow contract regression test"
         )
@@ -345,7 +462,10 @@ def evaluate_transition(
     graph = {
         "nodes": [
             {"id": "base", "label": f"base {base_sha[:12]}"},
-            {"id": "change", "label": f"{len(changes)} path transitions / {scope} policy"},
+            {
+                "id": "change",
+                "label": f"{len(changes)} path transitions / {scope} policy",
+            },
             {
                 "id": "invariant",
                 "label": section_metadata.get("invariant", {}).get(
@@ -429,11 +549,10 @@ def render_markdown(report: dict[str, Any]) -> str:
     for name, paths in report["groups"].items():
         lines.append(f"| {name} | {len(paths)} |")
     lines.extend(["", "## Violations", ""])
-    lines.extend(
-        [f"- {violation}" for violation in report["violations"]]
-        if report["violations"]
-        else ["- None."]
-    )
+    if report["violations"]:
+        lines.extend(f"- {violation}" for violation in report["violations"])
+    else:
+        lines.append("- None.")
     return "\n".join(lines) + "\n"
 
 
@@ -447,7 +566,11 @@ def _event_body(event_path: Path) -> str:
 
 
 def build_report(
-    *, repo_root: Path, base_sha: str, head_sha: str, event_path: Path
+    *,
+    repo_root: Path,
+    base_sha: str,
+    head_sha: str,
+    event_path: Path,
 ) -> dict[str, Any]:
     """Build the report from an exact checkout and a GitHub event payload."""
 
