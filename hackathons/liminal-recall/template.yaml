@@ -32,15 +32,16 @@ Parameters:
 Resources:
   LiminalRecallFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
     Properties:
-      CodeUri: .
+      CodeUri: app
       Handler: app.handler.lambda_handler
       Runtime: python3.12
       Architectures:
-        - x86_64
+        - arm64
       MemorySize: 512
       Timeout: 30
-      ReservedConcurrentExecutions: 5
       Tracing: Active
       Environment:
         Variables:

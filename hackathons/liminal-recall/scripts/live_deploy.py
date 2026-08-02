@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -18,6 +20,39 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = APP_ROOT / "evidence"
 REQUIRED_ENV = ("DATABASE_URL", "COCKROACH_CLUSTER", "AWS_REGION", "STACK_NAME")
 REQUIRED_TOOLS = ("aws", "sam", "ccloud", "cockroach", "git")
+_OUTPUT_TAIL_LINES = 12
+_OUTPUT_TAIL_CHARS = 2400
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_SECRET_ENV_NAME_RE = re.compile(
+    r"(?:DATABASE_URL|API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL)",
+    re.IGNORECASE,
+)
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"""(?ix)
+    (
+        \b(?:
+            database[\s_-]*url
+            | api[\s_-]*key
+            | access[\s_-]*key
+            | secret(?:[\s_-]*access)?[\s_-]*key
+            | session[\s_-]*token
+            | authorization
+            | credentials?
+            | password
+            | token
+        )\b
+        \s*(?:=|:)\s*
+    )
+    (?:"[^"]*"|'[^']*'|[^\s,;]+)
+    """
+)
+_SECRET_PARAMETER_RE = re.compile(
+    r"(?i)(ParameterKey=(?:DatabaseUrl|DemoApiKey),ParameterValue=)[^\s]+"
+)
+_URL_RE = re.compile(r"(?i)\b[a-z][a-z0-9+.-]*://[^\s<>{}\[\]\"']+")
+_AWS_ACCESS_KEY_RE = re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b")
+_ACCOUNT_ID_RE = re.compile(r"(?<!\d)\d{12}(?!\d)")
+_ENV_LOCAL_RE = re.compile(r"""(?i)(?:[^\s"'<>]*/)?\.env\.local""")
 
 
 class DeploymentError(RuntimeError):
@@ -29,18 +64,76 @@ def _utc_now() -> str:
 
 
 def _redact_text(value: str) -> str:
-    sanitized = value
-    for name in (
-        "DATABASE_URL",
-        "DEMO_API_KEY",
-        "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
-        "AWS_SESSION_TOKEN",
-    ):
-        secret = os.getenv(name)
-        if secret:
+    sanitized = _ANSI_ESCAPE_RE.sub("", value)
+    for name, secret in os.environ.items():
+        if _SECRET_ENV_NAME_RE.search(name) and len(secret) >= 4:
             sanitized = sanitized.replace(secret, "[REDACTED]")
+    sanitized = _SECRET_PARAMETER_RE.sub(r"\1[REDACTED]", sanitized)
+    sanitized = _SECRET_ASSIGNMENT_RE.sub(r"\1[REDACTED]", sanitized)
+    sanitized = _URL_RE.sub("[REDACTED_URL]", sanitized)
+    sanitized = _AWS_ACCESS_KEY_RE.sub("[REDACTED]", sanitized)
+    sanitized = _ACCOUNT_ID_RE.sub("[REDACTED_ACCOUNT_ID]", sanitized)
+    sanitized = _ENV_LOCAL_RE.sub("[REDACTED_ENV_FILE]", sanitized)
     return sanitized
+
+
+def _as_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _output_tail(value: str | bytes | None) -> str:
+    sanitized = _redact_text(_as_text(value))
+    lines = [line.strip() for line in sanitized.splitlines() if line.strip()]
+    if not lines:
+        return "[empty]"
+    tail = "\n".join(lines[-_OUTPUT_TAIL_LINES:])
+    if len(tail) > _OUTPUT_TAIL_CHARS:
+        tail = "[earlier output truncated]\n" + tail[-_OUTPUT_TAIL_CHARS:]
+    return tail
+
+
+def _signal_name(return_code: int) -> str | None:
+    if return_code >= 0:
+        return None
+    try:
+        return signal.Signals(-return_code).name
+    except ValueError:
+        return f"UNKNOWN_SIGNAL_{-return_code}"
+
+
+def _format_subprocess_failure(
+    *,
+    label: str,
+    return_code: int | None,
+    stderr: str | bytes | None,
+    stdout: str | bytes | None,
+    timeout: float | None = None,
+) -> str:
+    if return_code is None:
+        return_code_text = "unavailable"
+    else:
+        return_code_text = str(return_code)
+    lines = [
+        f"command stage: {_redact_text(label)}",
+        f"return code: {return_code_text}",
+    ]
+    if return_code is not None and return_code < 0:
+        lines.append(f"signal: {_signal_name(return_code)}")
+    if timeout is not None:
+        lines.append(f"timeout: {timeout:g} seconds")
+    lines.extend(
+        (
+            "stderr:",
+            _output_tail(stderr),
+            "final stdout:",
+            _output_tail(stdout),
+        )
+    )
+    return "\n".join(lines)
 
 
 def _run(
@@ -49,8 +142,9 @@ def _run(
     cwd: Path = APP_ROOT,
     env: dict[str, str] | None = None,
     label: str,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    print(f"[liminal-recall] {label}")
+    print(f"[liminal-recall] {_redact_text(label)}")
     try:
         return subprocess.run(
             command,
@@ -59,10 +153,36 @@ def _run(
             check=True,
             capture_output=True,
             text=True,
+            timeout=timeout,
         )
     except subprocess.CalledProcessError as exc:
-        detail = _redact_text((exc.stderr or exc.stdout or "command failed").strip())
-        raise DeploymentError(f"{label} failed: {detail[:1200]}") from exc
+        raise DeploymentError(
+            _format_subprocess_failure(
+                label=label,
+                return_code=exc.returncode,
+                stderr=exc.stderr,
+                stdout=exc.stdout,
+            )
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise DeploymentError(
+            _format_subprocess_failure(
+                label=label,
+                return_code=None,
+                stderr=exc.stderr,
+                stdout=exc.stdout,
+                timeout=float(exc.timeout),
+            )
+        ) from exc
+    except OSError as exc:
+        raise DeploymentError(
+            _format_subprocess_failure(
+                label=label,
+                return_code=None,
+                stderr=f"{type(exc).__name__}: {exc}",
+                stdout=None,
+            )
+        ) from exc
 
 
 def _required_environment() -> dict[str, str]:
@@ -266,6 +386,26 @@ def _verify_decision(decision: dict[str, Any], outcome_id: str) -> None:
         raise DeploymentError("; ".join(failures))
 
 
+def _runtime_proof_payloads() -> tuple[dict[str, Any], dict[str, Any]]:
+    action = "Retry the customer refund payment without an idempotency key"
+    tags = ["refund", "payment", "retry", "idempotency"]
+    return (
+        {
+            "session_id": "payments-agent",
+            "kind": "outcome",
+            "content": action,
+            "tags": tags,
+            "status": "negative",
+            "confidence": 0.98,
+        },
+        {
+            "session_id": "payments-agent",
+            "proposed_action": action,
+            "tags": tags,
+        },
+    )
+
+
 def capture_runtime_proof(function_url: str, function_name: str) -> dict[str, Any]:
     values = _required_environment()
     health_before = _request("GET", f"{function_url}/healthz")
@@ -274,29 +414,18 @@ def capture_runtime_proof(function_url: str, function_name: str) -> dict[str, An
         raise DeploymentError("health response has no runtime_instance_id")
     _write_json("health-before.json", health_before)
 
+    outcome_payload, decision_payload = _runtime_proof_payloads()
     outcome = _request(
         "POST",
         f"{function_url}/memories",
         protected=True,
-        payload={
-            "session_id": "payments-agent",
-            "kind": "outcome",
-            "content": "Refund was sent twice after retry without an idempotency key",
-            "tags": ["refund", "payment", "retry"],
-            "status": "negative",
-            "confidence": 0.98,
-        },
+        payload=outcome_payload,
     )
     outcome_id = str(outcome.get("id") or "")
     if not outcome_id:
         raise DeploymentError("memory response has no outcome UUID")
     _write_json("outcome.json", outcome)
 
-    decision_payload = {
-        "session_id": "payments-agent",
-        "proposed_action": "Send the customer reimbursement again",
-        "tags": ["customer", "payout"],
-    }
     decision_before = _request(
         "POST",
         f"{function_url}/decisions",

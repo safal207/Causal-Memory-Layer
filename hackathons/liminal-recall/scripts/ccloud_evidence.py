@@ -24,34 +24,31 @@ SENSITIVE_KEY_PARTS = {
 
 SENSITIVE_VALUE_PATTERNS = (
     re.compile(r"(?i)postgres(?:ql)?://[^\s\"']+"),
+    re.compile(r"(?i)https?://[^\s\"']+"),
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+"),
     re.compile(r"(?i)(?:password|secret|token|api[_-]?key)\s*[=:]\s*[^\s,;\"']+"),
+    re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"),
+    re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b"),
+    re.compile(r"(?im)^\s*(?:id|[a-z0-9 _-]+\bid|[a-z0-9_-]+_id)\s*[:=]\s*[^\s,;\"']+"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.DOTALL),
 )
 
 FORBIDDEN_AFTER_REDACTION = (
     re.compile(r"(?i)postgres(?:ql)?://[^\s\"']+@"),
+    re.compile(r"(?i)https?://[^\s\"']+"),
+    re.compile(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b"),
+    re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b"),
     re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]{12,}"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 )
 
 
 def _run(command: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        command,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    return subprocess.run(command, check=True, capture_output=True, text=True)
 
 
 def _run_json(base_command: list[str]) -> tuple[Any, list[str]]:
-    """Run a ccloud command using the supported structured-output flag.
-
-    Current ccloud examples use ``-o json``. ``--output json`` is tried as a
-    compatibility fallback so evidence collection is resilient across CLI
-    releases without silently accepting unstructured output.
-    """
+    """Run a ccloud command using the supported structured-output flag."""
 
     failures: list[str] = []
     for output_args in (["-o", "json"], ["--output", "json"]):
@@ -75,9 +72,16 @@ def _sanitize_string(value: str) -> str:
     return sanitized
 
 
-def _redact(value: Any, key: str = "") -> Any:
+def _is_sensitive_key(key: str) -> bool:
     normalized_key = key.casefold()
-    if any(part in normalized_key for part in SENSITIVE_KEY_PARTS):
+    return any(part in normalized_key for part in SENSITIVE_KEY_PARTS) or (
+        normalized_key in {"id", "email", "url"}
+        or normalized_key.endswith(("_id", "_email", "_url"))
+    )
+
+
+def _redact(value: Any, key: str = "") -> Any:
+    if _is_sensitive_key(key):
         return "[REDACTED]"
     if isinstance(value, dict):
         return {
@@ -89,6 +93,29 @@ def _redact(value: Any, key: str = "") -> Any:
     if isinstance(value, str):
         return _sanitize_string(value)
     return value
+
+
+def _run_with_fallback(base_command: list[str]) -> tuple[Any, list[str]]:
+    """Prefer JSON output, but safely retain legacy plain-text output."""
+
+    try:
+        return _run_json(base_command)
+    except RuntimeError as structured_error:
+        try:
+            completed = _run(base_command)
+        except subprocess.CalledProcessError as plain_error:
+            raise structured_error from plain_error
+
+        plain_output = _sanitize_string(completed.stdout.strip())
+        if not plain_output:
+            raise structured_error
+        return {"format": "plain_text", "output": plain_output}, base_command
+
+
+def _run_identity(base_command: list[str]) -> tuple[Any, list[str]]:
+    """Backward-compatible alias for callers of the old identity helper."""
+
+    return _run_with_fallback(base_command)
 
 
 def _assert_sanitized(serialized: str) -> None:
@@ -134,7 +161,7 @@ def main() -> int:
 
     base_commands = {
         "identity": ["ccloud", "auth", "whoami"],
-        "organization": ["ccloud", "organization", "get"],
+        "organization": ["ccloud", "settings"],
         "cluster": ["ccloud", "cluster", "info", args.cluster],
     }
     if args.dry_run:
@@ -150,7 +177,7 @@ def main() -> int:
     results: dict[str, Any] = {}
     executed_commands: dict[str, list[str]] = {}
     for name, command in base_commands.items():
-        payload, executed = _run_json(command)
+        payload, executed = _run_with_fallback(command)
         results[name] = _redact(payload)
         executed_commands[name] = executed
 

@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import parse_qs, urlsplit
 
 from .embeddings import BedrockTitanEmbedder, Embedder, memory_embedding_text
 from .models import MemoryCreate, MemoryRecord
@@ -53,12 +55,20 @@ class CockroachMemoryStore:
         import psycopg
         from psycopg.rows import dict_row
 
-        return psycopg.connect(
-            self.database_url,
-            row_factory=dict_row,
-            connect_timeout=8,
-            application_name="liminal-recall",
-        )
+        connect_options: dict[str, Any] = {
+            "row_factory": dict_row,
+            "connect_timeout": 8,
+            "application_name": "liminal-recall",
+        }
+        query_keys = {
+            key.casefold() for key in parse_qs(urlsplit(self.database_url).query)
+        }
+        if "sslrootcert" not in query_keys:
+            connect_options["sslrootcert"] = os.getenv(
+                "COCKROACH_ROOT_CERT_PATH",
+                str(Path(__file__).with_name("cockroach-root.crt")),
+            )
+        return psycopg.connect(self.database_url, **connect_options)
 
     def create_memory(self, memory: MemoryCreate) -> MemoryRecord:
         from psycopg.types.json import Jsonb

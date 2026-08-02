@@ -55,7 +55,7 @@ def test_dry_run_uses_current_cluster_info_command(monkeypatch, capsys) -> None:
     commands = json.loads(capsys.readouterr().out)
 
     assert commands["identity"] == ["ccloud", "auth", "whoami", "-o", "json"]
-    assert commands["organization"] == ["ccloud", "organization", "get", "-o", "json"]
+    assert commands["organization"] == ["ccloud", "settings", "-o", "json"]
     assert commands["cluster"] == [
         "ccloud",
         "cluster",
