@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import signal
 import subprocess
 from pathlib import Path
@@ -53,13 +54,38 @@ def test_verify_decision_requires_exact_memory_uuid() -> None:
         MODULE._verify_decision(valid_decision("different-memory"), "outcome-1")
 
 
-def test_runtime_proof_uses_identical_embedding_input() -> None:
+def test_runtime_proof_uses_distinct_semantic_inputs() -> None:
     outcome, decision = MODULE._runtime_proof_payloads()
 
+    outcome_tokens = set(re.findall(r"[a-z0-9-]+", outcome["content"].casefold()))
+    outcome_tokens.update(tag.casefold() for tag in outcome["tags"])
+    decision_tokens = set(
+        re.findall(r"[a-z0-9-]+", decision["proposed_action"].casefold())
+    )
+    decision_tokens.update(tag.casefold() for tag in decision["tags"])
+
     assert outcome["session_id"] == decision["session_id"]
-    assert outcome["content"] == decision["proposed_action"]
-    assert outcome["tags"] == decision["tags"]
+    assert outcome["content"] != decision["proposed_action"]
+    assert outcome["tags"] != decision["tags"]
+    assert outcome_tokens.isdisjoint(decision_tokens)
     assert outcome["status"] == "negative"
+
+
+def test_runtime_build_must_match_reviewed_head() -> None:
+    expected = "a" * 40
+
+    assert MODULE._verify_runtime_build(
+        {"build_sha": expected},
+        expected,
+        stage="pre-restart",
+    ) == expected
+
+    with pytest.raises(MODULE.DeploymentError, match="does not match"):
+        MODULE._verify_runtime_build(
+            {"build_sha": "b" * 40},
+            expected,
+            stage="pre-restart",
+        )
 
 
 def test_required_environment_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -69,6 +95,14 @@ def test_required_environment_fails_closed(monkeypatch: pytest.MonkeyPatch) -> N
     with pytest.raises(MODULE.DeploymentError, match="missing required environment"):
         MODULE._required_environment()
 
+
+def test_required_environment_includes_demo_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in MODULE.REQUIRED_ENV:
+        monkeypatch.setenv(name, "synthetic-value")
+    monkeypatch.delenv("DEMO_API_KEY")
+
+    with pytest.raises(MODULE.DeploymentError, match="DEMO_API_KEY"):
+        MODULE._required_environment()
 
 
 def test_run_reports_signal_and_redacted_output(
