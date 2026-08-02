@@ -15,32 +15,11 @@ Briefly describe the change and the affected causal-memory surface.
 
 Explain the causal-validity, operator, reviewer, privacy, or safety value.
 
-## Causal review
-
-Strict mode applies when implementation, workflow, schema, runtime, or CI-contract files change. Documentation-only PRs still run the gate in lightweight mode.
-
-### Failure path
-
-TODO: Describe the concrete incorrect, unsafe, stale, or non-deterministic transition that this PR prevents. For a feature, describe why the previous state cannot satisfy the new requirement.
-
-### Invariant after change
-
-TODO: State the property that must hold on the exact PR head after this change.
-
-### Regression evidence
-
-TODO: List changed test paths. When existing tests already prove the invariant, cite their exact repository paths, for example `tests/test_example.py`.
-
-### Residual risk
-
-TODO: State what remains unproved, external, operational, or intentionally out of scope.
-
 ## Validation
 
 - [ ] I ran the smallest relevant validation.
 - [ ] I updated tests, examples, or evidence when semantics changed.
 - [ ] I kept the change bounded and stated any incomplete evidence.
-- [ ] Required CI, package, security, trust-root, and causal gates pass on the exact head.
 
 **Exact PR head SHA validated:**
 
