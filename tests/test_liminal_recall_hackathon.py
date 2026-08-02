@@ -7,6 +7,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 
 APP_ROOT = Path(__file__).resolve().parents[1] / "hackathons" / "liminal-recall"
 sys.path.insert(0, str(APP_ROOT))
@@ -14,6 +16,9 @@ sys.path.insert(0, str(APP_ROOT))
 from app.embeddings import BedrockTitanEmbedder
 from app.handler import lambda_handler, set_store_for_tests
 from app.models import MemoryCreate, MemoryRecord
+
+
+TEST_DEMO_KEY = "test-demo-key-1234"
 
 
 class InMemoryStore:
@@ -65,6 +70,7 @@ def _call(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
     event = {
         "rawPath": path,
         "requestContext": {"http": {"method": method}},
+        "headers": {"x-demo-key": TEST_DEMO_KEY},
     }
     if body is not None:
         event["body"] = json.dumps(body)
@@ -72,7 +78,10 @@ def _call(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
     return response["statusCode"], json.loads(response["body"])
 
 
-def test_liminal_recall_uses_persistent_negative_memory_for_later_decision():
+def test_liminal_recall_uses_persistent_negative_memory_for_later_decision(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("DEMO_API_KEY", TEST_DEMO_KEY)
     store = InMemoryStore()
     set_store_for_tests(store)
     try:
@@ -118,7 +127,10 @@ def test_liminal_recall_uses_persistent_negative_memory_for_later_decision():
         set_store_for_tests(None)
 
 
-def test_liminal_recall_reports_vector_tool_for_semantic_store():
+def test_liminal_recall_reports_vector_tool_for_semantic_store(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("DEMO_API_KEY", TEST_DEMO_KEY)
     store = SemanticInMemoryStore()
     set_store_for_tests(store)
     try:
