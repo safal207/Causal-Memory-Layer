@@ -7,7 +7,7 @@ from typing import Any, Protocol
 
 DEFAULT_MODEL_ID = "amazon.titan-embed-text-v2:0"
 DEFAULT_DIMENSIONS = 256
-SUPPORTED_DIMENSIONS = {256, 512, 1024}
+SUPPORTED_DIMENSIONS = {DEFAULT_DIMENSIONS}
 
 
 class Embedder(Protocol):
@@ -28,7 +28,7 @@ class BedrockTitanEmbedder:
         client: Any | None = None,
     ) -> None:
         if dimensions not in SUPPORTED_DIMENSIONS:
-            raise ValueError("embedding dimensions must be one of 256, 512, or 1024")
+            raise ValueError("embedding dimensions must match the schema VECTOR(256)")
         self.model_id = model_id
         self.dimensions = dimensions
         self.region_name = region_name
