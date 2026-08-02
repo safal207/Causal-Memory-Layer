@@ -24,7 +24,7 @@
     "scripts/__init__.py": "d56731c22992899563e9b2de8181d91a0521d1f1",
     "scripts/ci/__init__.py": "17a59c5b36ff247772104003737ad1a5b619ad77",
     "scripts/ci/assert_exact_head.py": "f57687734a4c39a5c0299ad8d7a1465bb7e67111",
-    "scripts/ci/build_causal_pr_report.py": "0ca0f9c3abd6dc7c654c16f67756acffac696c42",
+    "scripts/ci/build_causal_pr_report.py": "10bdf8388056261b5c2a8aaba08cec86bbad5d69",
     "scripts/ci/build_evidence_manifest.py": "bb4065d136e7dc796402d534ecda48145cc7a17f",
     "scripts/ci/verify_workflow_contract.py": "85ef8222b10cd1731372fd9e58a586046f214cc0",
     "tests/test_causal_pr_contract.py": "71cb71f0b3290e462875d936bbe0fea7c6785c97",
