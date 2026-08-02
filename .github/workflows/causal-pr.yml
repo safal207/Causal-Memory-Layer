@@ -43,12 +43,6 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      - name: Prove exact-head checkout
-        run: |
-          python -m scripts.ci.assert_exact_head \
-            --expected "$EXPECTED_SHA" \
-            --output artifacts/causal/exact-head.json
-
       - name: Fetch exact base commit
         run: |
           test -n "$BASE_SHA"
@@ -59,11 +53,6 @@ jobs:
           fi
           git cat-file -e "${BASE_SHA}^{commit}"
 
-      - name: Install contract test dependencies
-        run: |
-          python -m pip install --upgrade "pip==26.1.2"
-          python -m pip install "pytest==9.1.1" "PyYAML==6.0.3"
-
       - name: Build and enforce causal transition report
         run: |
           python -m scripts.ci.build_causal_pr_report \
@@ -72,6 +61,26 @@ jobs:
             --event "$GITHUB_EVENT_PATH" \
             --output artifacts/causal/causal-pr-report.json \
             --markdown artifacts/causal/causal-pr-report.md
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/causal/exact-head.json
+
+      - name: Install contract test dependencies
+        run: |
+          python -m pip install --upgrade "pip==26.1.2"
+          python -m pip install "pytest==9.1.1" "PyYAML==6.0.3"
+
+      - name: Verify every required workflow trust contract
+        run: |
+          python -m scripts.ci.verify_workflow_contract \
+            .github/workflows/ci.yml \
+            .github/workflows/python-package-validation.yml \
+            .github/workflows/security.yml \
+            .github/workflows/causal-pr.yml \
+            --output artifacts/causal/workflow-contract.json
 
       - name: Run causal and workflow contract regression tests
         run: |
@@ -166,6 +175,7 @@ jobs:
             --require "final/causal-gate-results.json" \
             --require "collected/causal-pr-report.json" \
             --require "collected/causal-pr-report.md" \
+            --require "collected/workflow-contract.json" \
             --output artifacts/final/causal-evidence-manifest.json
 
       - name: Upload final causal evidence
