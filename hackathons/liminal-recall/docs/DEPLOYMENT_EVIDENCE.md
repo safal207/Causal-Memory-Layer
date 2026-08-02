@@ -1,8 +1,25 @@
 # Deployment and evidence protocol
 
-This protocol separates implementation claims from live proof. Do not mark the submission ready until every required artifact is captured from the final commit and sanitized.
+This protocol separates implementation claims from live proof. Do not mark the submission ready until every required artifact is captured from one exact final commit, sanitized, and bound to that deployed build SHA.
 
-## 1. Create and identify the CockroachDB memory layer with ccloud
+## 1. Prepare the exact source state
+
+From the repository root, require a clean worktree and record the reviewed head:
+
+```bash
+git status --short
+git rev-parse HEAD
+```
+
+Pass conditions:
+
+- `git status --short` is empty;
+- the SHA is a full lowercase 40-character value;
+- the same SHA will be passed to SAM as `BuildSha` and later returned by `/healthz`.
+
+Any later commit creates a new state and requires redeployment plus fresh evidence.
+
+## 2. Identify the CockroachDB memory layer with ccloud
 
 Authenticate with the CockroachDB Cloud organization that owns the demo cluster:
 
@@ -11,7 +28,7 @@ ccloud auth login
 ccloud auth whoami
 ```
 
-Create or select a CockroachDB Cloud cluster. For a new zero-spend Basic cluster, use the current `ccloud` command supported by your account and region, then set:
+Create or select a CockroachDB Cloud cluster, then set private values:
 
 ```bash
 export COCKROACH_CLUSTER="<cluster-name-or-id>"
@@ -28,16 +45,17 @@ python scripts/ccloud_evidence.py \
 
 Required checks:
 
-- the file was produced by live `ccloud ... -o json` commands;
+- the file was produced by live ccloud commands;
 - the cluster identity matches the deployment;
 - secrets, connection strings, tokens, passwords, and certificates are redacted;
-- the evidence timestamp is before the submission deadline and close to the final deployment.
+- `ccloud-evidence.json.sha256` contains the exact digest and filename;
+- the evidence timestamp is close to the final deployment.
 
-This artifact proves meaningful use of the **ccloud CLI** as the agent-readable control-plane/evidence tool.
+The final gate recomputes the SHA-256 digest and rejects a malformed sidecar, a changed filename, or substituted bytes.
 
-## 2. Apply and verify the distributed vector schema
+## 3. Apply and verify the distributed vector schema
 
-Apply the schema to the live cluster:
+Apply the schema:
 
 ```bash
 cockroach sql --url "$DATABASE_URL" --file schema.sql
@@ -58,6 +76,8 @@ agent_memories_semantic_idx
 vector_cosine_ops
 ```
 
+The deployment template and embedder both allow only 256 dimensions. This prevents Bedrock from producing vectors that the schema cannot store.
+
 After at least one embedded memory exists, capture a real plan for the same query shape used by the application:
 
 ```sql
@@ -72,11 +92,9 @@ ORDER BY embedding <=> '<QUERY_VECTOR>'::VECTOR
 LIMIT 12;
 ```
 
-The captured plan must show vector-search/index behavior rather than a claim inferred only from the schema. This is the live proof for **CockroachDB Distributed Vector Indexing**.
+The plan must show vector-search/index behavior rather than a claim inferred only from schema text. Never publish the database password or complete connection string.
 
-Do not publish the database password or complete connection string.
-
-## 3. Validate the final commit locally and in protected CI
+## 4. Validate locally and in protected CI
 
 From `hackathons/liminal-recall`:
 
@@ -88,7 +106,7 @@ pytest -q
 python -m py_compile app/*.py scripts/*.py
 ```
 
-The repository-level protected test `tests/test_liminal_recall_hackathon.py` must also pass. It protects the causal decision contract, semantic retrieval mode, and Titan embedding shape from drifting behind a green parent-repository CI result.
+Protected repository tests must also pass. They cover causal decisions, semantic retrieval mode, Titan dimensions, authenticated routes, verified CockroachDB TLS, evidence containment, checksum integrity, and runtime build identity.
 
 Record:
 
@@ -102,16 +120,33 @@ security_baseline_result:
 validation_timestamp_utc:
 ```
 
-## 4. Deploy to AWS Lambda and Bedrock
+## 5. Deploy to AWS Lambda and Bedrock
 
-Confirm Titan Text Embeddings V2 access in the chosen AWS region, then deploy:
+Set a required private demo key of at least 16 random characters:
 
 ```bash
+export DEMO_API_KEY="<private-random-value>"
+```
+
+The recommended path is:
+
+```bash
+python scripts/live_deploy.py preflight
+python scripts/live_deploy.py all
+```
+
+The runner refuses a missing key or dirty worktree, applies the schema, captures ccloud evidence, builds SAM, and deploys the exact current SHA.
+
+Manual equivalent:
+
+```bash
+BUILD_SHA="$(git rev-parse HEAD)"
 sam build
 sam deploy --guided \
   --parameter-overrides \
     DatabaseUrl="$DATABASE_URL" \
     DemoApiKey="$DEMO_API_KEY" \
+    BuildSha="$BUILD_SHA" \
     EmbeddingModelId="amazon.titan-embed-text-v2:0" \
     EmbeddingDimensions=256 \
     SimilarityThreshold=0.35
@@ -125,14 +160,15 @@ cloudformation_stack:
 lambda_function_name:
 lambda_function_url:
 embedding_model_id:
-embedding_dimensions:
+embedding_dimensions: 256
 similarity_threshold:
 repository_commit_sha:
+deployed_build_sha:
 ```
 
 Capture the final Lambda configuration or CloudFormation output without exposing environment values.
 
-## 5. Live health and authorization proof
+## 6. Prove health, build identity, and authorization
 
 Set:
 
@@ -150,6 +186,7 @@ Required markers:
 
 ```text
 status = ok
+build_sha = repository_commit_sha
 database_configured = true
 semantic_recall_configured = true
 embedding_model = amazon.titan-embed-text-v2:0
@@ -157,9 +194,16 @@ embedding_dimensions = 256
 runtime_instance_id is present
 ```
 
-When `DEMO_API_KEY` is configured, prove that a non-health request without the key receives `401`, then repeat it with `x-demo-key` and receive a normal application response. Never put the key in screenshots, repository files, shell history shared publicly, or video overlays.
+Fail if `build_sha` is missing, malformed, or different from the reviewed head.
 
-## 6. Store a verified-negative outcome
+Prove fail-closed authentication:
+
+1. a non-health request without `x-demo-key` receives `401`;
+2. the same request with the private key receives a normal application response.
+
+Never put the key in screenshots, repository files, shared shell history, logs, or video overlays.
+
+## 7. Store a verified-negative outcome
 
 ```bash
 curl -s -X POST "$BASE_URL/memories" \
@@ -169,7 +213,7 @@ curl -s -X POST "$BASE_URL/memories" \
     "session_id":"payments-agent",
     "kind":"outcome",
     "content":"Refund was sent twice after retry without an idempotency key",
-    "tags":["refund","payment","retry"],
+    "tags":["duplicate","payment","idempotency"],
     "status":"negative",
     "confidence":0.98
   }' | tee evidence/outcome.json
@@ -184,9 +228,9 @@ RUNTIME_ID_1=<returned runtime_instance_id>
 
 Verify in CockroachDB that the record has a non-null 256-dimensional embedding.
 
-## 7. Prove semantic recall with different wording
+## 8. Prove semantic recall with different input
 
-Use a proposed action that is semantically related but not dependent on exact token overlap:
+The later request intentionally uses different wording and non-overlapping tags:
 
 ```bash
 curl -s -X POST "$BASE_URL/decisions" \
@@ -213,9 +257,9 @@ decision_memory_id is present
 
 Query the stored decision and confirm `parent_memory_id = OUTCOME_ID`.
 
-## 8. Prove memory survives process replacement
+## 9. Prove memory survives process replacement
 
-Force a fresh Lambda execution environment without changing or clearing CockroachDB. One bounded method is to update the Lambda description and wait for the configuration update:
+Force a fresh Lambda execution environment without changing or clearing CockroachDB:
 
 ```bash
 aws lambda update-function-configuration \
@@ -226,86 +270,87 @@ aws lambda wait function-updated \
   --function-name "$LAMBDA_FUNCTION_NAME"
 ```
 
-Call health until the runtime ID changes:
+Poll health until the runtime ID changes:
 
 ```bash
 curl -s "$BASE_URL/healthz" | tee evidence/health-after.json
 ```
 
-Save:
-
-```text
-RUNTIME_ID_2=<new runtime_instance_id>
-```
-
-Pass condition: `RUNTIME_ID_2 != RUNTIME_ID_1`.
-
-Repeat the semantically related decision request and save it as `evidence/decision-after-restart.json`.
-
 Pass conditions:
 
-- the new response still cites `OUTCOME_ID`;
+- `runtime_instance_id_after != runtime_instance_id_before`;
+- post-restart `build_sha` still equals the reviewed commit;
+- the repeated semantic decision still cites `OUTCOME_ID`;
 - retrieval remains `cockroachdb_vector_cosine`;
 - decision remains `HUMAN_REVIEW`;
-- the runtime ID differs from the first request;
-- the database memory ID remains unchanged.
+- the CockroachDB memory ID remains unchanged.
 
-The runtime-ID change proves process replacement. The stable outcome UUID proves CockroachDB durability.
+The runtime-ID change proves process replacement. The stable outcome UUID proves CockroachDB durability. The stable exact build SHA proves both observations came from the reviewed artifact.
 
-## 9. Observability proof
+## 10. Observability proof
 
-Capture sanitized CloudWatch/X-Ray evidence for:
+Capture sanitized CloudWatch or X-Ray evidence for:
 
-- one memory write;
+- one authenticated memory write;
 - one Bedrock embedding call;
 - one vector recall decision;
 - one request after process replacement;
 - no secret values in logs.
 
-Record the CloudWatch log stream or trace identifiers in the evidence manifest. Avoid claiming end-to-end traces unless the final artifacts actually show them.
+Avoid claiming end-to-end traces unless the final artifacts actually show them.
 
-## 10. Final evidence manifest
+## 11. Final evidence manifest
 
-Record these values in a single final manifest:
+Copy `final-submission.example.json` into the private evidence directory and record:
 
 ```text
 repository_commit_sha:
-repository_url:
-license_visible_at_repository_root:
+deployed_build_sha:
+repository_url pinned to repository_commit_sha:
+license_url pinned to repository_commit_sha:
 aws_region:
 cloudformation_stack:
 lambda_function_name:
 lambda_function_url:
 cockroach_cluster_name_or_id:
-cockroach_cluster_region:
 ccloud_evidence_path:
-vector_index_name:
 vector_explain_evidence_path:
-schema_applied_at_utc:
-embedding_model_id:
 negative_outcome_id:
-first_decision_memory_id:
+decision_memory_id_after:
 runtime_instance_id_before:
 runtime_instance_id_after:
-cloudwatch_log_stream_or_trace:
-demo_video_url:
+retrieval_mode: cockroachdb_vector_cosine
+retrieval_tool: distributed_vector_index
+execution_authority: advisory_only
+video_url:
 devpost_submission_url:
 judging_availability_end: 2026-09-15T17:00:00-04:00
 ```
 
-## 11. Video proof order — target 2:35
+All referenced evidence files must resolve inside the manifest directory. Absolute paths, `..` escapes, and symlinks that resolve outside the directory are rejected.
+
+Run the gate:
+
+```bash
+python scripts/submission_gate.py evidence/final-submission.json \
+  --report evidence/submission-gate-report.json
+```
+
+The gate must return `PASS` on the exact submitted head.
+
+## 12. Video proof order — target 2:35
 
 1. **0:00–0:18:** costly failure: an agent repeats a refund after losing prior outcome context.
-2. **0:18–0:35:** architecture: Lambda + Bedrock + CockroachDB vector memory + ccloud evidence.
+2. **0:18–0:35:** architecture: Lambda + Bedrock + CockroachDB vector memory + ccloud evidence + build identity.
 3. **0:35–1:00:** store the verified-negative outcome and show its UUID/embedding record.
-4. **1:00–1:28:** use different wording; show vector recall, `HUMAN_REVIEW`, exact UUID, and causal decision link.
-5. **1:28–1:50:** show vector index/plan and redacted ccloud JSON evidence.
-6. **1:50–2:15:** replace Lambda runtime; show changed runtime ID and unchanged memory UUID.
-7. **2:15–2:35:** close on the product value and advisory authority boundary.
+4. **1:00–1:28:** use different wording and tags; show vector recall, `HUMAN_REVIEW`, exact UUID, and causal link.
+5. **1:28–1:50:** show vector index/plan and redacted ccloud JSON with matching checksum.
+6. **1:50–2:15:** show submitted `build_sha`, replace the Lambda runtime, then show changed runtime ID, unchanged SHA, and unchanged memory UUID.
+7. **2:15–2:35:** close on product value and the advisory authority boundary.
 
-Judges are not required to watch beyond three minutes. Do not include copyrighted music, third-party trademarks without permission, or credentials.
+Judges are not required to watch beyond three minutes. Do not include credentials, copyrighted music, or unlicensed third-party assets.
 
-## 12. Secret and claim handling
+## 13. Secret and claim handling
 
 Never publish:
 
@@ -316,4 +361,4 @@ Never publish:
 - demo API keys;
 - reusable certificates or private endpoints containing credentials.
 
-A successful demo proves that the AWS-hosted application uses Bedrock embeddings and CockroachDB vector memory to recall a durable verified outcome after process replacement and influence a later advisory decision. It does not prove universal semantic correctness, autonomous execution safety, or immunity to every cloud/database failure mode.
+A successful demo proves that the exact submitted AWS-hosted build uses Bedrock embeddings and CockroachDB vector memory to recall a durable verified outcome after process replacement and influence a later advisory decision. It does not prove universal semantic correctness, autonomous execution safety, or immunity to every cloud or database failure mode.
