@@ -151,6 +151,23 @@ def test_placeholder_sections_fail_closed(tmp_path: Path) -> None:
     assert any("contains a placeholder: failure_path" in item for item in report["violations"])
 
 
+def test_placeholder_word_inside_real_explanation_is_allowed(tmp_path: Path) -> None:
+    body = COMPLETE_BODY.replace(
+        "Every strict transition is bound to one exact head and regression evidence.",
+        "Every strict transition requires completed, non-placeholder causal sections.",
+    )
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("M", "scripts/ci/tool.py"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
+        body=body,
+    )
+
+    assert report["passed"] is True, report["violations"]
+
+
 def test_rename_is_classified_by_destination_path() -> None:
     groups = classify_changes(
         [Change("R100", "tests/test_new_name.py", "tests/test_old_name.py")]
