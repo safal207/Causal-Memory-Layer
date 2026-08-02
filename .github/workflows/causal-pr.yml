@@ -1,0 +1,188 @@
+name: Causal PR Contract
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+
+permissions: {}
+
+concurrency:
+  group: causal-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+  SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  causal-analysis:
+    name: Build causal transition evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Fetch exact base commit
+        run: |
+          test -n "$BASE_SHA"
+          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 \
+              "https://github.com/${GITHUB_REPOSITORY}.git" \
+              "$BASE_SHA"
+          fi
+          git cat-file -e "${BASE_SHA}^{commit}"
+
+      - name: Build and enforce causal transition report
+        run: |
+          python -m scripts.ci.build_causal_pr_report \
+            --base "$BASE_SHA" \
+            --head "$EXPECTED_SHA" \
+            --event "$GITHUB_EVENT_PATH" \
+            --output artifacts/causal/causal-pr-report.json \
+            --markdown artifacts/causal/causal-pr-report.md
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/causal/exact-head.json
+
+      - name: Install contract test dependencies
+        run: |
+          python -m pip install --upgrade "pip==26.1.2"
+          python -m pip install "pytest==9.1.1" "PyYAML==6.0.3"
+
+      - name: Verify every required workflow trust contract
+        run: |
+          python -m scripts.ci.verify_workflow_contract \
+            .github/workflows/ci.yml \
+            .github/workflows/python-package-validation.yml \
+            .github/workflows/security.yml \
+            .github/workflows/causal-pr.yml \
+            --output artifacts/causal/workflow-contract.json
+
+      - name: Run causal and workflow contract regression tests
+        run: |
+          python -m pytest -q \
+            tests/test_causal_pr_contract.py \
+            tests/test_ci_workflow_contract.py
+
+      - name: Upload causal analysis evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-causal-pr-lane-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/causal/
+          if-no-files-found: error
+          retention-days: 30
+
+  gate:
+    name: Causal PR Gate
+    if: always()
+    needs: [causal-analysis]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/final/exact-head.json
+
+      - name: Record causal lane result
+        env:
+          CAUSAL_RESULT: ${{ needs.causal-analysis.result }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("artifacts/final/causal-gate-results.json")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(
+              json.dumps({
+                  "schema_version": "cml-causal-pr-gate-results-v1",
+                  "tested_sha": os.environ["EXPECTED_SHA"],
+                  "base_sha": os.environ["BASE_SHA"],
+                  "lanes": {"causal_analysis": os.environ["CAUSAL_RESULT"]},
+              }, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Require causal analysis to succeed
+        env:
+          CAUSAL_RESULT: ${{ needs.causal-analysis.result }}
+        run: test "$CAUSAL_RESULT" = "success"
+
+      - name: Download exact-run causal evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: cml-causal-pr-lane-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/collected
+
+      - name: Build exact-head causal evidence manifest
+        run: |
+          python -m scripts.ci.build_evidence_manifest \
+            --artifacts-root artifacts \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-repository "$SOURCE_REPOSITORY" \
+            --tested-sha "$EXPECTED_SHA" \
+            --event-name "$GITHUB_EVENT_NAME" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --change-number "${{ github.event.pull_request.number }}" \
+            --workflow-ref "$GITHUB_WORKFLOW_REF" \
+            --require "final/exact-head.json" \
+            --require "final/causal-gate-results.json" \
+            --require "collected/causal-pr-report.json" \
+            --require "collected/causal-pr-report.md" \
+            --require "collected/workflow-contract.json" \
+            --output artifacts/final/causal-evidence-manifest.json
+
+      - name: Upload final causal evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-causal-pr-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/final/
+          if-no-files-found: error
+          retention-days: 30
