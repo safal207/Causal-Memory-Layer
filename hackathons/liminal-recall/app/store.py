@@ -63,6 +63,8 @@ class CockroachMemoryStore:
         query_keys = {
             key.casefold() for key in parse_qs(urlsplit(self.database_url).query)
         }
+        if "sslmode" not in query_keys:
+            connect_options["sslmode"] = "verify-full"
         if "sslrootcert" not in query_keys:
             connect_options["sslrootcert"] = os.getenv(
                 "COCKROACH_ROOT_CERT_PATH",
