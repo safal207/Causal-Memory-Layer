@@ -25,8 +25,7 @@ SECRET_VALUE_RE = re.compile(
 )
 TEST_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9_./-])"
-    r"((?:tests|hackathons/[^/\s]+/tests)/"
-    r"[A-Za-z0-9_./-]+\."
+    r"((?:tests|hackathons/[^/\s]+/tests)/[A-Za-z0-9_./-]+\."
     r"(?:py|pyi|js|jsx|mjs|cjs|ts|tsx|go|rs|java|kt|kts|rb|php|swift|scala|c|cc|cpp|cs|sh))"
 )
 
@@ -42,143 +41,38 @@ SECTION_ALIASES = {
 }
 
 IMPLEMENTATION_ROOTS = (
-    "api/",
-    "app/",
-    "apps/",
-    "cli/",
-    "client/",
-    "cml/",
-    "deploy/",
-    "deployment/",
-    "docker/",
-    "hackathons/",
-    "infra/",
-    "infrastructure/",
-    "integrations/",
-    "packages/",
-    "scripts/",
-    "server/",
-    "services/",
-    "src/",
-    "web/",
-    ".github/actions/",
-    ".github/trust-root/",
+    "api/", "app/", "apps/", "cli/", "client/", "cml/", "deploy/",
+    "deployment/", "docker/", "hackathons/", "infra/", "infrastructure/",
+    "integrations/", "packages/", "scripts/", "server/", "services/",
+    "src/", "web/", ".github/actions/", ".github/trust-root/",
 )
 IMPLEMENTATION_SUFFIXES = {
-    ".bash",
-    ".bat",
-    ".c",
-    ".cc",
-    ".cfg",
-    ".cjs",
-    ".cmd",
-    ".conf",
-    ".cpp",
-    ".cs",
-    ".css",
-    ".cxx",
-    ".env",
-    ".fish",
-    ".go",
-    ".gql",
-    ".gradle",
-    ".graphql",
-    ".h",
-    ".hcl",
-    ".hpp",
-    ".html",
-    ".ini",
-    ".ipynb",
-    ".java",
-    ".js",
-    ".json",
-    ".jsonc",
-    ".jsx",
-    ".kt",
-    ".kts",
-    ".less",
-    ".lock",
-    ".lua",
-    ".mjs",
-    ".php",
-    ".properties",
-    ".proto",
-    ".ps1",
-    ".py",
-    ".pyi",
-    ".r",
-    ".rb",
-    ".rs",
-    ".sass",
-    ".scala",
-    ".scss",
-    ".sh",
-    ".sql",
-    ".svelte",
-    ".swift",
-    ".tf",
-    ".tfvars",
-    ".toml",
-    ".ts",
-    ".tsx",
-    ".vue",
-    ".xml",
-    ".yaml",
-    ".yml",
-    ".zsh",
+    ".bash", ".bat", ".c", ".cc", ".cfg", ".cjs", ".cmd", ".conf",
+    ".cpp", ".cs", ".css", ".cxx", ".env", ".fish", ".go", ".gql",
+    ".gradle", ".graphql", ".h", ".hcl", ".hpp", ".html", ".ini",
+    ".ipynb", ".java", ".js", ".json", ".jsonc", ".jsx", ".kt",
+    ".kts", ".less", ".lock", ".lua", ".mjs", ".php", ".properties",
+    ".proto", ".ps1", ".py", ".pyi", ".r", ".rb", ".rs", ".sass",
+    ".scala", ".scss", ".sh", ".sql", ".svelte", ".swift", ".tf",
+    ".tfvars", ".toml", ".ts", ".tsx", ".vue", ".xml", ".yaml",
+    ".yml", ".zsh",
 }
 IMPLEMENTATION_FILENAMES = {
-    "build.gradle",
-    "build.gradle.kts",
-    "cargo.lock",
-    "cargo.toml",
-    "composer.json",
-    "composer.lock",
-    "containerfile",
-    "dockerfile",
-    "gemfile",
-    "gemfile.lock",
-    "gnumakefile",
-    "go.mod",
-    "go.sum",
-    "gradlew",
-    "gradlew.bat",
-    "justfile",
-    "makefile",
-    "package-lock.json",
-    "package.json",
-    "pipfile",
-    "pipfile.lock",
-    "pnpm-lock.yaml",
-    "poetry.lock",
-    "pom.xml",
-    "procfile",
-    "pyproject.toml",
-    "setup.cfg",
-    "setup.py",
-    "terraform.lock.hcl",
-    "tox.ini",
-    "uv.lock",
-    "yarn.lock",
+    "build.gradle", "build.gradle.kts", "cargo.lock", "cargo.toml",
+    "composer.json", "composer.lock", "containerfile", "dockerfile",
+    "gemfile", "gemfile.lock", "gnumakefile", "go.mod", "go.sum",
+    "gradlew", "gradlew.bat", "justfile", "makefile", "package-lock.json",
+    "package.json", "pipfile", "pipfile.lock", "pnpm-lock.yaml",
+    "poetry.lock", "pom.xml", "procfile", "pyproject.toml", "setup.cfg",
+    "setup.py", "terraform.lock.hcl", "tox.ini", "uv.lock", "yarn.lock",
 }
 DOCUMENTATION_SUFFIXES = {".adoc", ".md", ".mdx", ".rst"}
 DOCUMENTATION_MEDIA_SUFFIXES = {
-    ".gif",
-    ".jpeg",
-    ".jpg",
-    ".pdf",
-    ".png",
-    ".svg",
-    ".webp",
+    ".gif", ".jpeg", ".jpg", ".pdf", ".png", ".svg", ".webp",
 }
 DOCUMENTATION_NAME_PREFIXES = (
-    "authors",
-    "changelog",
-    "code_of_conduct",
-    "contributing",
-    "license",
-    "notice",
-    "readme",
+    "authors", "changelog", "code_of_conduct", "contributing", "license",
+    "notice", "readme",
 )
 WORKFLOW_CONTRACT_PATHS = {
     "tests/test_ci_workflow_contract.py",
@@ -197,13 +91,21 @@ class Change:
 
 def _run_git(repo_root: Path, *args: str) -> str:
     completed = subprocess.run(
-        ["git", *args],
+        ["git", *args], cwd=repo_root, check=True, capture_output=True, text=True
+    )
+    return completed.stdout.strip()
+
+
+def _git_is_ancestor(repo_root: Path, base_sha: str, head_sha: str) -> bool:
+    completed = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", base_sha, head_sha],
         cwd=repo_root,
-        check=True,
         capture_output=True,
         text=True,
     )
-    return completed.stdout.strip()
+    if completed.returncode not in {0, 1}:
+        raise RuntimeError(completed.stderr.strip() or "git merge-base failed")
+    return completed.returncode == 0
 
 
 def _normalize_heading(value: str) -> str:
@@ -212,24 +114,20 @@ def _normalize_heading(value: str) -> str:
 
 
 def extract_sections(body: str) -> dict[str, str]:
-    """Extract the required causal-review sections from Markdown PR text."""
+    """Extract required causal-review sections from Markdown PR text."""
 
     matches = list(HEADING_RE.finditer(body or ""))
     sections: dict[str, str] = {}
     for index, match in enumerate(matches):
         heading = _normalize_heading(match.group(1))
         canonical = next(
-            (
-                name
-                for name, aliases in SECTION_ALIASES.items()
-                if heading in aliases
-            ),
+            (name for name, aliases in SECTION_ALIASES.items() if heading in aliases),
             None,
         )
         if canonical is None:
             continue
         end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
-        sections[canonical] = body[match.end() : end].strip()
+        sections[canonical] = body[match.end():end].strip()
     return sections
 
 
@@ -247,37 +145,46 @@ def _is_test_path(path: str) -> bool:
     )
 
 
+def _has_runtime_identity(path: str) -> bool:
+    normalized = path.casefold()
+    name = Path(normalized).name
+    suffix = Path(normalized).suffix
+    return (
+        name in IMPLEMENTATION_FILENAMES
+        or name.startswith("requirements")
+        or suffix in IMPLEMENTATION_SUFFIXES
+    )
+
+
 def _is_documentation_path(path: str) -> bool:
     normalized = path.casefold()
     name = Path(normalized).name
     suffix = Path(normalized).suffix
+    if _has_runtime_identity(normalized):
+        return False
     if suffix in DOCUMENTATION_SUFFIXES:
         return True
-    if name.startswith(DOCUMENTATION_NAME_PREFIXES):
+    if suffix == "" and name.startswith(DOCUMENTATION_NAME_PREFIXES):
         return True
     return normalized.startswith("docs/") and suffix in DOCUMENTATION_MEDIA_SUFFIXES
 
 
 def _is_workflow_contract_change(path: str) -> bool:
-    return path.startswith(".github/workflows/") or path == (
+    normalized = path.casefold()
+    return normalized.startswith(".github/workflows/") or normalized == (
         "scripts/ci/verify_workflow_contract.py"
     )
 
 
 def _is_implementation_path(path: str) -> bool:
-    if (
-        _is_test_path(path)
-        or _is_documentation_path(path)
-        or _is_workflow_contract_change(path)
-    ):
-        return False
     normalized = path.casefold()
-    name = Path(normalized).name
-    if name in IMPLEMENTATION_FILENAMES or name.startswith("requirements"):
+    if _is_test_path(normalized) or _is_workflow_contract_change(normalized):
+        return False
+    if _has_runtime_identity(normalized):
         return True
-    return normalized.startswith(IMPLEMENTATION_ROOTS) or Path(normalized).suffix in (
-        IMPLEMENTATION_SUFFIXES
-    )
+    if _is_documentation_path(normalized):
+        return False
+    return normalized.startswith(IMPLEMENTATION_ROOTS)
 
 
 def _all_change_paths(changes: Iterable[Change]) -> list[str]:
@@ -314,14 +221,15 @@ def classify_changes(changes: Iterable[Change]) -> dict[str, list[str]]:
 
 
 def changed_files(repo_root: Path, base_sha: str, head_sha: str) -> list[Change]:
-    """Read a rename-aware, status-preserving diff between base and head."""
+    """Read a direct, rename-aware exact-base-to-head diff."""
 
     output = _run_git(
         repo_root,
         "diff",
         "--name-status",
         "--find-renames",
-        f"{base_sha}...{head_sha}",
+        base_sha,
+        head_sha,
     )
     changes: list[Change] = []
     for line in output.splitlines():
@@ -344,9 +252,7 @@ def _safe_summary(value: str, limit: int = 180) -> str:
         lambda match: f"{match.group(1)}=[REDACTED]", sanitized
     )
     sanitized = " ".join(sanitized.split())
-    if len(sanitized) > limit:
-        return sanitized[: limit - 1] + "…"
-    return sanitized
+    return sanitized if len(sanitized) <= limit else sanitized[: limit - 1] + "…"
 
 
 def _contains_placeholder(value: str) -> bool:
@@ -368,9 +274,8 @@ def _section_metadata(sections: dict[str, str]) -> dict[str, dict[str, Any]]:
 
 def _existing_test_references(section: str, repo_root: Path) -> list[str]:
     root = repo_root.resolve()
-    references = sorted(set(TEST_PATH_RE.findall(section)))
     existing: list[str] = []
-    for path in references:
+    for path in sorted(set(TEST_PATH_RE.findall(section))):
         candidate = (root / path).resolve()
         try:
             candidate.relative_to(root)
@@ -390,6 +295,7 @@ def evaluate_transition(
     body: str,
     current_head: str,
     dirty: bool,
+    base_is_ancestor: bool = True,
 ) -> dict[str, Any]:
     """Evaluate one PR state transition without calling GitHub APIs."""
 
@@ -402,6 +308,8 @@ def evaluate_transition(
         violations.append("checked-out HEAD does not match the reviewed PR head")
     if dirty:
         violations.append("causal analysis requires a clean worktree")
+    if not base_is_ancestor:
+        violations.append("reviewed base SHA is not an ancestor of the PR head")
 
     groups = classify_changes(changes)
     sections = extract_sections(body)
@@ -427,9 +335,7 @@ def evaluate_transition(
                 "strict changes require changed tests or explicit existing test paths"
             )
 
-    if groups["workflows"] and not (
-        WORKFLOW_CONTRACT_PATHS & set(groups["tests"])
-    ):
+    if groups["workflows"] and not (WORKFLOW_CONTRACT_PATHS & set(groups["tests"])):
         violations.append(
             "workflow contract changes require a causal/workflow contract regression test"
         )
@@ -439,10 +345,7 @@ def evaluate_transition(
     graph = {
         "nodes": [
             {"id": "base", "label": f"base {base_sha[:12]}"},
-            {
-                "id": "change",
-                "label": f"{len(changes)} path transitions / {scope} policy",
-            },
+            {"id": "change", "label": f"{len(changes)} path transitions / {scope} policy"},
             {
                 "id": "invariant",
                 "label": section_metadata.get("invariant", {}).get(
@@ -470,6 +373,7 @@ def evaluate_transition(
         "scope": scope,
         "base_sha": base_sha,
         "head_sha": head_sha,
+        "base_is_ancestor": base_is_ancestor,
         "change_count": len(changes),
         "classified_paths": _all_change_paths(changes),
         "changes": [
@@ -506,6 +410,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Policy scope: `{report['scope']}`",
         f"- Base: `{report['base_sha']}`",
         f"- Head: `{report['head_sha']}`",
+        f"- Base is ancestor: `{str(report['base_is_ancestor']).lower()}`",
         f"- Path transitions: `{report['change_count']}`",
         "",
         "```mermaid",
@@ -524,10 +429,11 @@ def render_markdown(report: dict[str, Any]) -> str:
     for name, paths in report["groups"].items():
         lines.append(f"| {name} | {len(paths)} |")
     lines.extend(["", "## Violations", ""])
-    if report["violations"]:
-        lines.extend(f"- {violation}" for violation in report["violations"])
-    else:
-        lines.append("- None.")
+    lines.extend(
+        [f"- {violation}" for violation in report["violations"]]
+        if report["violations"]
+        else ["- None."]
+    )
     return "\n".join(lines) + "\n"
 
 
@@ -541,16 +447,13 @@ def _event_body(event_path: Path) -> str:
 
 
 def build_report(
-    *,
-    repo_root: Path,
-    base_sha: str,
-    head_sha: str,
-    event_path: Path,
+    *, repo_root: Path, base_sha: str, head_sha: str, event_path: Path
 ) -> dict[str, Any]:
     """Build the report from an exact checkout and a GitHub event payload."""
 
     current_head = _run_git(repo_root, "rev-parse", "HEAD")
     dirty = bool(_run_git(repo_root, "status", "--porcelain"))
+    base_is_ancestor = _git_is_ancestor(repo_root, base_sha, head_sha)
     return evaluate_transition(
         repo_root=repo_root,
         base_sha=base_sha,
@@ -559,6 +462,7 @@ def build_report(
         body=_event_body(event_path),
         current_head=current_head,
         dirty=dirty,
+        base_is_ancestor=base_is_ancestor,
     )
 
 
