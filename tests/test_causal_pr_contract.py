@@ -60,6 +60,51 @@ def test_strict_source_transition_with_changed_test_passes(tmp_path: Path) -> No
     assert report["groups"]["tests"] == ["tests/test_causal_pr_contract.py"]
 
 
+def test_typescript_packaging_and_container_files_are_strict(tmp_path: Path) -> None:
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("M", "integrations/vscode-cml/src/extension.ts"),
+            Change("M", "integrations/vscode-cml/package.json"),
+            Change("M", "Dockerfile"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
+    )
+
+    assert report["scope"] == "strict"
+    assert {
+        "integrations/vscode-cml/src/extension.ts",
+        "integrations/vscode-cml/package.json",
+        "Dockerfile",
+    }.issubset(set(report["groups"]["implementation"]))
+
+
+def test_unknown_non_documentation_format_fails_closed(tmp_path: Path) -> None:
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("M", "assets/runtime-policy.bin"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
+    )
+
+    assert report["scope"] == "strict"
+    assert report["groups"]["other"] == ["assets/runtime-policy.bin"]
+
+
+def test_script_inside_docs_is_not_treated_as_documentation(tmp_path: Path) -> None:
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("M", "docs/examples/deploy.py"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
+    )
+
+    assert report["scope"] == "strict"
+    assert report["groups"]["implementation"] == ["docs/examples/deploy.py"]
+
+
 def test_strict_transition_rejects_missing_causal_sections(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
@@ -84,6 +129,23 @@ def test_existing_regression_test_reference_can_satisfy_contract(tmp_path: Path)
 
     assert report["passed"] is True, report["violations"]
     assert report["existing_test_references"] == ["tests/test_existing_contract.py"]
+
+
+def test_regression_reference_cannot_escape_repository(tmp_path: Path) -> None:
+    outside = tmp_path.parent / "outside.py"
+    outside.write_text("def test_outside():\n    assert True\n", encoding="utf-8")
+    body = COMPLETE_BODY.replace(
+        "Added `tests/test_causal_pr_contract.py` to exercise the policy and failure paths.",
+        "Existing test: `tests/../../outside.py` exercises this invariant.",
+    )
+
+    report = _evaluate(tmp_path, [Change("M", "cml/record.py")], body=body)
+
+    assert report["existing_test_references"] == []
+    assert any(
+        "require changed tests or explicit existing test paths" in item
+        for item in report["violations"]
+    )
 
 
 def test_implementation_change_without_test_evidence_fails(tmp_path: Path) -> None:
@@ -168,12 +230,39 @@ def test_placeholder_word_inside_real_explanation_is_allowed(tmp_path: Path) -> 
     assert report["passed"] is True, report["violations"]
 
 
-def test_rename_is_classified_by_destination_path() -> None:
+def test_rename_classifies_source_and_destination_paths() -> None:
+    groups = classify_changes(
+        [Change("R100", "docs/deploy.md", "scripts/deploy.py")]
+    )
+
+    assert groups["documentation"] == ["docs/deploy.md"]
+    assert groups["implementation"] == ["scripts/deploy.py"]
+
+
+def test_rename_from_runtime_to_docs_remains_strict(tmp_path: Path) -> None:
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("R100", "docs/deploy.md", "scripts/deploy.py"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
+    )
+
+    assert report["scope"] == "strict"
+    assert report["changes"][0]["previous_path"] == "scripts/deploy.py"
+    assert "scripts/deploy.py" in report["classified_paths"]
+    assert "docs/deploy.md" in report["classified_paths"]
+
+
+def test_rename_between_tests_classifies_both_paths() -> None:
     groups = classify_changes(
         [Change("R100", "tests/test_new_name.py", "tests/test_old_name.py")]
     )
 
-    assert groups["tests"] == ["tests/test_new_name.py"]
+    assert groups["tests"] == [
+        "tests/test_new_name.py",
+        "tests/test_old_name.py",
+    ]
 
 
 def test_markdown_report_contains_causal_graph_without_raw_url(tmp_path: Path) -> None:
