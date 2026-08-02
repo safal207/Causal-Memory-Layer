@@ -81,12 +81,14 @@ def _causal_contract_violations(path: Path) -> list[str]:
         violations.append("base freshness must be checked in both causal jobs")
 
     joined_run_text = "\n".join(run_text)
-    for required_artifact in (
-        "final/base-freshness.json",
-        "collected/base-freshness.json",
+    for required_directive in (
+        '--require "final/base-freshness.json"',
+        '--require "collected/base-freshness.json"',
     ):
-        if required_artifact not in joined_run_text:
-            violations.append(f"final evidence manifest is missing {required_artifact}")
+        if required_directive not in joined_run_text:
+            violations.append(
+                f"final evidence manifest is missing {required_directive}"
+            )
 
     return violations
 
@@ -242,8 +244,10 @@ def test_causal_contract_rejects_detached_base_artifact(tmp_path: Path):
 
 
 def test_runbook_requires_up_to_date_branch_protection():
-    runbook = (ROOT / "docs/ci/CAUSAL_PR_GATE.md").read_text(encoding="utf-8")
+    runbook = (ROOT / "docs/ci/CAUSAL_PR_GATE.md").read_text(
+        encoding="utf-8"
+    )
 
     assert "Require branches to be up to date before merging" in runbook
     assert "`strict: true`" in runbook
-    assert "base branch advances after a successful run" in runbook
+    assert "base branch can still advance after a successful run" in runbook.casefold()
