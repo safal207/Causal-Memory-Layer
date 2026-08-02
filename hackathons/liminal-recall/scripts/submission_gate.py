@@ -137,7 +137,7 @@ def validate_manifest(manifest_path: Path, manifest: dict[str, Any]) -> list[str
     serialized = json.dumps(manifest, sort_keys=True).casefold()
     for marker in SECRET_MARKERS:
         if marker in serialized:
-            failures.append(f"public manifest contains a credential-like marker: {marker}")
+            failures.append("public manifest contains a credential-like marker")
 
     return failures
 
