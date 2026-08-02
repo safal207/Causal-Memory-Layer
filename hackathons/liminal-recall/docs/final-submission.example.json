@@ -1,5 +1,6 @@
 {
   "repository_commit_sha": "<40-character-final-commit-sha>",
+  "deployed_build_sha": "<same-40-character-final-commit-sha-reported-by-healthz>",
   "repository_url": "https://github.com/safal207/Causal-Memory-Layer/tree/<final-sha>/hackathons/liminal-recall",
   "license_url": "https://github.com/safal207/Causal-Memory-Layer/blob/<final-sha>/LICENSE",
   "lambda_function_url": "https://<function-id>.lambda-url.<region>.on.aws",
@@ -15,7 +16,7 @@
   "retrieval_tool": "distributed_vector_index",
   "execution_authority": "advisory_only",
   "judging_availability_end": "2026-09-15T17:00:00-04:00",
-  "testing_instructions": "Call /healthz, then use the private Devpost credential for the documented memory and decision requests.",
+  "testing_instructions": "Call /healthz, verify build_sha matches repository_commit_sha, then use the private Devpost credential for the documented memory and decision requests.",
   "screenshots": [
     "vector-index.png",
     "semantic-decision.png",
