@@ -10,8 +10,12 @@ Parameters:
   DemoApiKey:
     Type: String
     NoEcho: true
-    Default: ''
-    Description: Optional x-demo-key value for non-health routes
+    MinLength: 16
+    Description: Required x-demo-key value for non-health routes
+  BuildSha:
+    Type: String
+    AllowedPattern: '^[0-9a-f]{40}$'
+    Description: Exact reviewed Git commit embedded in the deployed configuration
   EmbeddingModelId:
     Type: String
     Default: amazon.titan-embed-text-v2:0
@@ -21,8 +25,6 @@ Parameters:
     Default: 256
     AllowedValues:
       - 256
-      - 512
-      - 1024
   SimilarityThreshold:
     Type: Number
     Default: 0.35
@@ -47,6 +49,7 @@ Resources:
         Variables:
           DATABASE_URL: !Ref DatabaseUrl
           DEMO_API_KEY: !Ref DemoApiKey
+          BUILD_SHA: !Ref BuildSha
           EMBEDDING_MODEL_ID: !Ref EmbeddingModelId
           EMBEDDING_DIMENSIONS: !Ref EmbeddingDimensions
           SIMILARITY_THRESHOLD: !Ref SimilarityThreshold
