@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 
@@ -10,6 +11,9 @@ import pytest
 from app.embeddings import BedrockTitanEmbedder
 from app.handler import lambda_handler, set_store_for_tests
 from app.models import MemoryCreate, MemoryRecord
+
+
+TEST_DEMO_KEY = "test-demo-key-1234"
 
 
 class InMemoryStore:
@@ -64,11 +68,16 @@ def call(
     query: dict | None = None,
     headers: dict | None = None,
 ):
+    request_headers = (
+        {"x-demo-key": TEST_DEMO_KEY}
+        if headers is None
+        else headers
+    )
     event = {
         "rawPath": path,
         "requestContext": {"http": {"method": method}},
         "queryStringParameters": query,
-        "headers": headers or {},
+        "headers": request_headers,
     }
     if body is not None:
         event["body"] = json.dumps(body)
@@ -77,18 +86,26 @@ def call(
 
 
 def setup_function():
+    os.environ["DEMO_API_KEY"] = TEST_DEMO_KEY
     set_store_for_tests(InMemoryStore())
 
 
 def teardown_function():
+    os.environ.pop("DEMO_API_KEY", None)
+    os.environ.pop("BUILD_SHA", None)
     set_store_for_tests(None)
 
 
-def test_health_does_not_require_database():
-    status, body = call("GET", "/healthz")
+def test_health_does_not_require_database(monkeypatch: pytest.MonkeyPatch):
+    build_sha = "a" * 40
+    monkeypatch.setenv("BUILD_SHA", build_sha)
+
+    status, body = call("GET", "/healthz", headers={})
+
     assert status == 200
     assert body["status"] == "ok"
     assert body["service"] == "liminal-recall"
+    assert body["build_sha"] == build_sha
     assert body["runtime_instance_id"]
 
 
@@ -191,9 +208,30 @@ def test_no_matching_negative_memory_allows_with_monitoring():
     assert decision["memory_ids"] == []
 
 
-def test_optional_demo_key_protects_non_health_routes(monkeypatch: pytest.MonkeyPatch):
+def test_non_health_routes_fail_closed_when_demo_key_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("DEMO_API_KEY", raising=False)
+
+    status, body = call(
+        "GET",
+        "/memories",
+        query={"session_id": "agent-1"},
+        headers={},
+    )
+
+    assert status == 401
+    assert body["error"] == "unauthorized"
+
+
+def test_demo_key_protects_non_health_routes(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("DEMO_API_KEY", "secret-demo-key")
-    status, body = call("GET", "/memories", query={"session_id": "agent-1"})
+    status, body = call(
+        "GET",
+        "/memories",
+        query={"session_id": "agent-1"},
+        headers={},
+    )
     assert status == 401
     assert body["error"] == "unauthorized"
 
@@ -228,3 +266,8 @@ def test_bedrock_embedder_validates_request_and_response():
         "normalize": True,
         "embeddingTypes": ["float"],
     }
+
+
+def test_bedrock_embedder_rejects_dimensions_not_backed_by_schema():
+    with pytest.raises(ValueError, match="VECTOR\(256\)"):
+        BedrockTitanEmbedder(dimensions=512, client=object())
