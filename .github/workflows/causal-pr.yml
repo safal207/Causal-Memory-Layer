@@ -2,7 +2,6 @@ name: Causal PR Contract
 
 on:
   pull_request:
-    branches: [main]
     types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions: {}
@@ -14,6 +13,7 @@ concurrency:
 env:
   EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   BASE_SHA: ${{ github.event.pull_request.base.sha }}
+  BASE_REF: ${{ github.event.pull_request.base.ref }}
   SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONUNBUFFERED: "1"
@@ -88,6 +88,45 @@ jobs:
             tests/test_causal_pr_contract.py \
             tests/test_ci_workflow_contract.py
 
+      - name: Reconfirm base tip before evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          branch = urllib.parse.quote(os.environ["BASE_REF"], safe="")
+          api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+          request = urllib.request.Request(
+              f"{api}/repos/{repository}/git/ref/heads/{branch}",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              actual = json.load(response)["object"]["sha"]
+          expected = os.environ["BASE_SHA"]
+          report = {
+              "schema_version": "cml-base-freshness-v1",
+              "base_ref": os.environ["BASE_REF"],
+              "expected_base_sha": expected,
+              "observed_base_sha": actual,
+              "passed": actual == expected,
+          }
+          path = Path("artifacts/causal/base-freshness.json")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          if actual != expected:
+              raise SystemExit("base branch advanced during causal analysis")
+          PY
+
       - name: Upload causal analysis evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -142,6 +181,7 @@ jobs:
                   "schema_version": "cml-causal-pr-gate-results-v1",
                   "tested_sha": os.environ["EXPECTED_SHA"],
                   "base_sha": os.environ["BASE_SHA"],
+                  "base_ref": os.environ["BASE_REF"],
                   "lanes": {"causal_analysis": os.environ["CAUSAL_RESULT"]},
               }, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
@@ -159,6 +199,45 @@ jobs:
           name: cml-causal-pr-lane-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/collected
 
+      - name: Reconfirm base tip before final manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          branch = urllib.parse.quote(os.environ["BASE_REF"], safe="")
+          api = os.environ.get("GITHUB_API_URL", "https://api.github.com")
+          request = urllib.request.Request(
+              f"{api}/repos/{repository}/git/ref/heads/{branch}",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              actual = json.load(response)["object"]["sha"]
+          expected = os.environ["BASE_SHA"]
+          report = {
+              "schema_version": "cml-base-freshness-v1",
+              "base_ref": os.environ["BASE_REF"],
+              "expected_base_sha": expected,
+              "observed_base_sha": actual,
+              "passed": actual == expected,
+          }
+          path = Path("artifacts/final/base-freshness.json")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+          if actual != expected:
+              raise SystemExit("base branch advanced before final evidence")
+          PY
+
       - name: Build exact-head causal evidence manifest
         run: |
           python -m scripts.ci.build_evidence_manifest \
@@ -172,7 +251,9 @@ jobs:
             --change-number "${{ github.event.pull_request.number }}" \
             --workflow-ref "$GITHUB_WORKFLOW_REF" \
             --require "final/exact-head.json" \
+            --require "final/base-freshness.json" \
             --require "final/causal-gate-results.json" \
+            --require "collected/base-freshness.json" \
             --require "collected/causal-pr-report.json" \
             --require "collected/causal-pr-report.md" \
             --require "collected/workflow-contract.json" \
