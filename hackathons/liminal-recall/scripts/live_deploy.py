@@ -18,11 +18,18 @@ from typing import Any
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE_DIR = APP_ROOT / "evidence"
-REQUIRED_ENV = ("DATABASE_URL", "COCKROACH_CLUSTER", "AWS_REGION", "STACK_NAME")
+REQUIRED_ENV = (
+    "DATABASE_URL",
+    "COCKROACH_CLUSTER",
+    "AWS_REGION",
+    "STACK_NAME",
+    "DEMO_API_KEY",
+)
 REQUIRED_TOOLS = ("aws", "sam", "ccloud", "cockroach", "git")
 _OUTPUT_TAIL_LINES = 12
 _OUTPUT_TAIL_CHARS = 2400
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 _SECRET_ENV_NAME_RE = re.compile(
     r"(?:DATABASE_URL|API[_-]?KEY|ACCESS[_-]?KEY|SECRET|TOKEN|PASSWORD|CREDENTIAL)",
     re.IGNORECASE,
@@ -185,6 +192,27 @@ def _run(
         ) from exc
 
 
+def _repository_head() -> str:
+    head = _run(
+        ["git", "rev-parse", "HEAD"],
+        label="read exact repository head",
+    ).stdout.strip()
+    if not _GIT_SHA_RE.fullmatch(head):
+        raise DeploymentError("git did not return a full lowercase commit SHA")
+    return head
+
+
+def _require_clean_repository() -> str:
+    head = _repository_head()
+    status = _run(
+        ["git", "status", "--porcelain"],
+        label="verify clean repository worktree",
+    ).stdout.strip()
+    if status:
+        raise DeploymentError("repository worktree must be clean before deployment")
+    return head
+
+
 def _required_environment() -> dict[str, str]:
     missing = [name for name in REQUIRED_ENV if not os.getenv(name)]
     if missing:
@@ -215,6 +243,7 @@ def _json_output(command: list[str], *, label: str) -> Any:
 def preflight() -> dict[str, Any]:
     values = _required_environment()
     tools = _check_tools()
+    repository_commit_sha = _require_clean_repository()
 
     identity = _json_output(
         ["aws", "sts", "get-caller-identity", "--output", "json"],
@@ -229,12 +258,13 @@ def preflight() -> dict[str, Any]:
     return {
         "checked_at": _utc_now(),
         "tools": tools,
+        "repository_commit_sha": repository_commit_sha,
         "aws_account": identity.get("Account"),
         "aws_arn": identity.get("Arn"),
         "aws_region": values["AWS_REGION"],
         "stack_name": values["STACK_NAME"],
         "cockroach_cluster": values["COCKROACH_CLUSTER"],
-        "demo_key_configured": bool(os.getenv("DEMO_API_KEY")),
+        "demo_key_configured": True,
     }
 
 
@@ -266,22 +296,19 @@ def apply_schema_and_capture_ccloud() -> None:
 
 def deploy() -> dict[str, str]:
     values = _required_environment()
-    demo_key = os.getenv("DEMO_API_KEY", "")
+    build_sha = _require_clean_repository()
     model_id = os.getenv("EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0")
     dimensions = os.getenv("EMBEDDING_DIMENSIONS", "256")
     threshold = os.getenv("SIMILARITY_THRESHOLD", "0.35")
 
     parameter_overrides = [
         f"ParameterKey=DatabaseUrl,ParameterValue={values['DATABASE_URL']}",
+        f"ParameterKey=DemoApiKey,ParameterValue={values['DEMO_API_KEY']}",
+        f"ParameterKey=BuildSha,ParameterValue={build_sha}",
         f"ParameterKey=EmbeddingModelId,ParameterValue={model_id}",
         f"ParameterKey=EmbeddingDimensions,ParameterValue={dimensions}",
         f"ParameterKey=SimilarityThreshold,ParameterValue={threshold}",
     ]
-    if demo_key:
-        parameter_overrides.insert(
-            1,
-            f"ParameterKey=DemoApiKey,ParameterValue={demo_key}",
-        )
 
     _run(["sam", "build", "--no-cached"], label="build AWS SAM application")
     _run(
@@ -329,6 +356,7 @@ def deploy() -> dict[str, str]:
         return {
             "function_url": outputs["FunctionUrl"].rstrip("/"),
             "function_name": outputs["FunctionName"],
+            "build_sha": build_sha,
         }
     except KeyError as exc:
         raise DeploymentError(f"missing CloudFormation output: {exc.args[0]}") from exc
@@ -342,8 +370,11 @@ def _request(
     protected: bool = False,
 ) -> dict[str, Any]:
     headers = {"content-type": "application/json"}
-    if protected and os.getenv("DEMO_API_KEY"):
-        headers["x-demo-key"] = os.environ["DEMO_API_KEY"]
+    if protected:
+        demo_key = os.getenv("DEMO_API_KEY", "")
+        if not demo_key:
+            raise DeploymentError("DEMO_API_KEY is required for protected demo requests")
+        headers["x-demo-key"] = demo_key
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
     request = urllib.request.Request(url, data=body, headers=headers, method=method)
     try:
@@ -386,29 +417,52 @@ def _verify_decision(decision: dict[str, Any], outcome_id: str) -> None:
         raise DeploymentError("; ".join(failures))
 
 
+def _verify_runtime_build(
+    health: dict[str, Any],
+    expected_build_sha: str,
+    *,
+    stage: str,
+) -> str:
+    if not _GIT_SHA_RE.fullmatch(expected_build_sha):
+        raise DeploymentError("expected build SHA is not a full lowercase commit SHA")
+    reported_build_sha = str(health.get("build_sha") or "")
+    if not _GIT_SHA_RE.fullmatch(reported_build_sha):
+        raise DeploymentError(f"{stage} health response has no valid build_sha")
+    if reported_build_sha != expected_build_sha:
+        raise DeploymentError(f"{stage} Lambda build_sha does not match the reviewed commit")
+    return reported_build_sha
+
+
 def _runtime_proof_payloads() -> tuple[dict[str, Any], dict[str, Any]]:
-    action = "Retry the customer refund payment without an idempotency key"
-    tags = ["refund", "payment", "retry", "idempotency"]
     return (
         {
             "session_id": "payments-agent",
             "kind": "outcome",
-            "content": action,
-            "tags": tags,
+            "content": "Refund was sent twice after retry without an idempotency key",
+            "tags": ["duplicate", "payment", "idempotency"],
             "status": "negative",
             "confidence": 0.98,
         },
         {
             "session_id": "payments-agent",
-            "proposed_action": action,
-            "tags": tags,
+            "proposed_action": "Send the customer reimbursement again",
+            "tags": ["customer", "payout"],
         },
     )
 
 
-def capture_runtime_proof(function_url: str, function_name: str) -> dict[str, Any]:
+def capture_runtime_proof(
+    function_url: str,
+    function_name: str,
+    expected_build_sha: str,
+) -> dict[str, Any]:
     values = _required_environment()
     health_before = _request("GET", f"{function_url}/healthz")
+    deployed_build_sha = _verify_runtime_build(
+        health_before,
+        expected_build_sha,
+        stage="pre-restart",
+    )
     runtime_before = str(health_before.get("runtime_instance_id") or "")
     if not runtime_before:
         raise DeploymentError("health response has no runtime_instance_id")
@@ -467,6 +521,11 @@ def capture_runtime_proof(function_url: str, function_name: str) -> dict[str, An
     runtime_after = runtime_before
     for _ in range(30):
         health_after = _request("GET", f"{function_url}/healthz")
+        _verify_runtime_build(
+            health_after,
+            expected_build_sha,
+            stage="post-restart",
+        )
         runtime_after = str(health_after.get("runtime_instance_id") or "")
         if runtime_after and runtime_after != runtime_before:
             break
@@ -488,10 +547,8 @@ def capture_runtime_proof(function_url: str, function_name: str) -> dict[str, An
 
     manifest = {
         "captured_at": _utc_now(),
-        "repository_commit_sha": _run(
-            ["git", "rev-parse", "HEAD"],
-            label="record exact repository head",
-        ).stdout.strip(),
+        "repository_commit_sha": expected_build_sha,
+        "deployed_build_sha": deployed_build_sha,
         "aws_region": values["AWS_REGION"],
         "cloudformation_stack": values["STACK_NAME"],
         "lambda_function_name": function_name,
@@ -500,6 +557,7 @@ def capture_runtime_proof(function_url: str, function_name: str) -> dict[str, An
         "embedding_model_id": os.getenv(
             "EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v2:0"
         ),
+        "embedding_dimensions": 256,
         "negative_outcome_id": outcome_id,
         "decision_memory_id_before": decision_before.get("decision_memory_id"),
         "decision_memory_id_after": decision_after.get("decision_memory_id"),
@@ -508,7 +566,7 @@ def capture_runtime_proof(function_url: str, function_name: str) -> dict[str, An
         "retrieval_mode": "cockroachdb_vector_cosine",
         "retrieval_tool": "distributed_vector_index",
         "execution_authority": "advisory_only",
-        "demo_key_configured": bool(os.getenv("DEMO_API_KEY")),
+        "demo_key_configured": True,
     }
     _write_json("live-evidence-manifest.json", manifest)
     return manifest
@@ -525,6 +583,10 @@ def main() -> int:
     )
     parser.add_argument("--function-url", help="Required for capture mode")
     parser.add_argument("--function-name", help="Required for capture mode")
+    parser.add_argument(
+        "--expected-build-sha",
+        help="Reviewed commit expected from the deployed /healthz endpoint",
+    )
     args = parser.parse_args()
 
     try:
@@ -537,13 +599,22 @@ def main() -> int:
         elif args.mode == "capture":
             if not args.function_url or not args.function_name:
                 raise DeploymentError("capture mode requires --function-url and --function-name")
-            capture_runtime_proof(args.function_url.rstrip("/"), args.function_name)
+            expected_build_sha = args.expected_build_sha or _repository_head()
+            capture_runtime_proof(
+                args.function_url.rstrip("/"),
+                args.function_name,
+                expected_build_sha,
+            )
         else:
             _write_json("preflight.json", preflight())
             apply_schema_and_capture_ccloud()
             outputs = deploy()
             _write_json("deployment-outputs.json", outputs)
-            capture_runtime_proof(outputs["function_url"], outputs["function_name"])
+            capture_runtime_proof(
+                outputs["function_url"],
+                outputs["function_name"],
+                outputs["build_sha"],
+            )
     except DeploymentError as exc:
         print(f"ERROR: {_redact_text(str(exc))}", file=sys.stderr)
         return 1
