@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import uuid
 from pathlib import Path
@@ -19,21 +20,37 @@ SPEC.loader.exec_module(MODULE)
 
 
 def complete_manifest(tmp_path: Path) -> tuple[Path, dict]:
+    evidence_root = tmp_path / "submission"
+    evidence_root.mkdir()
+    evidence = b"reviewed evidence\n"
     for name in (
         "ccloud-evidence.json",
-        "ccloud-evidence.json.sha256",
         "vector-explain.txt",
         "vector-index.png",
         "semantic-decision.png",
         "restart-proof.png",
     ):
-        (tmp_path / name).write_text("reviewed evidence\n", encoding="utf-8")
+        (evidence_root / name).write_bytes(evidence)
 
-    manifest_path = tmp_path / "final-submission.json"
+    digest = hashlib.sha256(evidence).hexdigest()
+    (evidence_root / "ccloud-evidence.json.sha256").write_text(
+        f"{digest}  ccloud-evidence.json\n",
+        encoding="utf-8",
+    )
+
+    reviewed_sha = MODULE._git_head()
+    manifest_path = evidence_root / "final-submission.json"
     manifest = {
-        "repository_commit_sha": "a" * 40,
-        "repository_url": "https://github.com/safal207/Causal-Memory-Layer/tree/" + "a" * 40,
-        "license_url": "https://github.com/safal207/Causal-Memory-Layer/blob/" + "a" * 40 + "/LICENSE",
+        "repository_commit_sha": reviewed_sha,
+        "deployed_build_sha": reviewed_sha,
+        "repository_url": (
+            "https://github.com/safal207/Causal-Memory-Layer/tree/" + reviewed_sha
+        ),
+        "license_url": (
+            "https://github.com/safal207/Causal-Memory-Layer/blob/"
+            + reviewed_sha
+            + "/LICENSE"
+        ),
         "lambda_function_url": "https://example.lambda-url.us-east-1.on.aws",
         "video_url": "https://youtu.be/example123",
         "devpost_submission_url": "https://devpost.com/software/liminal-recall",
@@ -63,6 +80,33 @@ def test_complete_manifest_passes(tmp_path: Path) -> None:
     assert MODULE.validate_manifest(manifest_path, manifest) == []
 
 
+def test_manifest_sha_must_match_reviewed_head(tmp_path: Path) -> None:
+    manifest_path, manifest = complete_manifest(tmp_path)
+    reviewed_sha = manifest["repository_commit_sha"]
+    manifest["repository_commit_sha"] = "b" * 40
+
+    failures = MODULE.validate_manifest(
+        manifest_path,
+        manifest,
+        reviewed_commit_sha=reviewed_sha,
+    )
+
+    assert any("reviewed commit HEAD" in failure for failure in failures)
+
+
+def test_deployed_build_sha_and_repository_urls_must_match_head(tmp_path: Path) -> None:
+    manifest_path, manifest = complete_manifest(tmp_path)
+    manifest["deployed_build_sha"] = "b" * 40
+    manifest["repository_url"] = (
+        "https://github.com/safal207/Causal-Memory-Layer/tree/" + "b" * 40
+    )
+
+    failures = MODULE.validate_manifest(manifest_path, manifest)
+
+    assert any("deployed_build_sha does not match" in failure for failure in failures)
+    assert any("repository_url must reference" in failure for failure in failures)
+
+
 def test_equal_runtime_ids_fail_persistence_gate(tmp_path: Path) -> None:
     manifest_path, manifest = complete_manifest(tmp_path)
     manifest["runtime_instance_id_after"] = manifest["runtime_instance_id_before"]
@@ -81,6 +125,54 @@ def test_placeholders_and_missing_evidence_fail_closed(tmp_path: Path) -> None:
 
     assert any("placeholder remains" in failure for failure in failures)
     assert any("does not point to an existing reviewed file" in failure for failure in failures)
+
+
+def test_evidence_paths_cannot_escape_manifest_directory(tmp_path: Path) -> None:
+    manifest_path, manifest = complete_manifest(tmp_path)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("host data\n", encoding="utf-8")
+    manifest["vector_explain_evidence_path"] = "../outside.txt"
+
+    failures = MODULE.validate_manifest(manifest_path, manifest)
+
+    assert any("does not point to an existing reviewed file" in failure for failure in failures)
+
+
+def test_symlinked_evidence_cannot_escape_manifest_directory(tmp_path: Path) -> None:
+    manifest_path, manifest = complete_manifest(tmp_path)
+    outside = tmp_path / "outside.txt"
+    outside.write_text("host data\n", encoding="utf-8")
+    link = manifest_path.parent / "escaped-link.txt"
+    link.symlink_to(outside)
+    manifest["vector_explain_evidence_path"] = link.name
+
+    failures = MODULE.validate_manifest(manifest_path, manifest)
+
+    assert any("does not point to an existing reviewed file" in failure for failure in failures)
+
+
+def test_ccloud_checksum_must_match_file_contents(tmp_path: Path) -> None:
+    manifest_path, manifest = complete_manifest(tmp_path)
+    ccloud = manifest_path.parent / "ccloud-evidence.json"
+    ccloud.write_text("mutated evidence\n", encoding="utf-8")
+
+    failures = MODULE.validate_manifest(manifest_path, manifest)
+
+    assert any("does not match file contents" in failure for failure in failures)
+
+
+def test_ccloud_checksum_filename_must_match_evidence(tmp_path: Path) -> None:
+    manifest_path, manifest = complete_manifest(tmp_path)
+    ccloud = manifest_path.parent / "ccloud-evidence.json"
+    digest = hashlib.sha256(ccloud.read_bytes()).hexdigest()
+    ccloud.with_suffix(".json.sha256").write_text(
+        f"{digest}  substituted.json\n",
+        encoding="utf-8",
+    )
+
+    failures = MODULE.validate_manifest(manifest_path, manifest)
+
+    assert any("filename does not match" in failure for failure in failures)
 
 
 def test_missing_file_diagnostic_does_not_echo_sensitive_path(tmp_path: Path) -> None:
