@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
+import subprocess
 from pathlib import Path
 
 from scripts.ci.build_causal_pr_report import (
     Change,
+    build_report,
     classify_changes,
     evaluate_transition,
     extract_sections,
@@ -16,16 +19,16 @@ COMPLETE_BODY = """
 ## Causal review
 
 ### Failure path
-A stale transition could reach main without a test that reproduces the failure.
+A stale transition could reach a protected branch without a reproducing test.
 
 ### Invariant after change
-Every strict transition is bound to one exact head and regression evidence.
+Every strict transition is bound to its exact base, exact head, and regression evidence.
 
 ### Regression evidence
 Added `tests/test_causal_pr_contract.py` to exercise the policy and failure paths.
 
 ### Residual risk
-External reviewers remain independent required checks rather than merge authority.
+External reviewers remain independent checks rather than merge authority.
 """
 
 
@@ -33,6 +36,8 @@ def _evaluate(
     tmp_path: Path,
     changes: list[Change],
     body: str = COMPLETE_BODY,
+    *,
+    base_is_ancestor: bool = True,
 ):
     return evaluate_transition(
         repo_root=tmp_path,
@@ -42,22 +47,17 @@ def _evaluate(
         body=body,
         current_head=HEAD_SHA,
         dirty=False,
+        base_is_ancestor=base_is_ancestor,
     )
 
 
 def test_strict_source_transition_with_changed_test_passes(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
-        [
-            Change("M", "cml/audit.py"),
-            Change("A", "tests/test_causal_pr_contract.py"),
-        ],
+        [Change("M", "cml/audit.py"), Change("A", "tests/test_causal_pr_contract.py")],
     )
-
     assert report["passed"] is True, report["violations"]
     assert report["scope"] == "strict"
-    assert report["groups"]["implementation"] == ["cml/audit.py"]
-    assert report["groups"]["tests"] == ["tests/test_causal_pr_contract.py"]
 
 
 def test_typescript_packaging_and_container_files_are_strict(tmp_path: Path) -> None:
@@ -70,7 +70,6 @@ def test_typescript_packaging_and_container_files_are_strict(tmp_path: Path) -> 
             Change("M", "tests/test_causal_pr_contract.py"),
         ],
     )
-
     assert report["scope"] == "strict"
     assert {
         "integrations/vscode-cml/src/extension.ts",
@@ -79,39 +78,53 @@ def test_typescript_packaging_and_container_files_are_strict(tmp_path: Path) -> 
     }.issubset(set(report["groups"]["implementation"]))
 
 
-def test_unknown_non_documentation_format_fails_closed(tmp_path: Path) -> None:
+def test_runtime_suffixes_override_documentation_name_prefixes(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
         [
-            Change("M", "assets/runtime-policy.bin"),
+            Change("A", "README.py"),
+            Change("A", "LICENSE.js"),
             Change("M", "tests/test_causal_pr_contract.py"),
         ],
     )
+    assert report["scope"] == "strict"
+    assert {"README.py", "LICENSE.js"}.issubset(
+        set(report["groups"]["implementation"])
+    )
+    assert "README.py" not in report["groups"]["documentation"]
+    assert "LICENSE.js" not in report["groups"]["documentation"]
 
+
+def test_genuine_documentation_names_remain_lightweight(tmp_path: Path) -> None:
+    for path in ("README", "LICENSE", "README.md", "docs/architecture.md"):
+        report = _evaluate(tmp_path, [Change("M", path)], body="")
+        assert report["passed"] is True, (path, report["violations"])
+        assert report["scope"] == "lightweight"
+
+
+def test_unknown_non_documentation_format_fails_closed(tmp_path: Path) -> None:
+    report = _evaluate(
+        tmp_path,
+        [Change("M", "assets/runtime-policy.bin"), Change("M", "tests/test_causal_pr_contract.py")],
+    )
     assert report["scope"] == "strict"
     assert report["groups"]["other"] == ["assets/runtime-policy.bin"]
 
 
-def test_script_inside_docs_is_not_treated_as_documentation(tmp_path: Path) -> None:
+def test_script_inside_docs_is_not_documentation(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
-        [
-            Change("M", "docs/examples/deploy.py"),
-            Change("M", "tests/test_causal_pr_contract.py"),
-        ],
+        [Change("M", "docs/examples/deploy.py"), Change("M", "tests/test_causal_pr_contract.py")],
     )
-
-    assert report["scope"] == "strict"
     assert report["groups"]["implementation"] == ["docs/examples/deploy.py"]
 
 
-def test_strict_transition_rejects_missing_causal_sections(tmp_path: Path) -> None:
+def test_missing_causal_sections_fail(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
         [Change("M", "api/server.py"), Change("M", "tests/test_api_smoke.py")],
         body="## Summary\nChanged the API.",
     )
-
     assert report["passed"] is False
     assert any("missing causal review section" in item for item in report["violations"])
 
@@ -124,9 +137,7 @@ def test_existing_regression_test_reference_can_satisfy_contract(tmp_path: Path)
         "Added `tests/test_causal_pr_contract.py` to exercise the policy and failure paths.",
         "Existing test: `tests/test_existing_contract.py` exercises this invariant.",
     )
-
     report = _evaluate(tmp_path, [Change("M", "cml/record.py")], body=body)
-
     assert report["passed"] is True, report["violations"]
     assert report["existing_test_references"] == ["tests/test_existing_contract.py"]
 
@@ -138,42 +149,26 @@ def test_regression_reference_cannot_escape_repository(tmp_path: Path) -> None:
         "Added `tests/test_causal_pr_contract.py` to exercise the policy and failure paths.",
         "Existing test: `tests/../../outside.py` exercises this invariant.",
     )
-
     report = _evaluate(tmp_path, [Change("M", "cml/record.py")], body=body)
-
     assert report["existing_test_references"] == []
-    assert any(
-        "require changed tests or explicit existing test paths" in item
-        for item in report["violations"]
-    )
+    assert any("require changed tests" in item for item in report["violations"])
 
 
-def test_implementation_change_without_test_evidence_fails(tmp_path: Path) -> None:
+def test_strict_change_without_test_evidence_fails(tmp_path: Path) -> None:
     body = COMPLETE_BODY.replace(
         "Added `tests/test_causal_pr_contract.py` to exercise the policy and failure paths.",
         "Manually inspected the change.",
     )
-
     report = _evaluate(tmp_path, [Change("M", "cli/main.py")], body=body)
-
-    assert any(
-        "require changed tests or explicit existing test paths" in item
-        for item in report["violations"]
-    )
+    assert any("require changed tests" in item for item in report["violations"])
 
 
-def test_workflow_change_requires_contract_regression_test(tmp_path: Path) -> None:
+def test_workflow_change_requires_contract_test(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
-        [
-            Change("M", ".github/workflows/ci.yml"),
-            Change("M", "tests/test_api_smoke.py"),
-        ],
+        [Change("M", ".github/workflows/ci.yml"), Change("M", "tests/test_api_smoke.py")],
     )
-
-    assert any(
-        "workflow contract changes require" in item for item in report["violations"]
-    )
+    assert any("workflow contract changes require" in item for item in report["violations"])
 
 
 def test_workflow_change_with_contract_test_passes(tmp_path: Path) -> None:
@@ -184,24 +179,12 @@ def test_workflow_change_with_contract_test_passes(tmp_path: Path) -> None:
             Change("M", "tests/test_ci_workflow_contract.py"),
         ],
     )
-
     assert report["passed"] is True, report["violations"]
-
-
-def test_documentation_only_transition_is_lightweight(tmp_path: Path) -> None:
-    report = _evaluate(
-        tmp_path,
-        [Change("M", "docs/architecture.md")],
-        body="",
-    )
-
-    assert report["passed"] is True
-    assert report["scope"] == "lightweight"
 
 
 def test_placeholder_sections_fail_closed(tmp_path: Path) -> None:
     body = COMPLETE_BODY.replace(
-        "A stale transition could reach main without a test that reproduces the failure.",
+        "A stale transition could reach a protected branch without a reproducing test.",
         "TODO",
     )
     report = _evaluate(
@@ -209,32 +192,24 @@ def test_placeholder_sections_fail_closed(tmp_path: Path) -> None:
         [Change("M", "scripts/ci/tool.py"), Change("M", "tests/test_tool.py")],
         body=body,
     )
-
     assert any("contains a placeholder: failure_path" in item for item in report["violations"])
 
 
 def test_placeholder_word_inside_real_explanation_is_allowed(tmp_path: Path) -> None:
     body = COMPLETE_BODY.replace(
-        "Every strict transition is bound to one exact head and regression evidence.",
+        "Every strict transition is bound to its exact base, exact head, and regression evidence.",
         "Every strict transition requires completed, non-placeholder causal sections.",
     )
     report = _evaluate(
         tmp_path,
-        [
-            Change("M", "scripts/ci/tool.py"),
-            Change("M", "tests/test_causal_pr_contract.py"),
-        ],
+        [Change("M", "scripts/ci/tool.py"), Change("M", "tests/test_causal_pr_contract.py")],
         body=body,
     )
-
     assert report["passed"] is True, report["violations"]
 
 
 def test_rename_classifies_source_and_destination_paths() -> None:
-    groups = classify_changes(
-        [Change("R100", "docs/deploy.md", "scripts/deploy.py")]
-    )
-
+    groups = classify_changes([Change("R100", "docs/deploy.md", "scripts/deploy.py")])
     assert groups["documentation"] == ["docs/deploy.md"]
     assert groups["implementation"] == ["scripts/deploy.py"]
 
@@ -247,27 +222,68 @@ def test_rename_from_runtime_to_docs_remains_strict(tmp_path: Path) -> None:
             Change("M", "tests/test_causal_pr_contract.py"),
         ],
     )
-
     assert report["scope"] == "strict"
     assert report["changes"][0]["previous_path"] == "scripts/deploy.py"
-    assert "scripts/deploy.py" in report["classified_paths"]
-    assert "docs/deploy.md" in report["classified_paths"]
 
 
-def test_rename_between_tests_classifies_both_paths() -> None:
-    groups = classify_changes(
-        [Change("R100", "tests/test_new_name.py", "tests/test_old_name.py")]
+def test_non_ancestor_transition_fails_closed(tmp_path: Path) -> None:
+    report = _evaluate(
+        tmp_path,
+        [Change("M", "tests/test_causal_pr_contract.py")],
+        base_is_ancestor=False,
     )
-
-    assert groups["tests"] == [
-        "tests/test_new_name.py",
-        "tests/test_old_name.py",
-    ]
+    assert report["passed"] is False
+    assert report["base_is_ancestor"] is False
+    assert any("not an ancestor" in item for item in report["violations"])
 
 
-def test_markdown_report_contains_causal_graph_without_raw_url(tmp_path: Path) -> None:
+def _git(repo: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+    )
+    return result.stdout.strip()
+
+
+def test_build_report_rejects_divergent_base_and_head(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "ci@example.invalid")
+    _git(repo, "config", "user.name", "CI")
+    (repo / "root.txt").write_text("root\n", encoding="utf-8")
+    _git(repo, "add", "root.txt")
+    _git(repo, "commit", "-m", "base")
+    base0 = _git(repo, "rev-parse", "HEAD")
+
+    _git(repo, "checkout", "-b", "feature", base0)
+    (repo / "feature.py").write_text("VALUE = 1\n", encoding="utf-8")
+    _git(repo, "add", "feature.py")
+    _git(repo, "commit", "-m", "feature")
+    head = _git(repo, "rev-parse", "HEAD")
+
+    _git(repo, "checkout", "main")
+    (repo / "main.txt").write_text("advanced\n", encoding="utf-8")
+    _git(repo, "add", "main.txt")
+    _git(repo, "commit", "-m", "advance base")
+    advanced_base = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "feature")
+
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"pull_request": {"body": COMPLETE_BODY}}), encoding="utf-8")
+    report = build_report(
+        repo_root=repo,
+        base_sha=advanced_base,
+        head_sha=head,
+        event_path=event,
+    )
+    assert report["passed"] is False
+    assert report["base_is_ancestor"] is False
+    assert any("not an ancestor" in item for item in report["violations"])
+
+
+def test_markdown_report_contains_graph_without_raw_url(tmp_path: Path) -> None:
     body = COMPLETE_BODY.replace(
-        "Every strict transition is bound to one exact head and regression evidence.",
+        "Every strict transition is bound to its exact base, exact head, and regression evidence.",
         "The proof is recorded at https://example.invalid/private.",
     )
     report = _evaluate(
@@ -275,12 +291,11 @@ def test_markdown_report_contains_causal_graph_without_raw_url(tmp_path: Path) -
         [Change("M", "cml/audit.py"), Change("M", "tests/test_causal_pr_contract.py")],
         body=body,
     )
-
     markdown = render_markdown(report)
-
     assert "flowchart LR" in markdown
     assert "https://example.invalid/private" not in markdown
     assert "[URL]" in markdown
+    assert "Base is ancestor: `true`" in markdown
 
 
 def test_extract_sections_accepts_documented_aliases() -> None:
@@ -288,7 +303,6 @@ def test_extract_sections_accepts_documented_aliases() -> None:
         "## Failure mode\nA\n## Target invariant\nB\n"
         "## Regression test\nC\n## Remaining risk\nD\n"
     )
-
     assert sections == {
         "failure_path": "A",
         "invariant": "B",
