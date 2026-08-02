@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from scripts.ci.verify_workflow_contract import PINNED_ACTION, verify_workflow, verify_workflows
@@ -9,12 +10,20 @@ WORKFLOWS = [
     ROOT / ".github/workflows/ci.yml",
     ROOT / ".github/workflows/python-package-validation.yml",
     ROOT / ".github/workflows/security.yml",
+    ROOT / ".github/workflows/causal-pr.yml",
 ]
 
 
 def test_required_workflows_satisfy_trust_contract():
     report = verify_workflows(WORKFLOWS)
     assert report["passed"] is True, report["violations"]
+
+
+def test_causal_gate_name_and_pr_body_trigger_are_stable():
+    workflow = WORKFLOWS[-1].read_text(encoding="utf-8")
+
+    assert re.search(r"(?m)^  gate:\n    name: Causal PR Gate$", workflow)
+    assert "types: [opened, synchronize, reopened, ready_for_review, edited]" in workflow
 
 
 def test_action_pin_pattern_is_segment_bounded():
