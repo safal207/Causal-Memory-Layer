@@ -30,6 +30,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 {
                     "status": "ok",
                     "service": "liminal-recall",
+                    "build_sha": os.getenv("BUILD_SHA", ""),
                     "database_configured": bool(os.getenv("DATABASE_URL")),
                     "semantic_recall_configured": bool(
                         os.getenv("DATABASE_URL")
@@ -100,7 +101,7 @@ def _get_store() -> MemoryStore:
 def _authorized(event: dict[str, Any]) -> bool:
     expected = os.getenv("DEMO_API_KEY", "")
     if not expected:
-        return True
+        return False
     headers = {
         str(key).casefold(): str(value)
         for key, value in (event.get("headers") or {}).items()
