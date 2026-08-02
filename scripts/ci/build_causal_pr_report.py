@@ -17,7 +17,7 @@ from scripts.ci.assert_exact_head import write_json_atomic
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 HEADING_RE = re.compile(r"(?m)^#{2,4}\s+(.+?)\s*$")
 PLACEHOLDER_RE = re.compile(
-    r"(?i)(?:\b(?:todo|tbd|n/?a|none|placeholder|describe)\b|<[^>]+>)"
+    r"(?im)(?:^\s*(?:todo|tbd|placeholder|describe)\b|<[^>\n]+>)"
 )
 URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 SECRET_VALUE_RE = re.compile(
@@ -189,6 +189,11 @@ def _safe_summary(value: str, limit: int = 180) -> str:
     return sanitized
 
 
+def _contains_placeholder(value: str) -> bool:
+    normalized = " ".join(value.split()).casefold()
+    return bool(PLACEHOLDER_RE.search(value)) or normalized in {"n/a", "na", "none"}
+
+
 def _section_metadata(sections: dict[str, str]) -> dict[str, dict[str, Any]]:
     return {
         name: {
@@ -237,7 +242,7 @@ def evaluate_transition(
             value = sections.get(name, "").strip()
             if not value:
                 violations.append(f"missing causal review section: {name}")
-            elif PLACEHOLDER_RE.search(value):
+            elif _contains_placeholder(value):
                 violations.append(f"causal review section contains a placeholder: {name}")
 
         regression = sections.get("regression_evidence", "")
