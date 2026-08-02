@@ -25,7 +25,9 @@ SECRET_VALUE_RE = re.compile(
 )
 TEST_PATH_RE = re.compile(
     r"(?<![A-Za-z0-9_./-])"
-    r"((?:tests|hackathons/[^/\s]+/tests)/[A-Za-z0-9_./-]+\.py)"
+    r"((?:tests|hackathons/[^/\s]+/tests)/"
+    r"[A-Za-z0-9_./-]+\."
+    r"(?:py|pyi|js|jsx|mjs|cjs|ts|tsx|go|rs|java|kt|kts|rb|php|swift|scala|c|cc|cpp|cs|sh))"
 )
 
 SECTION_ALIASES = {
@@ -41,13 +43,143 @@ SECTION_ALIASES = {
 
 IMPLEMENTATION_ROOTS = (
     "api/",
+    "app/",
+    "apps/",
     "cli/",
+    "client/",
     "cml/",
+    "deploy/",
+    "deployment/",
+    "docker/",
     "hackathons/",
+    "infra/",
+    "infrastructure/",
+    "integrations/",
+    "packages/",
     "scripts/",
+    "server/",
+    "services/",
+    "src/",
+    "web/",
+    ".github/actions/",
     ".github/trust-root/",
 )
-IMPLEMENTATION_SUFFIXES = {".py", ".sh", ".sql", ".toml", ".yaml", ".yml"}
+IMPLEMENTATION_SUFFIXES = {
+    ".bash",
+    ".bat",
+    ".c",
+    ".cc",
+    ".cfg",
+    ".cjs",
+    ".cmd",
+    ".conf",
+    ".cpp",
+    ".cs",
+    ".css",
+    ".cxx",
+    ".env",
+    ".fish",
+    ".go",
+    ".gql",
+    ".gradle",
+    ".graphql",
+    ".h",
+    ".hcl",
+    ".hpp",
+    ".html",
+    ".ini",
+    ".ipynb",
+    ".java",
+    ".js",
+    ".json",
+    ".jsonc",
+    ".jsx",
+    ".kt",
+    ".kts",
+    ".less",
+    ".lock",
+    ".lua",
+    ".mjs",
+    ".php",
+    ".properties",
+    ".proto",
+    ".ps1",
+    ".py",
+    ".pyi",
+    ".r",
+    ".rb",
+    ".rs",
+    ".sass",
+    ".scala",
+    ".scss",
+    ".sh",
+    ".sql",
+    ".svelte",
+    ".swift",
+    ".tf",
+    ".tfvars",
+    ".toml",
+    ".ts",
+    ".tsx",
+    ".vue",
+    ".xml",
+    ".yaml",
+    ".yml",
+    ".zsh",
+}
+IMPLEMENTATION_FILENAMES = {
+    "build.gradle",
+    "build.gradle.kts",
+    "cargo.lock",
+    "cargo.toml",
+    "composer.json",
+    "composer.lock",
+    "containerfile",
+    "dockerfile",
+    "gemfile",
+    "gemfile.lock",
+    "gnumakefile",
+    "go.mod",
+    "go.sum",
+    "gradlew",
+    "gradlew.bat",
+    "justfile",
+    "makefile",
+    "package-lock.json",
+    "package.json",
+    "pipfile",
+    "pipfile.lock",
+    "pnpm-lock.yaml",
+    "poetry.lock",
+    "pom.xml",
+    "procfile",
+    "pyproject.toml",
+    "setup.cfg",
+    "setup.py",
+    "terraform.lock.hcl",
+    "tox.ini",
+    "uv.lock",
+    "yarn.lock",
+}
+DOCUMENTATION_SUFFIXES = {".adoc", ".md", ".mdx", ".rst"}
+DOCUMENTATION_MEDIA_SUFFIXES = {
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".pdf",
+    ".png",
+    ".svg",
+    ".webp",
+}
+DOCUMENTATION_NAME_PREFIXES = (
+    "authors",
+    "changelog",
+    "code_of_conduct",
+    "contributing",
+    "license",
+    "notice",
+    "readme",
+)
 WORKFLOW_CONTRACT_PATHS = {
     "tests/test_ci_workflow_contract.py",
     "tests/test_causal_pr_contract.py",
@@ -102,21 +234,28 @@ def extract_sections(body: str) -> dict[str, str]:
 
 
 def _is_test_path(path: str) -> bool:
+    normalized = path.casefold()
+    name = Path(normalized).name
     return (
-        path.startswith("tests/")
-        or "/tests/" in path
-        or Path(path).name.startswith("test_")
+        normalized.startswith("tests/")
+        or "/tests/" in normalized
+        or normalized.startswith("__tests__/")
+        or "/__tests__/" in normalized
+        or name.startswith("test_")
+        or ".test." in name
+        or ".spec." in name
     )
 
 
 def _is_documentation_path(path: str) -> bool:
-    suffix = Path(path).suffix.casefold()
-    return (
-        path.startswith("docs/")
-        or suffix in {".md", ".rst"}
-        or Path(path).name.casefold().startswith("readme")
-        or path == "LICENSE"
-    )
+    normalized = path.casefold()
+    name = Path(normalized).name
+    suffix = Path(normalized).suffix
+    if suffix in DOCUMENTATION_SUFFIXES:
+        return True
+    if name.startswith(DOCUMENTATION_NAME_PREFIXES):
+        return True
+    return normalized.startswith("docs/") and suffix in DOCUMENTATION_MEDIA_SUFFIXES
 
 
 def _is_workflow_contract_change(path: str) -> bool:
@@ -126,17 +265,36 @@ def _is_workflow_contract_change(path: str) -> bool:
 
 
 def _is_implementation_path(path: str) -> bool:
-    if _is_test_path(path) or _is_documentation_path(path):
+    if (
+        _is_test_path(path)
+        or _is_documentation_path(path)
+        or _is_workflow_contract_change(path)
+    ):
         return False
-    return path.startswith(IMPLEMENTATION_ROOTS) or Path(path).suffix.casefold() in (
+    normalized = path.casefold()
+    name = Path(normalized).name
+    if name in IMPLEMENTATION_FILENAMES or name.startswith("requirements"):
+        return True
+    return normalized.startswith(IMPLEMENTATION_ROOTS) or Path(normalized).suffix in (
         IMPLEMENTATION_SUFFIXES
     )
 
 
-def classify_changes(changes: Iterable[Change]) -> dict[str, list[str]]:
-    """Classify changed paths into policy-relevant causal domains."""
+def _all_change_paths(changes: Iterable[Change]) -> list[str]:
+    return sorted(
+        {
+            path
+            for change in changes
+            for path in (change.path, change.previous_path)
+            if path
+        }
+    )
 
-    paths = sorted({change.path for change in changes})
+
+def classify_changes(changes: Iterable[Change]) -> dict[str, list[str]]:
+    """Classify both sides of every path transition into causal domains."""
+
+    paths = _all_change_paths(changes)
     return {
         "implementation": [path for path in paths if _is_implementation_path(path)],
         "tests": [path for path in paths if _is_test_path(path)],
@@ -182,7 +340,9 @@ def changed_files(repo_root: Path, base_sha: str, head_sha: str) -> list[Change]
 
 def _safe_summary(value: str, limit: int = 180) -> str:
     sanitized = URL_RE.sub("[URL]", value)
-    sanitized = SECRET_VALUE_RE.sub(lambda match: f"{match.group(1)}=[REDACTED]", sanitized)
+    sanitized = SECRET_VALUE_RE.sub(
+        lambda match: f"{match.group(1)}=[REDACTED]", sanitized
+    )
     sanitized = " ".join(sanitized.split())
     if len(sanitized) > limit:
         return sanitized[: limit - 1] + "…"
@@ -207,8 +367,18 @@ def _section_metadata(sections: dict[str, str]) -> dict[str, dict[str, Any]]:
 
 
 def _existing_test_references(section: str, repo_root: Path) -> list[str]:
+    root = repo_root.resolve()
     references = sorted(set(TEST_PATH_RE.findall(section)))
-    return [path for path in references if (repo_root / path).is_file()]
+    existing: list[str] = []
+    for path in references:
+        candidate = (root / path).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if candidate.is_file():
+            existing.append(path)
+    return existing
 
 
 def evaluate_transition(
@@ -235,7 +405,12 @@ def evaluate_transition(
 
     groups = classify_changes(changes)
     sections = extract_sections(body)
-    strict = bool(groups["implementation"] or groups["workflows"])
+    strict = bool(
+        groups["implementation"]
+        or groups["workflows"]
+        or groups["tests"]
+        or groups["other"]
+    )
 
     if strict:
         for name in SECTION_ALIASES:
@@ -249,7 +424,7 @@ def evaluate_transition(
         existing_references = _existing_test_references(regression, repo_root)
         if not groups["tests"] and not existing_references:
             violations.append(
-                "implementation changes require changed tests or explicit existing test paths"
+                "strict changes require changed tests or explicit existing test paths"
             )
 
     if groups["workflows"] and not (
@@ -266,7 +441,7 @@ def evaluate_transition(
             {"id": "base", "label": f"base {base_sha[:12]}"},
             {
                 "id": "change",
-                "label": f"{len(changes)} changed paths / {scope} policy",
+                "label": f"{len(changes)} path transitions / {scope} policy",
             },
             {
                 "id": "invariant",
@@ -296,6 +471,7 @@ def evaluate_transition(
         "base_sha": base_sha,
         "head_sha": head_sha,
         "change_count": len(changes),
+        "classified_paths": _all_change_paths(changes),
         "changes": [
             {
                 "status": change.status,
@@ -330,7 +506,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Policy scope: `{report['scope']}`",
         f"- Base: `{report['base_sha']}`",
         f"- Head: `{report['head_sha']}`",
-        f"- Changed paths: `{report['change_count']}`",
+        f"- Path transitions: `{report['change_count']}`",
         "",
         "```mermaid",
         "flowchart LR",
@@ -414,7 +590,7 @@ def main() -> None:
         raise SystemExit(1)
     print(
         "Causal PR contract verified: "
-        f"{report['change_count']} paths, {report['scope']} policy"
+        f"{report['change_count']} transitions, {report['scope']} policy"
     )
 
 
