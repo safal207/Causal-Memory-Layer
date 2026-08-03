@@ -196,7 +196,7 @@ DOCUMENTATION_MEDIA_SUFFIXES = {
     ".svg",
     ".webp",
 }
-DOCUMENTATION_NAME_PREFIXES = (
+DOCUMENTATION_FILENAMES = {
     "authors",
     "changelog",
     "code_of_conduct",
@@ -204,7 +204,7 @@ DOCUMENTATION_NAME_PREFIXES = (
     "license",
     "notice",
     "readme",
-)
+}
 WORKFLOW_CONTRACT_PATHS = {
     "tests/test_ci_workflow_contract.py",
     "tests/test_causal_pr_contract.py",
@@ -218,6 +218,8 @@ class Change:
     status: str
     path: str
     previous_path: str | None = None
+    mode: str | None = None
+    previous_mode: str | None = None
 
 
 def _run_git(repo_root: Path, *args: str) -> str:
@@ -241,6 +243,29 @@ def _git_is_ancestor(repo_root: Path, base_sha: str, head_sha: str) -> bool:
     if completed.returncode not in {0, 1}:
         raise RuntimeError(completed.stderr.strip() or "git merge-base failed")
     return completed.returncode == 0
+
+
+def _git_path_mode(repo_root: Path, commit_sha: str, path: str) -> str | None:
+    """Return the exact Git tree mode for one literal path at one commit."""
+
+    completed = subprocess.run(
+        ["git", "ls-tree", "-z", commit_sha, "--", f":(literal){path}"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    for record in completed.stdout.split("\0"):
+        if not record or "\t" not in record:
+            continue
+        metadata, returned_path = record.split("\t", 1)
+        if returned_path != path:
+            continue
+        fields = metadata.split(" ", 2)
+        if len(fields) != 3:
+            raise ValueError("git ls-tree returned an unsupported record")
+        return fields[0]
+    return None
 
 
 def _normalize_heading(value: str) -> str:
@@ -301,13 +326,24 @@ def _is_executable_test_path(path: str) -> bool:
 
 
 def _is_regular_repository_file(repo_root: Path, path: str) -> bool:
-    """Accept only a non-symlink regular file contained by the checkout."""
+    """Accept only a regular file reached without traversing any symlink."""
 
     root = repo_root.resolve()
-    candidate = root / path
+    relative = Path(path)
+    if relative.is_absolute() or not relative.parts:
+        return False
+    if any(part in {"", ".", ".."} for part in relative.parts):
+        return False
+
+    current = root
     try:
-        mode = os.lstat(candidate).st_mode
-        resolved = candidate.resolve(strict=True)
+        mode = 0
+        for part in relative.parts:
+            current = current / part
+            mode = os.lstat(current).st_mode
+            if stat.S_ISLNK(mode):
+                return False
+        resolved = current.resolve(strict=True)
         resolved.relative_to(root)
     except (FileNotFoundError, OSError, RuntimeError, ValueError):
         return False
@@ -324,6 +360,7 @@ def _surviving_changed_tests(
             change.path
             for change in changes
             if not change.status.startswith("D")
+            and change.mode == "100644"
             and _is_executable_test_path(change.path)
             and _is_regular_repository_file(repo_root, change.path)
         }
@@ -349,7 +386,7 @@ def _is_documentation_path(path: str) -> bool:
         return False
     if suffix in DOCUMENTATION_SUFFIXES:
         return True
-    if suffix == "" and name.startswith(DOCUMENTATION_NAME_PREFIXES):
+    if suffix == "" and name in DOCUMENTATION_FILENAMES:
         return True
     return normalized.startswith("docs/") and suffix in DOCUMENTATION_MEDIA_SUFFIXES
 
@@ -372,41 +409,56 @@ def _is_implementation_path(path: str) -> bool:
     return normalized.startswith(IMPLEMENTATION_ROOTS)
 
 
+def _path_modes(changes: Iterable[Change]) -> dict[str, set[str]]:
+    modes: dict[str, set[str]] = {}
+    for change in changes:
+        modes.setdefault(change.path, set())
+        if change.mode:
+            modes[change.path].add(change.mode)
+        if change.previous_path:
+            modes.setdefault(change.previous_path, set())
+            if change.previous_mode:
+                modes[change.previous_path].add(change.previous_mode)
+        elif change.previous_mode:
+            modes[change.path].add(change.previous_mode)
+    return modes
+
+
+def _classify_path(path: str, modes: set[str]) -> str:
+    if _is_test_path(path):
+        return "tests"
+    if _is_workflow_contract_change(path):
+        return "workflows"
+    if "100755" in modes or _is_implementation_path(path):
+        return "implementation"
+    if _is_documentation_path(path):
+        return "documentation"
+    return "other"
+
+
 def _all_change_paths(changes: Iterable[Change]) -> list[str]:
-    return sorted(
-        {
-            path
-            for change in changes
-            for path in (change.path, change.previous_path)
-            if path
-        }
-    )
+    return sorted(_path_modes(changes))
 
 
 def classify_changes(changes: Iterable[Change]) -> dict[str, list[str]]:
-    """Classify both sides of every path transition into causal domains."""
+    """Classify both sides and exact Git modes of every path transition."""
 
-    paths = _all_change_paths(changes)
-    return {
-        "implementation": [path for path in paths if _is_implementation_path(path)],
-        "tests": [path for path in paths if _is_test_path(path)],
-        "workflows": [path for path in paths if _is_workflow_contract_change(path)],
-        "documentation": [path for path in paths if _is_documentation_path(path)],
-        "other": [
-            path
-            for path in paths
-            if not (
-                _is_implementation_path(path)
-                or _is_test_path(path)
-                or _is_workflow_contract_change(path)
-                or _is_documentation_path(path)
-            )
-        ],
+    changes_list = list(changes)
+    path_modes = _path_modes(changes_list)
+    groups = {
+        "implementation": [],
+        "tests": [],
+        "workflows": [],
+        "documentation": [],
+        "other": [],
     }
+    for path in sorted(path_modes):
+        groups[_classify_path(path, path_modes[path])].append(path)
+    return groups
 
 
 def changed_files(repo_root: Path, base_sha: str, head_sha: str) -> list[Change]:
-    """Read an exact-path, rename-aware direct base-to-head diff."""
+    """Read exact paths, modes, and renames for a direct base-to-head diff."""
 
     output = _run_git(
         repo_root,
@@ -419,14 +471,14 @@ def changed_files(repo_root: Path, base_sha: str, head_sha: str) -> list[Change]
         "--",
     )
     fields = [field for field in output.split("\0") if field]
-    changes: list[Change] = []
+    parsed: list[Change] = []
     index = 0
     while index < len(fields):
         status = fields[index]
         if status.startswith(("R", "C")):
             if index + 2 >= len(fields):
                 raise ValueError("git diff returned an unsupported name-status record")
-            changes.append(
+            parsed.append(
                 Change(
                     status=status,
                     previous_path=fields[index + 1],
@@ -437,8 +489,27 @@ def changed_files(repo_root: Path, base_sha: str, head_sha: str) -> list[Change]
             continue
         if index + 1 >= len(fields):
             raise ValueError("git diff returned an unsupported name-status record")
-        changes.append(Change(status=status, path=fields[index + 1]))
+        parsed.append(Change(status=status, path=fields[index + 1]))
         index += 2
+
+    changes: list[Change] = []
+    for change in parsed:
+        destination_mode = None
+        if not change.status.startswith("D"):
+            destination_mode = _git_path_mode(repo_root, head_sha, change.path)
+        source_path = change.previous_path or change.path
+        source_mode = None
+        if not change.status.startswith("A"):
+            source_mode = _git_path_mode(repo_root, base_sha, source_path)
+        changes.append(
+            Change(
+                status=change.status,
+                path=change.path,
+                previous_path=change.previous_path,
+                mode=destination_mode,
+                previous_mode=source_mode,
+            )
+        )
     return changes
 
 
@@ -474,11 +545,6 @@ def _existing_test_references(section: str, repo_root: Path) -> list[str]:
     root = repo_root.resolve()
     existing: list[str] = []
     for path in sorted(set(TEST_PATH_RE.findall(section))):
-        candidate = (root / path).resolve()
-        try:
-            candidate.relative_to(root)
-        except ValueError:
-            continue
         if _is_regular_repository_file(root, path):
             existing.append(path)
     return existing
@@ -589,6 +655,8 @@ def evaluate_transition(
                 "status": change.status,
                 "path": change.path,
                 "previous_path": change.previous_path,
+                "mode": change.mode,
+                "previous_mode": change.previous_mode,
             }
             for change in changes
         ],
