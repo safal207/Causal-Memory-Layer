@@ -8,12 +8,22 @@ Every pull request, regardless of its target branch, receives two independent tr
 
 The base-trusted `CML Trust Root Gate` runs through `pull_request_target` without target-branch filters. It:
 
-1. checks out the exact target-branch base SHA into an isolated `base` directory;
-2. checks out the exact pull-request head from its actual source repository into an isolated `subject` directory;
-3. executes only `base/.github/trust-root/scripts/verify_subject.py`;
-4. treats the subject checkout as untrusted data and never imports or executes its verifier;
-5. compares protected workflow and CI identities against the manifest from the exact target base;
-6. publishes the immutable status context `CML Trust Root Gate` on the exact head SHA.
+1. derives a stable branch-scoped status context from the SHA-256 digest of the exact target branch name;
+2. checks out the exact target-branch base SHA into an isolated `base` directory;
+3. checks out the exact pull-request head from its actual source repository into an isolated `subject` directory;
+4. executes only `base/.github/trust-root/scripts/verify_subject.py`;
+5. treats the subject checkout as untrusted data and never imports or executes its verifier;
+6. compares protected workflow and CI identities against the manifest from the exact target base;
+7. records the exact base ref, base SHA, and branch-scoped status context in the trust evidence;
+8. publishes that branch-scoped status on the exact head SHA.
+
+The context format is:
+
+```text
+CML Trust Root Gate / SHA256(UTF-8 target branch name)
+```
+
+A shared head commit used by PRs against two different branches therefore receives two different status contexts. A successful maintenance-branch verification cannot overwrite or satisfy a failed `main` verification.
 
 The head-executed `Causal PR Gate` then:
 
@@ -76,11 +86,27 @@ Both observations are included in the final evidence manifest. If the target bra
 
 A base branch can still advance after a successful run. Therefore every protected target branch must enable **Require branches to be up to date before merging**, represented by `required_status_checks.strict: true` in classic branch protection. This external rule blocks merge until the PR head is updated; the resulting `synchronize` event reruns both trust lanes against the new base.
 
+## Required status contexts
+
 The bootstrap is not complete until all three controls are enabled for every protected target branch:
 
-1. `CML Trust Root Gate` is a required status check;
-2. `Causal PR Gate` is a required status check;
+1. the branch-specific `CML Trust Root Gate / <SHA-256>` context is required;
+2. `Causal PR Gate` is required;
 3. **Require branches to be up to date before merging** is enabled.
+
+Compute the exact trust-root context for a branch with:
+
+```bash
+BRANCH=main python - <<'PY'
+import hashlib
+import os
+
+branch = os.environ["BRANCH"]
+print("CML Trust Root Gate / " + hashlib.sha256(branch.encode("utf-8")).hexdigest())
+PY
+```
+
+For example, compute the context separately for `main`, each release branch, and each protected maintenance branch. Never reuse one branch's trust-root context in another branch's protection rules.
 
 An owner with repository administration read permission can verify classic protection with:
 
@@ -89,11 +115,11 @@ gh api repos/OWNER/REPO/branches/BRANCH/protection/required_status_checks \
   --jq '{strict,contexts,checks}'
 ```
 
-The returned object must show `strict: true` and include both required checks. Repositories using rulesets must enforce the equivalent up-to-date-base and required-check rules.
+The returned object must show `strict: true`, include `Causal PR Gate`, and include the branch-specific trust-root context computed above. Repositories using rulesets must enforce the equivalent up-to-date-base and required-check rules.
 
 ## Trust boundaries
 
-The base-trusted gate proves that protected CI identities match the exact target branch's approved manifest. The causal gate proves that the declared transition and regression evidence are attached to one exact pull-request head and one exact base observation. Neither replaces:
+The base-trusted gate proves that protected CI identities match the exact target branch's approved manifest. Its status namespace is bound to the target branch identity, while its evidence also records the exact base SHA observed during the run. The causal gate proves that the declared transition and regression evidence are attached to one exact pull-request head and one exact base observation. Neither replaces:
 
 - CI test matrices;
 - package validation;
@@ -106,7 +132,7 @@ Review evidence supports a merge decision but never grants merge authority.
 
 ## Repository protection
 
-This change modifies the protected CI trust root and therefore requires a dedicated bootstrap review. After it is merged to the default branch, configure every protected target branch to require `CML Trust Root Gate` and `Causal PR Gate` alongside the existing CI, package, and security checks, and require branches to be current before merge.
+This change modifies the protected CI trust root and therefore requires a dedicated bootstrap review. After it is merged to the default branch, configure every protected target branch to require its own branch-scoped trust-root status and `Causal PR Gate` alongside the existing CI, package, and security checks, and require branches to be current before merge.
 
 The `CML Trust Root Gate` workflow itself has no target-branch filter. Its verifier is loaded from the exact target base, while the pull-request head is checked out only as data. A release or maintenance branch therefore evaluates proposed CI changes against its own approved trust root rather than trusting code supplied by the pull request.
 
@@ -117,10 +143,11 @@ Required status checks plus up-to-date-base enforcement are the merge boundary. 
 When a gate fails:
 
 1. inspect the exact-attempt `trust-root-verification.json`, causal report, and base-freshness artifacts;
-2. read the explicit violations;
-3. update the PR causal-review sections or regression evidence;
-4. update the branch when the base branch has moved;
-5. push a bounded fix or edit the PR body;
-6. let both gates rerun against the new exact head and base.
+2. confirm the evidence contains the intended `base_ref`, `base_sha`, and `status_context`;
+3. read the explicit violations;
+4. update the PR causal-review sections or regression evidence;
+5. update the branch when the base branch has moved;
+6. push a bounded fix or edit the PR body;
+7. let both gates rerun against the new exact head and base.
 
-Do not suppress either gate, use `continue-on-error`, loosen artifact handling, replace full action SHAs with mutable tags, execute subject trust-root helpers, add target-branch filters, or disable up-to-date-base protection to make a merge appear green.
+Do not suppress either gate, use `continue-on-error`, loosen artifact handling, replace full action SHAs with mutable tags, execute subject trust-root helpers, add target-branch filters, reuse another branch's trust-root status context, or disable up-to-date-base protection to make a merge appear green.
