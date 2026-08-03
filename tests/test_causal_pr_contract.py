@@ -139,9 +139,29 @@ def test_documentation_prefix_requires_exact_filename(tmp_path: Path) -> None:
 
 def test_genuine_documentation_names_remain_lightweight(tmp_path: Path) -> None:
     for path in ("README", "LICENSE", "README.md", "docs/architecture.md"):
-        report = _evaluate(tmp_path, [Change("M", path)], body="")
+        report = _evaluate(
+            tmp_path,
+            [Change("M", path, mode="100644")],
+            body="",
+        )
         assert report["passed"] is True, (path, report["violations"])
         assert report["scope"] == "lightweight"
+
+
+@pytest.mark.parametrize("mode", ["120000", "160000"])
+def test_non_regular_documentation_entries_are_strict(
+    tmp_path: Path, mode: str
+) -> None:
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("A", "README", mode=mode),
+            Change("M", "tests/test_causal_pr_contract.py", mode="100644"),
+        ],
+    )
+    assert report["scope"] == "strict"
+    assert report["groups"]["documentation"] == []
+    assert report["groups"]["implementation"] == ["README"]
 
 
 def test_unknown_non_documentation_format_fails_closed(tmp_path: Path) -> None:
