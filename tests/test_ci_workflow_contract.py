@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -27,10 +28,28 @@ CAUSAL_REQUIRED_TYPES = {
     "synchronize",
 }
 EXPECTED_SHA_EXPRESSION = "${{ github.event.pull_request.head.sha || github.sha }}"
+SHALLOW_FETCH_OPTIONS = (
+    "--deepen",
+    "--depth",
+    "--shallow-exclude",
+    "--shallow-since",
+)
 
 
 def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _uses_shallow_fetch_option(script: str) -> bool:
+    try:
+        tokens = shlex.split(script, comments=True, posix=True)
+    except ValueError:
+        return True
+    return any(
+        token == option or token.startswith(f"{option}=")
+        for token in tokens
+        for option in SHALLOW_FETCH_OPTIONS
+    )
 
 
 def _causal_contract_violations(path: Path) -> list[str]:
@@ -89,7 +108,7 @@ def _causal_contract_violations(path: Path) -> list[str]:
     base_fetch = named_run_text.get("Fetch exact base commit", "")
     if "git fetch --no-tags" not in base_fetch:
         violations.append("exact base commit must be fetched explicitly")
-    if "--depth" in base_fetch:
+    if _uses_shallow_fetch_option(base_fetch):
         violations.append("exact base fetch may not create a shallow ancestry boundary")
 
     joined_run_text = "\n".join(run_text)
@@ -242,17 +261,26 @@ def test_causal_contract_rejects_unbound_expected_sha(tmp_path: Path):
     )
 
 
-def test_causal_contract_rejects_shallow_base_fetch(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[-1],
-        "git fetch --no-tags \\",
-        "git fetch --no-tags --depth=1 \\",
+def test_causal_contract_rejects_every_shallow_base_fetch_option(
+    tmp_path: Path,
+):
+    options = (
+        "--depth=1",
+        "--deepen=3",
+        "--shallow-since=2024-01-01",
+        "--shallow-exclude=HEAD",
     )
-    assert any(
-        "shallow ancestry boundary" in item
-        for item in _causal_contract_violations(mutated)
-    )
+    for option in options:
+        mutated = _mutate(
+            tmp_path,
+            WORKFLOWS[-1],
+            "git fetch --no-tags \\",
+            f"git fetch --no-tags {option} \\",
+        )
+        assert any(
+            "shallow ancestry boundary" in item
+            for item in _causal_contract_violations(mutated)
+        ), option
 
 
 def test_causal_contract_rejects_removed_base_recheck(tmp_path: Path):
