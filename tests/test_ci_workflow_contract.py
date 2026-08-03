@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import shlex
 from collections import Counter
 from pathlib import Path
@@ -48,15 +49,23 @@ CRITICAL_STEP_NAMES = (
     "Reconfirm base tip before final manifest",
 )
 TRUSTED_CRITICAL_STEP_NAMES = (
+    "Derive branch-scoped trust context",
     "Checkout protected base trust root",
     "Checkout untrusted subject as data only",
     "Verify exact head and protected file identities",
-    "Publish immutable-context commit status",
+    "Bind target branch identity to trust evidence",
+    "Publish branch-scoped trusted head status",
 )
 
 
 def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _branch_scoped_context(base_ref: str) -> str:
+    return "CML Trust Root Gate / " + hashlib.sha256(
+        base_ref.encode("utf-8")
+    ).hexdigest()
 
 
 def _uses_shallow_fetch_option(script: str) -> bool:
@@ -168,6 +177,10 @@ def _trusted_contract_violations(path: Path) -> list[str]:
         violations.append("base trust-root verification job identity changed")
     if publish_job.get("name") != "Publish trusted head status":
         violations.append("base trust-root publish job identity changed")
+    if _mapping(verify_job.get("outputs")).get("status_context") != (
+        "${{ steps.scope.outputs.status_context }}"
+    ):
+        violations.append("branch-scoped trust context is not exported by verify job")
 
     step_counts: Counter[str] = Counter()
     named_steps: dict[str, dict[str, Any]] = {}
@@ -186,6 +199,27 @@ def _trusted_contract_violations(path: Path) -> list[str]:
         if step_counts[required_name] != 1:
             violations.append(
                 f"trusted critical step {required_name!r} must appear exactly once"
+            )
+
+    scope_step = named_steps.get("Derive branch-scoped trust context", {})
+    scope_env = _mapping(scope_step.get("env"))
+    scope_run = scope_step.get("run")
+    if scope_step.get("id") != "scope":
+        violations.append("branch-scoped trust context step id changed")
+    if scope_env.get("BASE_REF") != "${{ github.event.pull_request.base.ref }}":
+        violations.append("branch-scoped context is not bound to base ref")
+    if scope_env.get("BASE_SHA") != "${{ github.event.pull_request.base.sha }}":
+        violations.append("branch-scoped context is not bound to base SHA")
+    if not isinstance(scope_run, str):
+        scope_run = ""
+    for fragment in (
+        '"CML Trust Root Gate / " + hashlib.sha256(',
+        'base_ref.encode("utf-8")',
+        'output.write(f"status_context={context}\\n")',
+    ):
+        if fragment not in scope_run:
+            violations.append(
+                f"branch-scoped context derivation is missing {fragment}"
             )
 
     base_checkout = _mapping(
@@ -230,13 +264,56 @@ def _trusted_contract_violations(path: Path) -> list[str]:
                 f"base trust-root verification is missing {required_fragment}"
             )
 
-    publish_step = named_steps.get("Publish immutable-context commit status", {})
+    evidence_step = named_steps.get(
+        "Bind target branch identity to trust evidence", {}
+    )
+    evidence_env = _mapping(evidence_step.get("env"))
+    evidence_run = evidence_step.get("run")
+    if evidence_env.get("BASE_REF") != "${{ github.event.pull_request.base.ref }}":
+        violations.append("trust evidence is not bound to exact base ref")
+    if evidence_env.get("BASE_SHA") != "${{ github.event.pull_request.base.sha }}":
+        violations.append("trust evidence is not bound to exact base SHA")
+    if evidence_env.get("STATUS_CONTEXT") != (
+        "${{ steps.scope.outputs.status_context }}"
+    ):
+        violations.append("trust evidence is not bound to branch-scoped context")
+    if not isinstance(evidence_run, str):
+        evidence_run = ""
+    for fragment in (
+        'payload["base_ref"] = base_ref',
+        'payload["base_sha"] = base_sha',
+        'payload["status_context"] = status_context',
+    ):
+        if fragment not in evidence_run:
+            violations.append(f"trust evidence binding is missing {fragment}")
+
+    publish_step = named_steps.get("Publish branch-scoped trusted head status", {})
     publish_env = _mapping(publish_step.get("env"))
     publish_run = publish_step.get("run")
     if publish_env.get("HEAD_SHA") != "${{ github.event.pull_request.head.sha }}":
         violations.append("trusted status is not bound to exact head SHA")
-    if not isinstance(publish_run, str) or '"context": "CML Trust Root Gate"' not in publish_run:
-        violations.append("trusted status context changed")
+    if publish_env.get("BASE_REF") != "${{ github.event.pull_request.base.ref }}":
+        violations.append("trusted status is not bound to exact base ref")
+    if publish_env.get("BASE_SHA") != "${{ github.event.pull_request.base.sha }}":
+        violations.append("trusted status is not bound to exact base SHA")
+    if publish_env.get("STATUS_CONTEXT") != (
+        "${{ needs.verify.outputs.status_context }}"
+    ):
+        violations.append("trusted status does not use exported branch context")
+    if not isinstance(publish_run, str):
+        publish_run = ""
+    for fragment in (
+        'expected_context = "CML Trust Root Gate / " + hashlib.sha256(',
+        'base_ref.encode("utf-8")',
+        '"context": status_context',
+        'if status_context != expected_context:',
+    ):
+        if fragment not in publish_run:
+            violations.append(
+                f"trusted status is missing branch-scoped control {fragment}"
+            )
+    if '"context": "CML Trust Root Gate"' in publish_run:
+        violations.append("trusted status uses a cross-branch constant context")
 
     return violations
 
@@ -252,6 +329,18 @@ def test_causal_workflow_satisfies_extended_contract():
 
 def test_base_trust_root_workflow_satisfies_extended_contract():
     assert _trusted_contract_violations(TRUSTED_WORKFLOW) == []
+
+
+def test_same_head_against_two_base_refs_has_distinct_status_contexts():
+    shared_head = "a" * 40
+    main_context = _branch_scoped_context("main")
+    maintenance_context = _branch_scoped_context("maintenance/1.x")
+
+    assert shared_head == "a" * 40
+    assert main_context != maintenance_context
+    assert main_context == _branch_scoped_context("main")
+    assert maintenance_context == _branch_scoped_context("maintenance/1.x")
+    assert len(main_context) == len("CML Trust Root Gate / ") + 64
 
 
 def test_action_pin_pattern_is_segment_bounded():
@@ -378,6 +467,32 @@ def test_trusted_contract_rejects_unbound_subject_checkout(tmp_path: Path):
     )
     assert any(
         "untrusted subject checkout is not bound to exact head SHA" in item
+        for item in _trusted_contract_violations(mutated)
+    )
+
+
+def test_trusted_contract_rejects_constant_cross_branch_context(tmp_path: Path):
+    mutated = _mutate(
+        tmp_path,
+        TRUSTED_WORKFLOW,
+        '"context": status_context',
+        '"context": "CML Trust Root Gate"',
+    )
+    assert any(
+        "cross-branch constant context" in item
+        for item in _trusted_contract_violations(mutated)
+    )
+
+
+def test_trusted_contract_rejects_evidence_without_exact_base_sha(tmp_path: Path):
+    mutated = _mutate(
+        tmp_path,
+        TRUSTED_WORKFLOW,
+        'payload["base_sha"] = base_sha',
+        'payload["observed_sha"] = base_sha',
+    )
+    assert any(
+        'payload["base_sha"] = base_sha' in item
         for item in _trusted_contract_violations(mutated)
     )
 
