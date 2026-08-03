@@ -60,12 +60,19 @@ class CockroachMemoryStore:
             "connect_timeout": 8,
             "application_name": "liminal-recall",
         }
-        query_keys = {
-            key.casefold() for key in parse_qs(urlsplit(self.database_url).query)
+        query = {
+            key.casefold(): [value.casefold() for value in values]
+            for key, values in parse_qs(
+                urlsplit(self.database_url).query,
+                keep_blank_values=True,
+            ).items()
         }
-        if "sslmode" not in query_keys:
+        sslmode_values = query.get("sslmode")
+        if sslmode_values is None:
             connect_options["sslmode"] = "verify-full"
-        if "sslrootcert" not in query_keys:
+        elif sslmode_values != ["verify-full"]:
+            raise ValueError("DATABASE_URL sslmode must be exactly verify-full")
+        if "sslrootcert" not in query:
             connect_options["sslrootcert"] = os.getenv(
                 "COCKROACH_ROOT_CERT_PATH",
                 str(Path(__file__).with_name("cockroach-root.crt")),
