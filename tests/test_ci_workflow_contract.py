@@ -21,8 +21,15 @@ WORKFLOWS = [
     ROOT / ".github/workflows/security.yml",
     ROOT / ".github/workflows/causal-pr.yml",
 ]
+TRUSTED_WORKFLOW = ROOT / ".github/workflows/trusted-pr-gate.yml"
 CAUSAL_REQUIRED_TYPES = {
     "edited",
+    "opened",
+    "ready_for_review",
+    "reopened",
+    "synchronize",
+}
+TRUSTED_REQUIRED_TYPES = {
     "opened",
     "ready_for_review",
     "reopened",
@@ -39,6 +46,12 @@ CRITICAL_STEP_NAMES = (
     "Fetch exact base commit",
     "Reconfirm base tip before evidence",
     "Reconfirm base tip before final manifest",
+)
+TRUSTED_CRITICAL_STEP_NAMES = (
+    "Checkout protected base trust root",
+    "Checkout untrusted subject as data only",
+    "Verify exact head and protected file identities",
+    "Publish immutable-context commit status",
 )
 
 
@@ -129,6 +142,105 @@ def _causal_contract_violations(path: Path) -> list[str]:
     return violations
 
 
+def _trusted_contract_violations(path: Path) -> list[str]:
+    workflow = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
+    assert isinstance(workflow, dict)
+    violations: list[str] = []
+
+    triggers = _mapping(workflow.get("on"))
+    pull_request_target = _mapping(triggers.get("pull_request_target"))
+    if not pull_request_target:
+        violations.append("base trust-root gate must use pull_request_target")
+    if {"branches", "branches-ignore"} & set(pull_request_target):
+        violations.append("base trust-root gate may not use target-branch filters")
+    event_types = pull_request_target.get("types")
+    if not isinstance(event_types, list) or not TRUSTED_REQUIRED_TYPES.issubset(
+        set(event_types)
+    ):
+        violations.append("base trust-root gate is missing required activity types")
+    if workflow.get("permissions") != {}:
+        violations.append("base trust-root workflow permissions must be empty")
+
+    jobs = _mapping(workflow.get("jobs"))
+    verify_job = _mapping(jobs.get("verify"))
+    publish_job = _mapping(jobs.get("publish"))
+    if verify_job.get("name") != "Verify protected CI contract":
+        violations.append("base trust-root verification job identity changed")
+    if publish_job.get("name") != "Publish trusted head status":
+        violations.append("base trust-root publish job identity changed")
+
+    step_counts: Counter[str] = Counter()
+    named_steps: dict[str, dict[str, Any]] = {}
+    for raw_job in jobs.values():
+        steps = _mapping(raw_job).get("steps")
+        if not isinstance(steps, list):
+            continue
+        for raw_step in steps:
+            step = _mapping(raw_step)
+            name = step.get("name")
+            if isinstance(name, str):
+                step_counts[name] += 1
+                named_steps.setdefault(name, step)
+
+    for required_name in TRUSTED_CRITICAL_STEP_NAMES:
+        if step_counts[required_name] != 1:
+            violations.append(
+                f"trusted critical step {required_name!r} must appear exactly once"
+            )
+
+    base_checkout = _mapping(
+        named_steps.get("Checkout protected base trust root", {}).get("with")
+    )
+    if base_checkout.get("repository") != "${{ github.repository }}":
+        violations.append("trusted base checkout repository is not base-owned")
+    if base_checkout.get("ref") != "${{ github.event.pull_request.base.sha }}":
+        violations.append("trusted base checkout is not bound to exact base SHA")
+    if base_checkout.get("path") != "base":
+        violations.append("trusted base checkout must use the isolated base path")
+    if base_checkout.get("persist-credentials") != "false":
+        violations.append("trusted base checkout credentials must not persist")
+
+    subject_checkout = _mapping(
+        named_steps.get("Checkout untrusted subject as data only", {}).get("with")
+    )
+    if subject_checkout.get("repository") != (
+        "${{ github.event.pull_request.head.repo.full_name }}"
+    ):
+        violations.append("untrusted subject checkout is not bound to head repository")
+    if subject_checkout.get("ref") != "${{ github.event.pull_request.head.sha }}":
+        violations.append("untrusted subject checkout is not bound to exact head SHA")
+    if subject_checkout.get("path") != "subject":
+        violations.append("untrusted subject checkout must use the isolated subject path")
+    if subject_checkout.get("persist-credentials") != "false":
+        violations.append("untrusted subject checkout credentials must not persist")
+
+    verify_run = named_steps.get(
+        "Verify exact head and protected file identities", {}
+    ).get("run")
+    if not isinstance(verify_run, str):
+        verify_run = ""
+    for required_fragment in (
+        "python base/.github/trust-root/scripts/verify_subject.py",
+        "--base-root base",
+        "--subject-root subject",
+        '--expected-head "${{ github.event.pull_request.head.sha }}"',
+    ):
+        if required_fragment not in verify_run:
+            violations.append(
+                f"base trust-root verification is missing {required_fragment}"
+            )
+
+    publish_step = named_steps.get("Publish immutable-context commit status", {})
+    publish_env = _mapping(publish_step.get("env"))
+    publish_run = publish_step.get("run")
+    if publish_env.get("HEAD_SHA") != "${{ github.event.pull_request.head.sha }}":
+        violations.append("trusted status is not bound to exact head SHA")
+    if not isinstance(publish_run, str) or '"context": "CML Trust Root Gate"' not in publish_run:
+        violations.append("trusted status context changed")
+
+    return violations
+
+
 def test_required_workflows_satisfy_trust_contract():
     report = verify_workflows(WORKFLOWS)
     assert report["passed"] is True, report["violations"]
@@ -136,6 +248,10 @@ def test_required_workflows_satisfy_trust_contract():
 
 def test_causal_workflow_satisfies_extended_contract():
     assert _causal_contract_violations(WORKFLOWS[-1]) == []
+
+
+def test_base_trust_root_workflow_satisfies_extended_contract():
+    assert _trusted_contract_violations(TRUSTED_WORKFLOW) == []
 
 
 def test_action_pin_pattern_is_segment_bounded():
@@ -224,6 +340,45 @@ def test_causal_contract_rejects_target_branch_filter(tmp_path: Path):
     assert any(
         "target-branch filters" in item
         for item in _causal_contract_violations(mutated)
+    )
+
+
+def test_trusted_contract_rejects_target_branch_filter(tmp_path: Path):
+    mutated = _mutate(
+        tmp_path,
+        TRUSTED_WORKFLOW,
+        "  pull_request_target:\n    types:",
+        "  pull_request_target:\n    branches: [main]\n    types:",
+    )
+    assert any(
+        "may not use target-branch filters" in item
+        for item in _trusted_contract_violations(mutated)
+    )
+
+
+def test_trusted_contract_rejects_subject_executed_verifier(tmp_path: Path):
+    mutated = _mutate(
+        tmp_path,
+        TRUSTED_WORKFLOW,
+        "python base/.github/trust-root/scripts/verify_subject.py",
+        "python subject/.github/trust-root/scripts/verify_subject.py",
+    )
+    assert any(
+        "python base/.github/trust-root/scripts/verify_subject.py" in item
+        for item in _trusted_contract_violations(mutated)
+    )
+
+
+def test_trusted_contract_rejects_unbound_subject_checkout(tmp_path: Path):
+    mutated = _mutate(
+        tmp_path,
+        TRUSTED_WORKFLOW,
+        "ref: ${{ github.event.pull_request.head.sha }}",
+        "ref: ${{ github.sha }}",
+    )
+    assert any(
+        "untrusted subject checkout is not bound to exact head SHA" in item
+        for item in _trusted_contract_violations(mutated)
     )
 
 
@@ -340,3 +495,5 @@ def test_runbook_requires_up_to_date_branch_protection():
     assert "Require branches to be up to date before merging" in runbook
     assert "`strict: true`" in runbook
     assert "base branch can still advance after a successful run" in runbook.casefold()
+    assert "`CML Trust Root Gate`" in runbook
+    assert "every protected target branch" in runbook
