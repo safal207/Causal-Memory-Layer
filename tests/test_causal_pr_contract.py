@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pytest
 
 from scripts.ci.build_causal_pr_report import (
     Change,
+    _is_executable_test_path,
     build_report,
     changed_files,
     classify_changes,
@@ -42,6 +44,17 @@ def _evaluate(
     *,
     base_is_ancestor: bool = True,
 ):
+    for change in changes:
+        candidate = tmp_path / change.path
+        if (
+            not change.status.startswith("D")
+            and _is_executable_test_path(change.path)
+            and not os.path.lexists(candidate)
+        ):
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            candidate.write_text(
+                "def test_regression():\n    assert True\n", encoding="utf-8"
+            )
     return evaluate_transition(
         repo_root=tmp_path,
         base_sha=BASE_SHA,
@@ -215,6 +228,39 @@ def test_non_runnable_test_change_does_not_satisfy_regression_contract(
     )
     assert report["passed"] is False
     assert report["changed_regression_tests"] == []
+    assert any("surviving executable" in item for item in report["violations"])
+
+
+def test_symlink_test_destination_does_not_satisfy_regression_contract(
+    tmp_path: Path,
+) -> None:
+    symlink = tmp_path / "tests" / "test_regression.py"
+    symlink.parent.mkdir(parents=True)
+    symlink.symlink_to("/dev/null")
+    report = _evaluate(
+        tmp_path,
+        [Change("M", "cml/record.py"), Change("A", "tests/test_regression.py")],
+    )
+    assert report["passed"] is False
+    assert report["changed_regression_tests"] == []
+    assert any("surviving executable" in item for item in report["violations"])
+
+
+def test_symlink_existing_test_reference_does_not_satisfy_contract(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "tests" / "test_real.py"
+    real.parent.mkdir(parents=True)
+    real.write_text("def test_real():\n    assert True\n", encoding="utf-8")
+    alias = tmp_path / "tests" / "test_alias.py"
+    alias.symlink_to(real.name)
+    body = COMPLETE_BODY.replace(
+        "Added `tests/test_causal_pr_contract.py` to exercise the policy and failure paths.",
+        "Existing test: `tests/test_alias.py` exercises this invariant.",
+    )
+    report = _evaluate(tmp_path, [Change("M", "cml/record.py")], body=body)
+    assert report["passed"] is False
+    assert report["existing_test_references"] == []
     assert any("surviving executable" in item for item in report["violations"])
 
 
