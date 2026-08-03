@@ -17,8 +17,34 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+    outputs:
+      status_context: ${{ steps.scope.outputs.status_context }}
 
     steps:
+      - name: Derive branch-scoped trust context
+        id: scope
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import re
+
+          base_ref = os.environ["BASE_REF"]
+          base_sha = os.environ["BASE_SHA"].strip().lower()
+          if not base_ref or any(ord(character) < 32 for character in base_ref):
+              raise SystemExit("invalid pull request base ref")
+          if not re.fullmatch(r"[0-9a-f]{40}", base_sha):
+              raise SystemExit("invalid pull request base SHA")
+          context = "CML Trust Root Gate / " + hashlib.sha256(
+              base_ref.encode("utf-8")
+          ).hexdigest()
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"status_context={context}\n")
+          PY
+
       - name: Checkout protected base trust root
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -54,6 +80,43 @@ jobs:
             --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --output trust-root-verification.json
 
+      - name: Bind target branch identity to trust evidence
+        if: always()
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          STATUS_CONTEXT: ${{ steps.scope.outputs.status_context }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("trust-root-verification.json")
+          if not path.is_file():
+              raise SystemExit("trust-root verification evidence is missing")
+          base_ref = os.environ["BASE_REF"]
+          base_sha = os.environ["BASE_SHA"].strip().lower()
+          status_context = os.environ["STATUS_CONTEXT"]
+          if not base_ref or any(ord(character) < 32 for character in base_ref):
+              raise SystemExit("invalid pull request base ref")
+          if not re.fullmatch(r"[0-9a-f]{40}", base_sha):
+              raise SystemExit("invalid pull request base SHA")
+          if not status_context.startswith("CML Trust Root Gate / "):
+              raise SystemExit("invalid branch-scoped trust status context")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          payload["base_ref"] = base_ref
+          payload["base_sha"] = base_sha
+          payload["status_context"] = status_context
+          temporary = path.with_suffix(".tmp")
+          temporary.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          temporary.replace(path)
+          PY
+
       - name: Upload exact-attempt trust-root evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -73,36 +136,52 @@ jobs:
       statuses: write
 
     steps:
-      - name: Publish immutable-context commit status
+      - name: Publish branch-scoped trusted head status
         env:
           GITHUB_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          STATUS_CONTEXT: ${{ needs.verify.outputs.status_context }}
           VERIFY_RESULT: ${{ needs.verify.result }}
           REPOSITORY: ${{ github.repository }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
         run: |
           python - <<'PY'
+          import hashlib
           import json
           import os
           import re
           import urllib.request
 
-          sha = os.environ["HEAD_SHA"].strip().lower()
-          if not re.fullmatch(r"[0-9a-f]{40}", sha):
+          head_sha = os.environ["HEAD_SHA"].strip().lower()
+          base_sha = os.environ["BASE_SHA"].strip().lower()
+          base_ref = os.environ["BASE_REF"]
+          if not re.fullmatch(r"[0-9a-f]{40}", head_sha):
               raise SystemExit("invalid pull request head SHA")
+          if not re.fullmatch(r"[0-9a-f]{40}", base_sha):
+              raise SystemExit("invalid pull request base SHA")
+          if not base_ref or any(ord(character) < 32 for character in base_ref):
+              raise SystemExit("invalid pull request base ref")
+          expected_context = "CML Trust Root Gate / " + hashlib.sha256(
+              base_ref.encode("utf-8")
+          ).hexdigest()
+          status_context = os.environ["STATUS_CONTEXT"]
+          if status_context != expected_context:
+              raise SystemExit("branch-scoped trust status context mismatch")
           passed = os.environ["VERIFY_RESULT"] == "success"
           payload = {
               "state": "success" if passed else "failure",
-              "context": "CML Trust Root Gate",
+              "context": status_context,
               "description": (
-                  "Protected CI contract verified from base trust root"
+                  "Protected CI contract verified from target base trust root"
                   if passed
                   else "Protected CI contract rejected; inspect exact attempt"
               ),
               "target_url": os.environ["RUN_URL"],
           }
           request = urllib.request.Request(
-              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/statuses/{sha}",
+              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/statuses/{head_sha}",
               data=json.dumps(payload).encode("utf-8"),
               method="POST",
               headers={
