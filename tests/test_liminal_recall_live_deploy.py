@@ -88,6 +88,69 @@ def test_runtime_build_must_match_reviewed_head() -> None:
         )
 
 
+def test_capture_rejects_expected_sha_detached_from_clean_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clean_head = "b" * 40
+    stale_head = "a" * 40
+    capture_calls: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(MODULE, "_require_clean_repository", lambda: clean_head)
+    monkeypatch.setattr(
+        MODULE,
+        "capture_runtime_proof",
+        lambda url, name, sha: capture_calls.append((url, name, sha)),
+    )
+    monkeypatch.setattr(
+        MODULE.sys,
+        "argv",
+        [
+            str(SCRIPT_PATH),
+            "capture",
+            "--function-url",
+            "https://example.invalid",
+            "--function-name",
+            "liminal-recall",
+            "--expected-build-sha",
+            stale_head,
+        ],
+    )
+
+    assert MODULE.main() == 1
+    assert capture_calls == []
+
+
+def test_capture_uses_clean_head_as_authoritative_build_sha(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clean_head = "c" * 40
+    capture_calls: list[tuple[str, str, str]] = []
+    monkeypatch.setattr(MODULE, "_require_clean_repository", lambda: clean_head)
+    monkeypatch.setattr(
+        MODULE,
+        "capture_runtime_proof",
+        lambda url, name, sha: capture_calls.append((url, name, sha)),
+    )
+    monkeypatch.setattr(
+        MODULE.sys,
+        "argv",
+        [
+            str(SCRIPT_PATH),
+            "capture",
+            "--function-url",
+            "https://example.invalid/",
+            "--function-name",
+            "liminal-recall",
+            "--expected-build-sha",
+            clean_head,
+        ],
+    )
+
+    assert MODULE.main() == 0
+    assert capture_calls == [
+        ("https://example.invalid", "liminal-recall", clean_head)
+    ]
+
+
 def test_required_environment_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in MODULE.REQUIRED_ENV:
         monkeypatch.delenv(name, raising=False)
