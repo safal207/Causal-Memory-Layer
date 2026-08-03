@@ -1,69 +1,83 @@
 # Causal PR Gate
 
-The `Causal PR Gate` turns every pull request into a reviewable state transition rather than treating a green test run as sufficient proof.
+CML evaluates a pull request through two independent trust lanes. A green test run is evidence, not proof.
 
-## What always runs
+## Trust lanes
 
-Every pull request, regardless of its target branch, receives two independent trust lanes.
+### Base-trusted identity lane
 
-The base-trusted `CML Trust Root Gate` runs through `pull_request_target` without target-branch filters. It:
+`.github/workflows/trusted-pr-gate.yml` runs on every `pull_request_target` without a target-branch filter. It:
 
-1. derives a stable branch-scoped status context from the SHA-256 digest of the exact target branch name;
-2. checks out the exact target-branch base SHA into an isolated `base` directory;
-3. checks out the exact pull-request head from its actual source repository into an isolated `subject` directory;
-4. executes only `base/.github/trust-root/scripts/verify_subject.py`;
-5. treats the subject checkout as untrusted data and never imports or executes its verifier;
-6. compares protected workflow and CI identities against the manifest from the exact target base;
-7. records the exact base ref, base SHA, and branch-scoped status context in the trust evidence;
-8. publishes that branch-scoped status on the exact head SHA.
+1. derives a branch-specific context:
 
-The context format is:
+   ```text
+   CML Trust Root Gate / SHA256(UTF-8 target branch name)
+   ```
 
-```text
-CML Trust Root Gate / SHA256(UTF-8 target branch name)
-```
+2. resolves the pull request's exact base ref, base SHA, head repository, head SHA, and current **test merge commit** SHA through the GitHub API;
+3. checks out the exact base into `base`;
+4. checks out the exact head into isolated `subject`;
+5. executes only `base/.github/trust-root/scripts/verify_subject.py`;
+6. treats the subject checkout as untrusted data;
+7. records the exact base, head, merge SHA, and context in evidence;
+8. publishes the branch-scoped trust status to the current test merge commit, not to the reusable head commit.
 
-A shared head commit used by PRs against two different branches therefore receives two different status contexts. A successful maintenance-branch verification cannot overwrite or satisfy a failed `main` verification.
+Publishing to the test merge commit closes two status-reuse classes:
 
-The head-executed `Causal PR Gate` then:
+- one head used against two target branches has different merge commits and different branch contexts;
+- when the same target branch advances, GitHub produces a new test merge commit, so a success attached to the old merge commit cannot satisfy the current pull request.
 
-1. checks out the exact pull-request head from the actual source repository;
-2. binds the report to the exact base SHA and target branch;
-3. computes a rename-aware base-to-head diff and classifies both the source and destination of a rename;
-4. classifies implementation, workflow, test, documentation, and unknown changes;
-5. treats every non-documentation or unknown tracked format as strict by default;
-6. validates the causal-review contract in the pull-request body;
-7. builds JSON and Mermaid cause-to-transition evidence;
-8. verifies pinned actions, least permissions, fail-closed artifact handling, and exact-head checkout across all required workflows;
-9. runs mutation and regression tests for the gate itself;
-10. re-reads the target branch tip before lane evidence and again before the final manifest;
-11. publishes exact-head and exact-base evidence tied to the run ID and attempt;
-12. exposes the stable required-check name `Causal PR Gate`.
+The publish job re-reads the pull request immediately before posting. If any base, head, repository, or merge identity changed, it refuses to publish stale status.
 
-The causal lane cannot authenticate its own implementation. Only the target branch's base-trusted lane can establish that the analyzer, workflow validator, selected regression tests, and protected blob identities are approved by that target's trust root.
+### Default-branch refresh lane
+
+`.github/workflows/trust-root-refresh.yml` is a trusted orchestrator that runs from the default branch every five minutes and through manual dispatch. It deliberately has **no `push` trigger**, because a push workflow loaded from an arbitrary feature branch must not receive `statuses: write` authority.
+
+`CML Trust Root Refresh`:
+
+1. enumerates every open pull request and its current exact base/head/test-merge identity;
+2. marks the branch-specific context `pending` on the current test merge commit;
+3. checks out the exact target base and exact subject;
+4. executes the verifier from the target base only;
+5. re-reads the pull request after verification;
+6. publishes success or failure only when the transition is still identical;
+7. uploads the exact verification and freshness evidence.
+
+A base advance therefore invalidates the old status immediately by changing the test merge SHA. The scheduled refresh restores a decision for the new test merge without requiring a head-branch commit.
+
+### Head-executed causal lane
+
+`.github/workflows/causal-pr.yml` runs for every pull request target. It:
+
+1. checks out the exact head from the actual source repository;
+2. fetches complete base ancestry without shallow-boundary options;
+3. requires the exact base to be an ancestor of the head;
+4. computes a direct base-to-head diff and retains both sides of renames;
+5. classifies implementation, workflow, test, documentation, and unknown paths;
+6. validates the PR's causal sections;
+7. requires surviving executable regression evidence for strict changes;
+8. emits JSON and Mermaid transition evidence;
+9. rechecks the target branch before lane evidence and before the final manifest;
+10. exposes the stable required check `Causal PR Gate`.
+
+The causal lane cannot authenticate its own implementation. The base-trusted lane authenticates the protected analyzer, workflow contracts, and blob identities.
 
 ## Strict and lightweight policy
 
-### Strict mode
+Strict mode applies to every transition that is not genuine documentation-only work. It includes runtime code, packages, schemas, containers, infrastructure, configuration, workflows, tests, unknown formats, and either side of a rename.
 
-Strict mode applies to every change that is not documentation-only. This includes runtime code, extensions, packages, schemas, containers, infrastructure, configuration, workflows, tests, unknown tracked formats, and either side of a rename.
-
-The pull-request body must contain non-placeholder sections named:
+Strict PRs must contain exactly one non-placeholder section for each heading:
 
 - `Failure path`;
 - `Invariant after change`;
 - `Regression evidence`;
 - `Residual risk`.
 
-The change must also include a changed test or cite an existing test by exact repository path. Referenced paths are resolved inside the repository and cannot escape it. Changes to required workflows must change either `tests/test_ci_workflow_contract.py` or `tests/test_causal_pr_contract.py`.
+A strict transition also requires a surviving executable changed test or an exact existing executable test path. Test evidence must be a regular repository file reached without any symlink component. Deleted files, documentation files, symlinks, gitlinks, directories, and paths outside the checkout grant no regression credit.
 
-### Lightweight mode
+Lightweight mode is limited to documentation entries whose exact Git mode is the regular non-executable blob mode `100644`. Executable mode `100755`, symlink mode `120000`, gitlink mode `160000`, mixed modes, missing modes, and unknown modes are strict.
 
-Only documentation-only transitions receive lightweight mode. Markdown, reStructuredText, AsciiDoc, recognized repository documents, and documentation media are eligible only when their exact Git mode is the regular non-executable blob mode `100644`. Executable blobs, symlinks, gitlinks, mixed modes, missing modes, and unknown modes are strict. A script located under `docs/` is still executable and therefore strict. Unknown extensions fail closed into strict mode.
-
-## Generated graph
-
-Each report records this transition:
+## Causal graph
 
 ```mermaid
 flowchart LR
@@ -73,28 +87,18 @@ flowchart LR
     R --> H[Exact head SHA]
 ```
 
-The JSON report contains both sides of renames, all classified paths, sanitized section summaries, referenced existing tests, graph nodes and edges, violations, and the pass/fail result.
+The report is evidence for a transition, not merge authority.
 
-## Base freshness
+## Required repository settings
 
-The causal workflow confirms through the GitHub API that the observed target-branch tip still equals the event's exact base SHA:
+After the bootstrap merge, every protected target branch must require:
 
-- once after analysis and mutation tests;
-- again immediately before the final evidence manifest.
+1. its branch-specific `CML Trust Root Gate / <SHA-256>` context;
+2. `Causal PR Gate`;
+3. the existing CI, package, and security gates;
+4. **Require branches to be up to date before merging**, represented by `required_status_checks.strict: true` for classic branch protection or the equivalent ruleset control.
 
-Both observations are included in the final evidence manifest. If the target branch moves during the run, the gate fails rather than publishing stale evidence.
-
-A base branch can still advance after a successful run. Therefore every protected target branch must enable **Require branches to be up to date before merging**, represented by `required_status_checks.strict: true` in classic branch protection. This external rule blocks merge until the PR head is updated; the resulting `synchronize` event reruns both trust lanes against the new base.
-
-## Required status contexts
-
-The bootstrap is not complete until all three controls are enabled for every protected target branch:
-
-1. the branch-specific `CML Trust Root Gate / <SHA-256>` context is required;
-2. `Causal PR Gate` is required;
-3. **Require branches to be up to date before merging** is enabled.
-
-Compute the exact trust-root context for a branch with:
+Compute a branch context with:
 
 ```bash
 BRANCH=main python - <<'PY'
@@ -106,48 +110,39 @@ print("CML Trust Root Gate / " + hashlib.sha256(branch.encode("utf-8")).hexdiges
 PY
 ```
 
-For example, compute the context separately for `main`, each release branch, and each protected maintenance branch. Never reuse one branch's trust-root context in another branch's protection rules.
+Compute it separately for `main`, every release branch, and every protected maintenance branch. Never reuse one branch's trust context for another branch.
 
-An owner with repository administration read permission can verify classic protection with:
+Verify classic protection with:
 
 ```bash
 gh api repos/OWNER/REPO/branches/BRANCH/protection/required_status_checks \
   --jq '{strict,contexts,checks}'
 ```
 
-The returned object must show `strict: true`, include `Causal PR Gate`, and include the branch-specific trust-root context computed above. Repositories using rulesets must enforce the equivalent up-to-date-base and required-check rules.
+The result must show `strict: true`, `Causal PR Gate`, and that branch's exact trust-root context.
 
 ## Trust boundaries
 
-The base-trusted gate proves that protected CI identities match the exact target branch's approved manifest. Its status namespace is bound to the target branch identity, while its evidence also records the exact base SHA observed during the run. The causal gate proves that the declared transition and regression evidence are attached to one exact pull-request head and one exact base observation. Neither replaces:
+The base-trusted lane proves that protected CI identities match the target branch's approved trust root. The refresh lane ensures current test merge commits receive current decisions. The causal lane proves that one declared transition and its regression evidence bind to exact base/head observations.
 
-- CI test matrices;
-- package validation;
-- dependency, secret, and CodeQL scans;
-- CodeRabbit, Codex, or human review;
-- repository branch protection or rulesets;
-- deployment or live-service evidence.
+They do not replace:
 
-Review evidence supports a merge decision but never grants merge authority.
+- human, Codex, or CodeRabbit review;
+- branch protection or rulesets;
+- CI matrices, package validation, dependency audit, secret scan, or CodeQL;
+- deployment and live-service evidence.
 
-## Repository protection
-
-This change modifies the protected CI trust root and therefore requires a dedicated bootstrap review. After it is merged to the default branch, configure every protected target branch to require its own branch-scoped trust-root status and `Causal PR Gate` alongside the existing CI, package, and security checks, and require branches to be current before merge.
-
-The `CML Trust Root Gate` workflow itself has no target-branch filter. Its verifier is loaded from the exact target base, while the pull-request head is checked out only as data. A release or maintenance branch therefore evaluates proposed CI changes against its own approved trust root rather than trusting code supplied by the pull request.
-
-Required status checks plus up-to-date-base enforcement are the merge boundary. Without those repository settings, workflows still produce evidence but cannot prevent an administrator or alternate merge path from accepting stale or unauthenticated evidence.
+Anyone with administrative bypass authority can still override repository policy. Review evidence supports a merge decision but never grants merge authority.
 
 ## Failure recovery
 
-When a gate fails:
+When a trust status is missing after a base advance:
 
-1. inspect the exact-attempt `trust-root-verification.json`, causal report, and base-freshness artifacts;
-2. confirm the evidence contains the intended `base_ref`, `base_sha`, and `status_context`;
-3. read the explicit violations;
-4. update the PR causal-review sections or regression evidence;
-5. update the branch when the base branch has moved;
-6. push a bounded fix or edit the PR body;
-7. let both gates rerun against the new exact head and base.
+1. confirm the PR shows a new test merge commit;
+2. wait for `CML Trust Root Refresh` or dispatch it manually;
+3. inspect `trust-root-verification.json` and `transition-freshness.json`;
+4. confirm `base_ref`, `base_sha`, `head_sha`, `merge_sha`, and `status_context` match the current PR;
+5. update the branch or fix the protected-file mismatch;
+6. rerun both trust lanes.
 
-Do not suppress either gate, use `continue-on-error`, loosen artifact handling, replace full action SHAs with mutable tags, execute subject trust-root helpers, add target-branch filters, reuse another branch's trust-root status context, or disable up-to-date-base protection to make a merge appear green.
+Do not add a `push` trigger with write authority, execute subject helpers, publish trust status to the head commit, reuse another branch's context, suppress freshness failures, loosen artifact handling, or disable strict up-to-date-base protection.
