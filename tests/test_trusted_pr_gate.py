@@ -174,9 +174,12 @@ def test_new_transitive_stdlib_shadowing_package_is_rejected(tmp_path: Path):
     assert result["findings"][0]["path"] == "shutil/__init__.py"
 
 
-def test_trusted_gate_only_targets_main_base():
+def test_trusted_gate_targets_every_base_branch():
     workflow = (ROOT / ".github/workflows/trusted-pr-gate.yml").read_text(encoding="utf-8")
-    assert "pull_request_target:\n    branches: [main]\n" in workflow
+    assert "pull_request_target:\n    types:" in workflow
+    assert "branches:" not in workflow
+    assert "branches-ignore:" not in workflow
+    assert "python base/.github/trust-root/scripts/verify_subject.py" in workflow
 
 
 def test_renamed_protected_path_is_detected_without_api(tmp_path: Path):
