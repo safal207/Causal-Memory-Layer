@@ -23,6 +23,7 @@ WORKFLOWS = [
     ROOT / ".github/workflows/causal-pr.yml",
 ]
 TRUSTED_WORKFLOW = ROOT / ".github/workflows/trusted-pr-gate.yml"
+REFRESH_WORKFLOW = ROOT / ".github/workflows/trust-root-refresh.yml"
 CAUSAL_REQUIRED_TYPES = {
     "edited",
     "opened",
@@ -43,23 +44,58 @@ SHALLOW_FETCH_OPTIONS = (
     "--shallow-exclude",
     "--shallow-since",
 )
-CRITICAL_STEP_NAMES = (
+CAUSAL_CRITICAL_STEPS = (
     "Fetch exact base commit",
     "Reconfirm base tip before evidence",
     "Reconfirm base tip before final manifest",
 )
-TRUSTED_CRITICAL_STEP_NAMES = (
+TRUSTED_CRITICAL_STEPS = (
     "Derive branch-scoped trust context",
+    "Resolve exact test merge identity",
     "Checkout protected base trust root",
     "Checkout untrusted subject as data only",
     "Verify exact head and protected file identities",
-    "Bind target branch identity to trust evidence",
-    "Publish branch-scoped trusted head status",
+    "Bind exact transition identity to trust evidence",
+    "Publish branch-scoped test merge status",
+)
+REFRESH_CRITICAL_STEPS = (
+    "Checkout trusted refresh orchestrator",
+    "Enumerate exact open pull request identities",
+    "Derive refresh trust context",
+    "Mark current test merge verification pending",
+    "Checkout exact target base trust root",
+    "Checkout exact untrusted subject as data only",
+    "Run exact-base trust verification",
+    "Reconfirm current pull request transition",
+    "Publish refreshed test merge status",
+    "Require refreshed verification and current transition",
 )
 
 
 def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _load(path: Path) -> dict[str, Any]:
+    workflow = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
+    assert isinstance(workflow, dict)
+    return workflow
+
+
+def _steps_by_name(jobs: dict[str, Any]) -> tuple[Counter[str], dict[str, dict[str, Any]]]:
+    counts: Counter[str] = Counter()
+    named: dict[str, dict[str, Any]] = {}
+    for raw_job in jobs.values():
+        steps = _mapping(raw_job).get("steps")
+        if not isinstance(steps, list):
+            continue
+        for raw_step in steps:
+            step = _mapping(raw_step)
+            name = step.get("name")
+            if isinstance(name, str):
+                counts[name] += 1
+                named.setdefault(name, step)
+    return counts, named
 
 
 def _branch_scoped_context(base_ref: str) -> str:
@@ -80,11 +116,19 @@ def _uses_shallow_fetch_option(script: str) -> bool:
     )
 
 
-def _causal_contract_violations(path: Path) -> list[str]:
-    workflow = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
-    assert isinstance(workflow, dict)
-    violations: list[str] = []
+def _require_fragments(
+    violations: list[str], script: Any, label: str, fragments: tuple[str, ...]
+) -> str:
+    text = script if isinstance(script, str) else ""
+    for fragment in fragments:
+        if fragment not in text:
+            violations.append(f"{label} is missing {fragment}")
+    return text
 
+
+def _causal_contract_violations(path: Path) -> list[str]:
+    workflow = _load(path)
+    violations: list[str] = []
     triggers = _mapping(workflow.get("on"))
     pull_request = _mapping(triggers.get("pull_request"))
     if {"branches", "branches-ignore"} & set(pull_request):
@@ -106,56 +150,35 @@ def _causal_contract_violations(path: Path) -> list[str]:
     jobs = _mapping(workflow.get("jobs"))
     if _mapping(jobs.get("gate")).get("name") != "Causal PR Gate":
         violations.append("required check name changed")
+    counts, named = _steps_by_name(jobs)
+    for name in CAUSAL_CRITICAL_STEPS:
+        if counts[name] != 1:
+            violations.append(f"critical step {name!r} must appear exactly once")
 
-    step_name_counts: Counter[str] = Counter()
-    run_text: list[str] = []
-    named_run_text: dict[str, str] = {}
-    for raw_job in jobs.values():
-        job = _mapping(raw_job)
-        steps = job.get("steps")
-        if not isinstance(steps, list):
-            continue
-        for raw_step in steps:
-            step = _mapping(raw_step)
-            name = step.get("name")
-            if isinstance(name, str):
-                step_name_counts[name] += 1
-            run = step.get("run")
-            if isinstance(run, str):
-                run_text.append(run)
-                if isinstance(name, str):
-                    named_run_text.setdefault(name, run)
-
-    for required_name in CRITICAL_STEP_NAMES:
-        if step_name_counts[required_name] != 1:
-            violations.append(
-                f"critical step {required_name!r} must appear exactly once"
-            )
-
-    base_fetch = named_run_text.get("Fetch exact base commit", "")
+    base_fetch = named.get("Fetch exact base commit", {}).get("run")
+    base_fetch = base_fetch if isinstance(base_fetch, str) else ""
     if "git fetch --no-tags" not in base_fetch:
         violations.append("exact base commit must be fetched explicitly")
     if _uses_shallow_fetch_option(base_fetch):
         violations.append("exact base fetch may not create a shallow ancestry boundary")
 
-    joined_run_text = "\n".join(run_text)
-    for required_directive in (
+    run_text = "\n".join(
+        step.get("run", "")
+        for step in named.values()
+        if isinstance(step.get("run"), str)
+    )
+    for directive in (
         '--require "final/base-freshness.json"',
         '--require "collected/base-freshness.json"',
     ):
-        if required_directive not in joined_run_text:
-            violations.append(
-                f"final evidence manifest is missing {required_directive}"
-            )
-
+        if directive not in run_text:
+            violations.append(f"final evidence manifest is missing {directive}")
     return violations
 
 
 def _trusted_contract_violations(path: Path) -> list[str]:
-    workflow = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
-    assert isinstance(workflow, dict)
+    workflow = _load(path)
     violations: list[str] = []
-
     triggers = _mapping(workflow.get("on"))
     pull_request_target = _mapping(triggers.get("pull_request_target"))
     if not pull_request_target:
@@ -175,146 +198,285 @@ def _trusted_contract_violations(path: Path) -> list[str]:
     publish_job = _mapping(jobs.get("publish"))
     if verify_job.get("name") != "Verify protected CI contract":
         violations.append("base trust-root verification job identity changed")
-    if publish_job.get("name") != "Publish trusted head status":
+    if publish_job.get("name") != "Publish trusted merge status":
         violations.append("base trust-root publish job identity changed")
-    if _mapping(verify_job.get("outputs")).get("status_context") != (
-        "${{ steps.scope.outputs.status_context }}"
-    ):
-        violations.append("branch-scoped trust context is not exported by verify job")
+    outputs = _mapping(verify_job.get("outputs"))
+    if outputs.get("status_context") != "${{ steps.scope.outputs.status_context }}":
+        violations.append("branch-scoped trust context is not exported")
+    if outputs.get("merge_sha") != "${{ steps.identity.outputs.merge_sha }}":
+        violations.append("test merge SHA is not exported")
 
-    step_counts: Counter[str] = Counter()
-    named_steps: dict[str, dict[str, Any]] = {}
-    for raw_job in jobs.values():
-        steps = _mapping(raw_job).get("steps")
-        if not isinstance(steps, list):
-            continue
-        for raw_step in steps:
-            step = _mapping(raw_step)
-            name = step.get("name")
-            if isinstance(name, str):
-                step_counts[name] += 1
-                named_steps.setdefault(name, step)
+    counts, named = _steps_by_name(jobs)
+    for name in TRUSTED_CRITICAL_STEPS:
+        if counts[name] != 1:
+            violations.append(f"trusted critical step {name!r} must appear exactly once")
 
-    for required_name in TRUSTED_CRITICAL_STEP_NAMES:
-        if step_counts[required_name] != 1:
-            violations.append(
-                f"trusted critical step {required_name!r} must appear exactly once"
-            )
-
-    scope_step = named_steps.get("Derive branch-scoped trust context", {})
-    scope_env = _mapping(scope_step.get("env"))
-    scope_run = scope_step.get("run")
-    if scope_step.get("id") != "scope":
+    scope = named.get("Derive branch-scoped trust context", {})
+    if scope.get("id") != "scope":
         violations.append("branch-scoped trust context step id changed")
+    scope_env = _mapping(scope.get("env"))
     if scope_env.get("BASE_REF") != "${{ github.event.pull_request.base.ref }}":
         violations.append("branch-scoped context is not bound to base ref")
-    if scope_env.get("BASE_SHA") != "${{ github.event.pull_request.base.sha }}":
-        violations.append("branch-scoped context is not bound to base SHA")
-    if not isinstance(scope_run, str):
-        scope_run = ""
-    for fragment in (
-        '"CML Trust Root Gate / " + hashlib.sha256(',
-        'base_ref.encode("utf-8")',
-        'output.write(f"status_context={context}\\n")',
-    ):
-        if fragment not in scope_run:
-            violations.append(
-                f"branch-scoped context derivation is missing {fragment}"
-            )
+    _require_fragments(
+        violations,
+        scope.get("run"),
+        "branch-scoped context",
+        (
+            '"CML Trust Root Gate / " + hashlib.sha256(',
+            'base_ref.encode("utf-8")',
+            'output.write(f"status_context={context}\\n")',
+        ),
+    )
+
+    identity = named.get("Resolve exact test merge identity", {})
+    if identity.get("id") != "identity":
+        violations.append("test merge identity step id changed")
+    identity_env = _mapping(identity.get("env"))
+    expected_identity_env = {
+        "EXPECTED_BASE_REF": "${{ github.event.pull_request.base.ref }}",
+        "EXPECTED_BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "EXPECTED_HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+        "EXPECTED_HEAD_REPOSITORY": "${{ github.event.pull_request.head.repo.full_name }}",
+    }
+    for key, value in expected_identity_env.items():
+        if identity_env.get(key) != value:
+            violations.append(f"test merge identity is not bound to {key}")
+    _require_fragments(
+        violations,
+        identity.get("run"),
+        "test merge identity",
+        (
+            'payload.get("merge_commit_sha")',
+            '"merge_sha": str(payload.get("merge_commit_sha", "")).lower()',
+            'output.write(f"merge_sha={observed[\'merge_sha\']}\\n")',
+        ),
+    )
 
     base_checkout = _mapping(
-        named_steps.get("Checkout protected base trust root", {}).get("with")
+        named.get("Checkout protected base trust root", {}).get("with")
     )
     if base_checkout.get("repository") != "${{ github.repository }}":
         violations.append("trusted base checkout repository is not base-owned")
     if base_checkout.get("ref") != "${{ github.event.pull_request.base.sha }}":
         violations.append("trusted base checkout is not bound to exact base SHA")
     if base_checkout.get("path") != "base":
-        violations.append("trusted base checkout must use the isolated base path")
+        violations.append("trusted base checkout must use isolated base path")
     if base_checkout.get("persist-credentials") != "false":
         violations.append("trusted base checkout credentials must not persist")
 
     subject_checkout = _mapping(
-        named_steps.get("Checkout untrusted subject as data only", {}).get("with")
+        named.get("Checkout untrusted subject as data only", {}).get("with")
     )
     if subject_checkout.get("repository") != (
         "${{ github.event.pull_request.head.repo.full_name }}"
     ):
-        violations.append("untrusted subject checkout is not bound to head repository")
+        violations.append("subject checkout is not bound to head repository")
     if subject_checkout.get("ref") != "${{ github.event.pull_request.head.sha }}":
-        violations.append("untrusted subject checkout is not bound to exact head SHA")
+        violations.append("subject checkout is not bound to exact head SHA")
     if subject_checkout.get("path") != "subject":
-        violations.append("untrusted subject checkout must use the isolated subject path")
+        violations.append("subject checkout must use isolated subject path")
     if subject_checkout.get("persist-credentials") != "false":
-        violations.append("untrusted subject checkout credentials must not persist")
+        violations.append("subject checkout credentials must not persist")
 
-    verify_run = named_steps.get(
+    verify_run = named.get(
         "Verify exact head and protected file identities", {}
     ).get("run")
-    if not isinstance(verify_run, str):
-        verify_run = ""
-    for required_fragment in (
-        "python base/.github/trust-root/scripts/verify_subject.py",
-        "--base-root base",
-        "--subject-root subject",
-        '--expected-head "${{ github.event.pull_request.head.sha }}"',
-    ):
-        if required_fragment not in verify_run:
-            violations.append(
-                f"base trust-root verification is missing {required_fragment}"
-            )
-
-    evidence_step = named_steps.get(
-        "Bind target branch identity to trust evidence", {}
+    _require_fragments(
+        violations,
+        verify_run,
+        "base trust-root verification",
+        (
+            "python base/.github/trust-root/scripts/verify_subject.py",
+            "--base-root base",
+            "--subject-root subject",
+            '--expected-head "${{ github.event.pull_request.head.sha }}"',
+        ),
     )
-    evidence_env = _mapping(evidence_step.get("env"))
-    evidence_run = evidence_step.get("run")
-    if evidence_env.get("BASE_REF") != "${{ github.event.pull_request.base.ref }}":
-        violations.append("trust evidence is not bound to exact base ref")
-    if evidence_env.get("BASE_SHA") != "${{ github.event.pull_request.base.sha }}":
-        violations.append("trust evidence is not bound to exact base SHA")
-    if evidence_env.get("STATUS_CONTEXT") != (
-        "${{ steps.scope.outputs.status_context }}"
-    ):
-        violations.append("trust evidence is not bound to branch-scoped context")
-    if not isinstance(evidence_run, str):
-        evidence_run = ""
-    for fragment in (
-        'payload["base_ref"] = base_ref',
-        'payload["base_sha"] = base_sha',
-        'payload["status_context"] = status_context',
-    ):
-        if fragment not in evidence_run:
-            violations.append(f"trust evidence binding is missing {fragment}")
 
-    publish_step = named_steps.get("Publish branch-scoped trusted head status", {})
-    publish_env = _mapping(publish_step.get("env"))
-    publish_run = publish_step.get("run")
-    if publish_env.get("HEAD_SHA") != "${{ github.event.pull_request.head.sha }}":
-        violations.append("trusted status is not bound to exact head SHA")
-    if publish_env.get("BASE_REF") != "${{ github.event.pull_request.base.ref }}":
-        violations.append("trusted status is not bound to exact base ref")
-    if publish_env.get("BASE_SHA") != "${{ github.event.pull_request.base.sha }}":
-        violations.append("trusted status is not bound to exact base SHA")
-    if publish_env.get("STATUS_CONTEXT") != (
-        "${{ needs.verify.outputs.status_context }}"
-    ):
-        violations.append("trusted status does not use exported branch context")
-    if not isinstance(publish_run, str):
-        publish_run = ""
-    for fragment in (
-        'expected_context = "CML Trust Root Gate / " + hashlib.sha256(',
-        'base_ref.encode("utf-8")',
-        '"context": status_context',
-        'if status_context != expected_context:',
-    ):
-        if fragment not in publish_run:
-            violations.append(
-                f"trusted status is missing branch-scoped control {fragment}"
-            )
+    evidence = named.get("Bind exact transition identity to trust evidence", {})
+    evidence_env = _mapping(evidence.get("env"))
+    expected_evidence_env = {
+        "BASE_REF": "${{ github.event.pull_request.base.ref }}",
+        "BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+        "MERGE_SHA": "${{ steps.identity.outputs.merge_sha }}",
+        "STATUS_CONTEXT": "${{ steps.scope.outputs.status_context }}",
+    }
+    for key, value in expected_evidence_env.items():
+        if evidence_env.get(key) != value:
+            violations.append(f"trust evidence is not bound to {key}")
+    _require_fragments(
+        violations,
+        evidence.get("run"),
+        "trust evidence binding",
+        ('"merge_sha": os.environ["MERGE_SHA"]', "payload.update(values)"),
+    )
+
+    publish = named.get("Publish branch-scoped test merge status", {})
+    publish_env = _mapping(publish.get("env"))
+    expected_publish_env = {
+        "HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+        "BASE_REF": "${{ github.event.pull_request.base.ref }}",
+        "BASE_SHA": "${{ github.event.pull_request.base.sha }}",
+        "MERGE_SHA": "${{ needs.verify.outputs.merge_sha }}",
+        "STATUS_CONTEXT": "${{ needs.verify.outputs.status_context }}",
+    }
+    for key, value in expected_publish_env.items():
+        if publish_env.get(key) != value:
+            violations.append(f"trusted merge status is not bound to {key}")
+    publish_run = _require_fragments(
+        violations,
+        publish.get("run"),
+        "trusted merge status",
+        (
+            'expected_context = "CML Trust Root Gate / " + hashlib.sha256(',
+            "current_identity",
+            "expected_identity",
+            'f"https://api.github.com/repos/{repository}/statuses/{merge_sha}"',
+            '"context": status_context',
+        ),
+    )
+    if 'statuses/{head_sha}' in publish_run:
+        violations.append("trusted status is published to head instead of test merge")
     if '"context": "CML Trust Root Gate"' in publish_run:
         violations.append("trusted status uses a cross-branch constant context")
+    return violations
 
+
+def _refresh_contract_violations(path: Path) -> list[str]:
+    workflow = _load(path)
+    violations: list[str] = []
+    triggers = _mapping(workflow.get("on"))
+    if "push" in triggers:
+        violations.append("refresh workflow may not run untrusted branch code on push")
+    schedule = triggers.get("schedule")
+    if not isinstance(schedule, list) or not any(
+        _mapping(item).get("cron") == "*/5 * * * *" for item in schedule
+    ):
+        violations.append("refresh workflow must run every five minutes")
+    if "workflow_dispatch" not in triggers:
+        violations.append("refresh workflow must support trusted manual dispatch")
+    if workflow.get("permissions") != {}:
+        violations.append("refresh workflow permissions must be empty")
+
+    jobs = _mapping(workflow.get("jobs"))
+    enumerate_job = _mapping(jobs.get("enumerate"))
+    refresh_job = _mapping(jobs.get("refresh"))
+    if enumerate_job.get("name") != "Enumerate current pull request transitions":
+        violations.append("refresh enumeration job identity changed")
+    if _mapping(enumerate_job.get("outputs")).get("matrix") != (
+        "${{ steps.targets.outputs.matrix }}"
+    ):
+        violations.append("refresh matrix is not exported")
+    refresh_permissions = _mapping(refresh_job.get("permissions"))
+    for scope, access in {
+        "contents": "read",
+        "pull-requests": "read",
+        "statuses": "write",
+    }.items():
+        if refresh_permissions.get(scope) != access:
+            violations.append(f"refresh job permission changed: {scope}")
+    strategy = _mapping(refresh_job.get("strategy"))
+    if strategy.get("fail-fast") != "false":
+        violations.append("refresh matrix must not fail fast")
+    if strategy.get("matrix") != "${{ fromJSON(needs.enumerate.outputs.matrix) }}":
+        violations.append("refresh job is not bound to enumerated matrix")
+
+    counts, named = _steps_by_name(jobs)
+    for name in REFRESH_CRITICAL_STEPS:
+        if counts[name] != 1:
+            violations.append(f"refresh critical step {name!r} must appear exactly once")
+
+    orchestrator = _mapping(
+        named.get("Checkout trusted refresh orchestrator", {}).get("with")
+    )
+    if orchestrator.get("ref") != "${{ github.sha }}":
+        violations.append("refresh orchestrator is not bound to default-branch SHA")
+    if orchestrator.get("persist-credentials") != "false":
+        violations.append("refresh orchestrator credentials must not persist")
+
+    enumerate_step = named.get("Enumerate exact open pull request identities", {})
+    if enumerate_step.get("id") != "targets":
+        violations.append("refresh target enumeration id changed")
+    _require_fragments(
+        violations,
+        enumerate_step.get("run"),
+        "refresh enumeration",
+        (
+            '"state": "open"',
+            '"base_sha"',
+            '"head_sha"',
+            '"merge_sha"',
+            'output.write("matrix="',
+        ),
+    )
+
+    pending = named.get("Mark current test merge verification pending", {})
+    pending_env = _mapping(pending.get("env"))
+    if pending_env.get("STATUS_CONTEXT") != "${{ steps.scope.outputs.status_context }}":
+        violations.append("pending status is not bound to refresh context")
+    pending_run = _require_fragments(
+        violations,
+        pending.get("run"),
+        "pending test merge status",
+        ('"state": "pending"', "statuses/{os.environ['MERGE_SHA']}"),
+    )
+    if "statuses/{os.environ['HEAD_SHA']}" in pending_run:
+        violations.append("pending refresh status targets head instead of merge")
+
+    base_checkout = _mapping(
+        named.get("Checkout exact target base trust root", {}).get("with")
+    )
+    if base_checkout.get("ref") != "${{ matrix.base_sha }}":
+        violations.append("refresh base checkout is not exact")
+    subject_checkout = _mapping(
+        named.get("Checkout exact untrusted subject as data only", {}).get("with")
+    )
+    if subject_checkout.get("repository") != "${{ matrix.head_repository }}":
+        violations.append("refresh subject repository is not exact")
+    if subject_checkout.get("ref") != "${{ matrix.head_sha }}":
+        violations.append("refresh subject SHA is not exact")
+
+    _require_fragments(
+        violations,
+        named.get("Run exact-base trust verification", {}).get("run"),
+        "refresh trust verification",
+        (
+            '"base/.github/trust-root/scripts/verify_subject.py"',
+            '"merge_sha": os.environ["MERGE_SHA"]',
+            'output.write("result="',
+        ),
+    )
+    freshness = named.get("Reconfirm current pull request transition", {})
+    if freshness.get("id") != "freshness":
+        violations.append("refresh freshness step id changed")
+    _require_fragments(
+        violations,
+        freshness.get("run"),
+        "refresh transition freshness",
+        ("observed == expected", 'output.write("fresh="'),
+    )
+    final_publish = named.get("Publish refreshed test merge status", {})
+    final_run = _require_fragments(
+        violations,
+        final_publish.get("run"),
+        "refreshed test merge status",
+        (
+            'if os.environ["TRANSITION_FRESH"] != "true":',
+            "statuses/{os.environ['MERGE_SHA']}",
+            '"context": os.environ["STATUS_CONTEXT"]',
+        ),
+    )
+    if "statuses/{os.environ['HEAD_SHA']}" in final_run:
+        violations.append("final refresh status targets head instead of merge")
+    _require_fragments(
+        violations,
+        named.get("Require refreshed verification and current transition", {}).get(
+            "run"
+        ),
+        "refresh final requirement",
+        ('test "$VERIFY_RESULT" = "success"', 'test "$TRANSITION_FRESH" = "true"'),
+    )
     return violations
 
 
@@ -323,24 +485,24 @@ def test_required_workflows_satisfy_trust_contract():
     assert report["passed"] is True, report["violations"]
 
 
-def test_causal_workflow_satisfies_extended_contract():
+def test_extended_trust_contracts_pass():
     assert _causal_contract_violations(WORKFLOWS[-1]) == []
-
-
-def test_base_trust_root_workflow_satisfies_extended_contract():
     assert _trusted_contract_violations(TRUSTED_WORKFLOW) == []
+    assert _refresh_contract_violations(REFRESH_WORKFLOW) == []
+
+
+def test_status_identity_changes_when_base_transition_changes():
+    context = _branch_scoped_context("main")
+    shared_head = "a" * 40
+    old_merge = "b" * 40
+    new_merge = "c" * 40
+    assert (context, shared_head, old_merge) != (context, shared_head, new_merge)
 
 
 def test_same_head_against_two_base_refs_has_distinct_status_contexts():
-    shared_head = "a" * 40
-    main_context = _branch_scoped_context("main")
-    maintenance_context = _branch_scoped_context("maintenance/1.x")
-
-    assert shared_head == "a" * 40
-    assert main_context != maintenance_context
-    assert main_context == _branch_scoped_context("main")
-    assert maintenance_context == _branch_scoped_context("maintenance/1.x")
-    assert len(main_context) == len("CML Trust Root Gate / ") + 64
+    assert _branch_scoped_context("main") != _branch_scoped_context(
+        "maintenance/1.x"
+    )
 
 
 def test_action_pin_pattern_is_segment_bounded():
@@ -359,55 +521,21 @@ def _mutate(tmp_path: Path, source: Path, old: str, new: str) -> Path:
     return mutated
 
 
-def test_contract_rejects_mutable_action_tag(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[0],
-        "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
-        "actions/checkout@v6",
+def test_standard_contract_mutations_fail(tmp_path: Path):
+    mutations = (
+        (
+            "actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10",
+            "actions/checkout@v6",
+            "not pinned to a full SHA",
+        ),
+        ("persist-credentials: false", "persist-credentials: true", "credentials"),
+        ("ref: ${{ env.EXPECTED_SHA }}", "ref: ${{ github.sha }}", "checkout ref"),
+        ("if-no-files-found: error", "if-no-files-found: warn", "missing evidence"),
+        ("  pull_request:", "  pull_request_target:", "pull_request_target"),
     )
-    assert any("not pinned to a full SHA" in item for item in verify_workflow(mutated))
-
-
-def test_contract_rejects_persisted_checkout_credentials(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[0],
-        "persist-credentials: false",
-        "persist-credentials: true",
-    )
-    assert any("credentials must not persist" in item for item in verify_workflow(mutated))
-
-
-def test_contract_rejects_non_exact_checkout(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[0],
-        "ref: ${{ env.EXPECTED_SHA }}",
-        "ref: ${{ github.sha }}",
-    )
-    assert any("checkout ref is not exact-head bound" in item for item in verify_workflow(mutated))
-
-
-def test_contract_rejects_missing_artifact_downgrade(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[0],
-        "if-no-files-found: error",
-        "if-no-files-found: warn",
-    )
-    assert any("missing evidence must be an error" in item for item in verify_workflow(mutated))
-
-
-def test_contract_rejects_pull_request_target(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[0],
-        "  pull_request:",
-        "  pull_request_target:",
-    )
-    violations = verify_workflow(mutated)
-    assert any("pull_request_target is forbidden" in item for item in violations)
+    for old, new, expected in mutations:
+        mutated = _mutate(tmp_path, WORKFLOWS[0], old, new)
+        assert any(expected in item for item in verify_workflow(mutated))
 
 
 def test_contract_rejects_duplicate_yaml_keys(tmp_path: Path):
@@ -419,151 +547,52 @@ def test_contract_rejects_duplicate_yaml_keys(tmp_path: Path):
     assert any("duplicate key" in item for item in verify_workflow(mutated))
 
 
-def test_causal_contract_rejects_target_branch_filter(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[-1],
-        "  pull_request:\n    types:",
-        "  pull_request:\n    branches: [main]\n    types:",
+def test_causal_contract_mutations_fail(tmp_path: Path):
+    cases = (
+        (
+            "  pull_request:\n    types:",
+            "  pull_request:\n    branches: [main]\n    types:",
+            "target-branch filters",
+        ),
+        ("name: Causal PR Gate", "name: Causal Gate", "required check name"),
+        ("ready_for_review, edited", "ready_for_review", "missing required"),
+        (
+            "EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+            "EXPECTED_SHA: ${{ github.sha }}",
+            "EXPECTED_SHA",
+        ),
+        (
+            "Reconfirm base tip before final manifest",
+            "Observe base tip before final manifest",
+            "exactly once",
+        ),
+        (
+            '--require "final/base-freshness.json"',
+            '--require "final/other.json"',
+            "final/base-freshness.json",
+        ),
     )
-    assert any(
-        "target-branch filters" in item
-        for item in _causal_contract_violations(mutated)
-    )
+    for old, new, expected in cases:
+        mutated = _mutate(tmp_path, WORKFLOWS[-1], old, new)
+        assert any(expected in item for item in _causal_contract_violations(mutated))
 
 
-def test_trusted_contract_rejects_target_branch_filter(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        TRUSTED_WORKFLOW,
-        "  pull_request_target:\n    types:",
-        "  pull_request_target:\n    branches: [main]\n    types:",
-    )
-    assert any(
-        "may not use target-branch filters" in item
-        for item in _trusted_contract_violations(mutated)
-    )
-
-
-def test_trusted_contract_rejects_subject_executed_verifier(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        TRUSTED_WORKFLOW,
-        "python base/.github/trust-root/scripts/verify_subject.py",
-        "python subject/.github/trust-root/scripts/verify_subject.py",
-    )
-    assert any(
-        "python base/.github/trust-root/scripts/verify_subject.py" in item
-        for item in _trusted_contract_violations(mutated)
-    )
-
-
-def test_trusted_contract_rejects_unbound_subject_checkout(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        TRUSTED_WORKFLOW,
-        "ref: ${{ github.event.pull_request.head.sha }}",
-        "ref: ${{ github.sha }}",
-    )
-    assert any(
-        "untrusted subject checkout is not bound to exact head SHA" in item
-        for item in _trusted_contract_violations(mutated)
-    )
-
-
-def test_trusted_contract_rejects_constant_cross_branch_context(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        TRUSTED_WORKFLOW,
-        '"context": status_context',
-        '"context": "CML Trust Root Gate"',
-    )
-    assert any(
-        "cross-branch constant context" in item
-        for item in _trusted_contract_violations(mutated)
-    )
-
-
-def test_trusted_contract_rejects_evidence_without_exact_base_sha(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        TRUSTED_WORKFLOW,
-        'payload["base_sha"] = base_sha',
-        'payload["observed_sha"] = base_sha',
-    )
-    assert any(
-        'payload["base_sha"] = base_sha' in item
-        for item in _trusted_contract_violations(mutated)
-    )
-
-
-def test_causal_contract_rejects_changed_check_name(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[-1],
-        "name: Causal PR Gate",
-        "name: Causal Gate",
-    )
-    assert any(
-        "required check name changed" in item
-        for item in _causal_contract_violations(mutated)
-    )
-
-
-def test_causal_contract_rejects_missing_edited_trigger(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[-1],
-        "ready_for_review, edited",
-        "ready_for_review",
-    )
-    assert any(
-        "missing required pull-request activity types" in item
-        for item in _causal_contract_violations(mutated)
-    )
-
-
-def test_causal_contract_rejects_unbound_expected_sha(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[-1],
-        "EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
-        "EXPECTED_SHA: ${{ github.sha }}",
-    )
-    assert any(
-        "EXPECTED_SHA is not bound to the PR head" in item
-        for item in _causal_contract_violations(mutated)
-    )
-
-
-def test_causal_contract_rejects_duplicate_critical_step_name(tmp_path: Path):
+def test_causal_contract_rejects_duplicate_and_shallow_steps(tmp_path: Path):
     original = (
         "      - name: Fetch exact base commit\n"
         "        run: |\n"
         "          test -n \"$BASE_SHA\""
     )
-    duplicated = (
-        "      - name: Fetch exact base commit\n"
-        "        run: echo shadowed\n\n"
-        + original
-    )
+    duplicated = "      - name: Fetch exact base commit\n        run: echo shadowed\n\n" + original
     mutated = _mutate(tmp_path, WORKFLOWS[-1], original, duplicated)
-    assert any(
-        "must appear exactly once" in item
-        for item in _causal_contract_violations(mutated)
-    )
+    assert any("exactly once" in item for item in _causal_contract_violations(mutated))
 
-
-def test_causal_contract_rejects_every_shallow_base_fetch_option(
-    tmp_path: Path,
-):
-    options = (
+    for option in (
         "--depth=1",
         "--deepen=3",
         "--shallow-since=2024-01-01",
         "--shallow-exclude=HEAD",
-    )
-    for option in options:
+    ):
         mutated = _mutate(
             tmp_path,
             WORKFLOWS[-1],
@@ -573,42 +602,79 @@ def test_causal_contract_rejects_every_shallow_base_fetch_option(
         assert any(
             "shallow ancestry boundary" in item
             for item in _causal_contract_violations(mutated)
-        ), option
+        )
 
 
-def test_causal_contract_rejects_removed_base_recheck(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[-1],
-        "Reconfirm base tip before final manifest",
-        "Observe base tip before final manifest",
+def test_trusted_contract_mutations_fail(tmp_path: Path):
+    cases = (
+        (
+            "  pull_request_target:\n    types:",
+            "  pull_request_target:\n    branches: [main]\n    types:",
+            "target-branch filters",
+        ),
+        (
+            "python base/.github/trust-root/scripts/verify_subject.py",
+            "python subject/.github/trust-root/scripts/verify_subject.py",
+            "base/.github/trust-root/scripts/verify_subject.py",
+        ),
+        (
+            "ref: ${{ github.event.pull_request.head.sha }}",
+            "ref: ${{ github.sha }}",
+            "subject checkout is not bound",
+        ),
+        (
+            '"context": status_context',
+            '"context": "CML Trust Root Gate"',
+            "cross-branch constant context",
+        ),
+        (
+            'statuses/{merge_sha}',
+            'statuses/{head_sha}',
+            "head instead of test merge",
+        ),
+        (
+            "merge_sha: ${{ steps.identity.outputs.merge_sha }}",
+            "merge_sha: ${{ github.event.pull_request.head.sha }}",
+            "test merge SHA is not exported",
+        ),
     )
-    assert any(
-        "must appear exactly once" in item
-        for item in _causal_contract_violations(mutated)
+    for old, new, expected in cases:
+        mutated = _mutate(tmp_path, TRUSTED_WORKFLOW, old, new)
+        assert any(expected in item for item in _trusted_contract_violations(mutated))
+
+
+def test_refresh_contract_mutations_fail(tmp_path: Path):
+    cases = (
+        ('cron: "*/5 * * * *"', 'cron: "0 * * * *"', "every five minutes"),
+        (
+            "workflow_dispatch:",
+            "push:",
+            "may not run untrusted branch code on push",
+        ),
+        (
+            "base/.github/trust-root/scripts/verify_subject.py",
+            "subject/.github/trust-root/scripts/verify_subject.py",
+            "base/.github/trust-root/scripts/verify_subject.py",
+        ),
+        (
+            "statuses/{os.environ['MERGE_SHA']}",
+            "statuses/{os.environ['HEAD_SHA']}",
+            "head instead of merge",
+        ),
+        (
+            "observed == expected",
+            "True",
+            "observed == expected",
+        ),
     )
+    for old, new, expected in cases:
+        mutated = _mutate(tmp_path, REFRESH_WORKFLOW, old, new)
+        assert any(expected in item for item in _refresh_contract_violations(mutated))
 
 
-def test_causal_contract_rejects_detached_base_artifact(tmp_path: Path):
-    mutated = _mutate(
-        tmp_path,
-        WORKFLOWS[-1],
-        '--require "final/base-freshness.json"',
-        '--require "final/other.json"',
-    )
-    assert any(
-        "final/base-freshness.json" in item
-        for item in _causal_contract_violations(mutated)
-    )
-
-
-def test_runbook_requires_up_to_date_branch_protection():
-    runbook = (ROOT / "docs/ci/CAUSAL_PR_GATE.md").read_text(
-        encoding="utf-8"
-    )
-
+def test_runbook_requires_current_test_merge_protection():
+    runbook = (ROOT / "docs/ci/CAUSAL_PR_GATE.md").read_text(encoding="utf-8")
+    assert "test merge commit" in runbook.casefold()
+    assert "CML Trust Root Refresh" in runbook
     assert "Require branches to be up to date before merging" in runbook
     assert "`strict: true`" in runbook
-    assert "base branch can still advance after a successful run" in runbook.casefold()
-    assert "`CML Trust Root Gate`" in runbook
-    assert "every protected target branch" in runbook
