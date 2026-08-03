@@ -68,11 +68,7 @@ def call(
     query: dict | None = None,
     headers: dict | None = None,
 ):
-    request_headers = (
-        {"x-demo-key": TEST_DEMO_KEY}
-        if headers is None
-        else headers
-    )
+    request_headers = {"x-demo-key": TEST_DEMO_KEY} if headers is None else headers
     event = {
         "rawPath": path,
         "requestContext": {"http": {"method": method}},
@@ -106,6 +102,26 @@ def test_health_does_not_require_database(monkeypatch: pytest.MonkeyPatch):
     assert body["status"] == "ok"
     assert body["service"] == "liminal-recall"
     assert body["build_sha"] == build_sha
+    assert body["runtime_instance_id"]
+
+
+@pytest.mark.parametrize("build_sha", [None, "", "not-a-commit-sha", "A" * 40])
+def test_health_fails_closed_without_valid_build_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    build_sha: str | None,
+):
+    if build_sha is None:
+        monkeypatch.delenv("BUILD_SHA", raising=False)
+    else:
+        monkeypatch.setenv("BUILD_SHA", build_sha)
+
+    status, body = call("GET", "/healthz", headers={})
+
+    assert status == 503
+    assert body["status"] == "unhealthy"
+    assert body["service"] == "liminal-recall"
+    assert body["error"] == "invalid_build_identity"
+    assert "build_sha" not in body
     assert body["runtime_instance_id"]
 
 
