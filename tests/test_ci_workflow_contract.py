@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shlex
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,11 @@ SHALLOW_FETCH_OPTIONS = (
     "--depth",
     "--shallow-exclude",
     "--shallow-since",
+)
+CRITICAL_STEP_NAMES = (
+    "Fetch exact base commit",
+    "Reconfirm base tip before evidence",
+    "Reconfirm base tip before final manifest",
 )
 
 
@@ -79,7 +85,7 @@ def _causal_contract_violations(path: Path) -> list[str]:
     if _mapping(jobs.get("gate")).get("name") != "Causal PR Gate":
         violations.append("required check name changed")
 
-    step_names: set[str] = set()
+    step_name_counts: Counter[str] = Counter()
     run_text: list[str] = []
     named_run_text: dict[str, str] = {}
     for raw_job in jobs.values():
@@ -91,19 +97,18 @@ def _causal_contract_violations(path: Path) -> list[str]:
             step = _mapping(raw_step)
             name = step.get("name")
             if isinstance(name, str):
-                step_names.add(name)
+                step_name_counts[name] += 1
             run = step.get("run")
             if isinstance(run, str):
                 run_text.append(run)
                 if isinstance(name, str):
-                    named_run_text[name] = run
+                    named_run_text.setdefault(name, run)
 
-    required_freshness_steps = {
-        "Reconfirm base tip before evidence",
-        "Reconfirm base tip before final manifest",
-    }
-    if not required_freshness_steps.issubset(step_names):
-        violations.append("base freshness must be checked in both causal jobs")
+    for required_name in CRITICAL_STEP_NAMES:
+        if step_name_counts[required_name] != 1:
+            violations.append(
+                f"critical step {required_name!r} must appear exactly once"
+            )
 
     base_fetch = named_run_text.get("Fetch exact base commit", "")
     if "git fetch --no-tags" not in base_fetch:
@@ -261,6 +266,24 @@ def test_causal_contract_rejects_unbound_expected_sha(tmp_path: Path):
     )
 
 
+def test_causal_contract_rejects_duplicate_critical_step_name(tmp_path: Path):
+    original = (
+        "      - name: Fetch exact base commit\n"
+        "        run: |\n"
+        "          test -n \"$BASE_SHA\""
+    )
+    duplicated = (
+        "      - name: Fetch exact base commit\n"
+        "        run: echo shadowed\n\n"
+        + original
+    )
+    mutated = _mutate(tmp_path, WORKFLOWS[-1], original, duplicated)
+    assert any(
+        "must appear exactly once" in item
+        for item in _causal_contract_violations(mutated)
+    )
+
+
 def test_causal_contract_rejects_every_shallow_base_fetch_option(
     tmp_path: Path,
 ):
@@ -291,7 +314,7 @@ def test_causal_contract_rejects_removed_base_recheck(tmp_path: Path):
         "Observe base tip before final manifest",
     )
     assert any(
-        "base freshness must be checked" in item
+        "must appear exactly once" in item
         for item in _causal_contract_violations(mutated)
     )
 
