@@ -599,11 +599,15 @@ def main() -> int:
         elif args.mode == "capture":
             if not args.function_url or not args.function_name:
                 raise DeploymentError("capture mode requires --function-url and --function-name")
-            expected_build_sha = args.expected_build_sha or _repository_head()
+            repository_head = _require_clean_repository()
+            if args.expected_build_sha and args.expected_build_sha != repository_head:
+                raise DeploymentError(
+                    "--expected-build-sha must match the current clean repository head"
+                )
             capture_runtime_proof(
                 args.function_url.rstrip("/"),
                 args.function_name,
-                expected_build_sha,
+                repository_head,
             )
         else:
             _write_json("preflight.json", preflight())
