@@ -4,6 +4,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 
 APP_ROOT = Path(__file__).resolve().parents[1] / "hackathons" / "liminal-recall"
 sys.path.insert(0, str(APP_ROOT))
@@ -59,3 +61,32 @@ def test_connect_defaults_to_verify_full_when_url_omits_sslmode(monkeypatch) -> 
     assert calls["sslmode"] == "verify-full"
     expected_cert = Path(store_module.__file__).with_name("cockroach-root.crt")
     assert calls["sslrootcert"] == str(expected_cert)
+
+
+@pytest.mark.parametrize(
+    "sslmode",
+    ["disable", "allow", "prefer", "require", "verify-ca", ""],
+)
+def test_connect_rejects_insecure_or_ambiguous_sslmode(
+    monkeypatch,
+    sslmode: str,
+) -> None:
+    _install_fake_psycopg(monkeypatch)
+    database_url = (
+        "postgresql://synthetic-user:synthetic-password"
+        f"@db.invalid/db?sslmode={sslmode}"
+    )
+
+    with pytest.raises(ValueError, match="sslmode must be exactly verify-full"):
+        CockroachMemoryStore(database_url)._connect()
+
+
+def test_connect_rejects_duplicate_sslmode_values(monkeypatch) -> None:
+    _install_fake_psycopg(monkeypatch)
+    database_url = (
+        "postgresql://synthetic-user:synthetic-password"
+        "@db.invalid/db?sslmode=verify-full&sslmode=disable"
+    )
+
+    with pytest.raises(ValueError, match="sslmode must be exactly verify-full"):
+        CockroachMemoryStore(database_url)._connect()
