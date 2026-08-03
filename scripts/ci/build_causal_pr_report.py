@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import stat
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -298,8 +300,24 @@ def _is_executable_test_path(path: str) -> bool:
     return _is_test_path(normalized) and Path(normalized).suffix in EXECUTABLE_TEST_SUFFIXES
 
 
-def _surviving_changed_tests(changes: Iterable[Change]) -> list[str]:
-    """Return executable test destinations that still exist after the transition."""
+def _is_regular_repository_file(repo_root: Path, path: str) -> bool:
+    """Accept only a non-symlink regular file contained by the checkout."""
+
+    root = repo_root.resolve()
+    candidate = root / path
+    try:
+        mode = os.lstat(candidate).st_mode
+        resolved = candidate.resolve(strict=True)
+        resolved.relative_to(root)
+    except (FileNotFoundError, OSError, RuntimeError, ValueError):
+        return False
+    return stat.S_ISREG(mode)
+
+
+def _surviving_changed_tests(
+    changes: Iterable[Change], repo_root: Path
+) -> list[str]:
+    """Return executable regular-file test destinations surviving the transition."""
 
     return sorted(
         {
@@ -307,6 +325,7 @@ def _surviving_changed_tests(changes: Iterable[Change]) -> list[str]:
             for change in changes
             if not change.status.startswith("D")
             and _is_executable_test_path(change.path)
+            and _is_regular_repository_file(repo_root, change.path)
         }
     )
 
@@ -460,7 +479,7 @@ def _existing_test_references(section: str, repo_root: Path) -> list[str]:
             candidate.relative_to(root)
         except ValueError:
             continue
-        if candidate.is_file():
+        if _is_regular_repository_file(root, path):
             existing.append(path)
     return existing
 
@@ -491,7 +510,7 @@ def evaluate_transition(
         violations.append("reviewed base SHA is not an ancestor of the PR head")
 
     groups = classify_changes(changes)
-    changed_regression_tests = _surviving_changed_tests(changes)
+    changed_regression_tests = _surviving_changed_tests(changes, repo_root)
     sections, duplicate_sections = _extract_sections(body)
     for name in sorted(duplicate_sections):
         violations.append(f"duplicate causal review section: {name}")
