@@ -430,9 +430,11 @@ def _classify_path(path: str, modes: set[str]) -> str:
         return "tests"
     if _is_workflow_contract_change(path):
         return "workflows"
-    if "100755" in modes or _is_implementation_path(path):
+    if modes and modes != {"100644"}:
         return "implementation"
-    if _is_documentation_path(path):
+    if _is_implementation_path(path):
+        return "implementation"
+    if modes == {"100644"} and _is_documentation_path(path):
         return "documentation"
     return "other"
 
