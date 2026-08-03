@@ -47,7 +47,7 @@ jobs:
         run: |
           test -n "$BASE_SHA"
           if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-            git fetch --no-tags --depth=1 \
+            git fetch --no-tags \
               "https://github.com/${GITHUB_REPOSITORY}.git" \
               "$BASE_SHA"
           fi
