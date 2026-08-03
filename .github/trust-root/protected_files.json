@@ -29,7 +29,7 @@
     "scripts/ci/verify_workflow_contract.py": "85ef8222b10cd1731372fd9e58a586046f214cc0",
     "tests/test_causal_pr_contract.py": "e2c1f39bc8a475cd8ec27e7c85e5451c7fd89c0a",
     "tests/test_ci_evidence.py": "2d080fc4c728f1d8d98c01311839c8cd456b2f90",
-    "tests/test_ci_workflow_contract.py": "b53b9f4ae4a1fa2e22ac3f46b6b91104885dd3f4",
+    "tests/test_ci_workflow_contract.py": "461a1fd94c0e1fb5207d60f43c3bd9fafc93f5e1",
     "tests/test_memory_learning_fallback.py": "99fb47b10ce7664e030f10ccbcf2f02edbe9d804",
     "tests/test_memory_learning_fallback_schema.py": "65ffccd638ee562d201499275a460027a8a63c9b",
     "tests/test_memory_learning_loop.py": "5aea6b9571e721aaa9b5a1e502b0d49e82e9f37b",
