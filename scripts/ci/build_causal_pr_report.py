@@ -222,11 +222,12 @@ def _normalize_heading(value: str) -> str:
     return " ".join(normalized.split())
 
 
-def extract_sections(body: str) -> dict[str, str]:
-    """Extract required causal-review sections from Markdown PR text."""
+def _extract_sections(body: str) -> tuple[dict[str, str], set[str]]:
+    """Extract causal sections while preserving the first canonical occurrence."""
 
     matches = list(HEADING_RE.finditer(body or ""))
     sections: dict[str, str] = {}
+    duplicates: set[str] = set()
     for index, match in enumerate(matches):
         heading = _normalize_heading(match.group(1))
         canonical = next(
@@ -240,7 +241,17 @@ def extract_sections(body: str) -> dict[str, str]:
         if canonical is None:
             continue
         end = matches[index + 1].start() if index + 1 < len(matches) else len(body)
+        if canonical in sections:
+            duplicates.add(canonical)
+            continue
         sections[canonical] = body[match.end() : end].strip()
+    return sections, duplicates
+
+
+def extract_sections(body: str) -> dict[str, str]:
+    """Extract unique required causal-review sections from Markdown PR text."""
+
+    sections, _ = _extract_sections(body)
     return sections
 
 
@@ -343,6 +354,7 @@ def changed_files(repo_root: Path, base_sha: str, head_sha: str) -> list[Change]
         "--find-renames",
         base_sha,
         head_sha,
+        "--",
     )
     changes: list[Change] = []
     for line in output.splitlines():
@@ -427,7 +439,9 @@ def evaluate_transition(
         violations.append("reviewed base SHA is not an ancestor of the PR head")
 
     groups = classify_changes(changes)
-    sections = extract_sections(body)
+    sections, duplicate_sections = _extract_sections(body)
+    for name in sorted(duplicate_sections):
+        violations.append(f"duplicate causal review section: {name}")
     strict = bool(
         groups["implementation"]
         or groups["workflows"]
@@ -574,6 +588,11 @@ def build_report(
 ) -> dict[str, Any]:
     """Build the report from an exact checkout and a GitHub event payload."""
 
+    for name, value in (("base", base_sha), ("head", head_sha)):
+        if not SHA_RE.fullmatch(value):
+            raise ValueError(
+                f"{name} SHA must be a full lowercase 40-character SHA"
+            )
     current_head = _run_git(repo_root, "rev-parse", "HEAD")
     dirty = bool(_run_git(repo_root, "status", "--porcelain"))
     base_is_ancestor = _git_is_ancestor(repo_root, base_sha, head_sha)
