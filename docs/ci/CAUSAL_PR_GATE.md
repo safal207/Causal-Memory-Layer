@@ -4,7 +4,18 @@ The `Causal PR Gate` turns every pull request into a reviewable state transition
 
 ## What always runs
 
-For every pull request, regardless of its target branch, the workflow:
+Every pull request, regardless of its target branch, receives two independent trust lanes.
+
+The base-trusted `CML Trust Root Gate` runs through `pull_request_target` without target-branch filters. It:
+
+1. checks out the exact target-branch base SHA into an isolated `base` directory;
+2. checks out the exact pull-request head from its actual source repository into an isolated `subject` directory;
+3. executes only `base/.github/trust-root/scripts/verify_subject.py`;
+4. treats the subject checkout as untrusted data and never imports or executes its verifier;
+5. compares protected workflow and CI identities against the manifest from the exact target base;
+6. publishes the immutable status context `CML Trust Root Gate` on the exact head SHA.
+
+The head-executed `Causal PR Gate` then:
 
 1. checks out the exact pull-request head from the actual source repository;
 2. binds the report to the exact base SHA and target branch;
@@ -18,6 +29,8 @@ For every pull request, regardless of its target branch, the workflow:
 10. re-reads the target branch tip before lane evidence and again before the final manifest;
 11. publishes exact-head and exact-base evidence tied to the run ID and attempt;
 12. exposes the stable required-check name `Causal PR Gate`.
+
+The causal lane cannot authenticate its own implementation. Only the target branch's base-trusted lane can establish that the analyzer, workflow validator, selected regression tests, and protected blob identities are approved by that target's trust root.
 
 ## Strict and lightweight policy
 
@@ -36,7 +49,7 @@ The change must also include a changed test or cite an existing test by exact re
 
 ### Lightweight mode
 
-Only documentation-only transitions receive lightweight mode. Markdown, reStructuredText, AsciiDoc, recognized repository documents, and documentation media are eligible. A script located under `docs/` is still executable and therefore strict. Unknown extensions fail closed into strict mode.
+Only documentation-only transitions receive lightweight mode. Markdown, reStructuredText, AsciiDoc, recognized repository documents, and documentation media are eligible only when their exact Git mode is the regular non-executable blob mode `100644`. Executable blobs, symlinks, gitlinks, mixed modes, missing modes, and unknown modes are strict. A script located under `docs/` is still executable and therefore strict. Unknown extensions fail closed into strict mode.
 
 ## Generated graph
 
@@ -54,19 +67,20 @@ The JSON report contains both sides of renames, all classified paths, sanitized 
 
 ## Base freshness
 
-The workflow confirms through the GitHub API that the observed target-branch tip still equals the event's exact base SHA:
+The causal workflow confirms through the GitHub API that the observed target-branch tip still equals the event's exact base SHA:
 
 - once after analysis and mutation tests;
 - again immediately before the final evidence manifest.
 
 Both observations are included in the final evidence manifest. If the target branch moves during the run, the gate fails rather than publishing stale evidence.
 
-A base branch can still advance after a successful run. Therefore every protected target branch must enable **Require branches to be up to date before merging**, represented by `required_status_checks.strict: true` in classic branch protection. This external rule blocks merge until the PR head is updated; the resulting `synchronize` event reruns the gate against the new base.
+A base branch can still advance after a successful run. Therefore every protected target branch must enable **Require branches to be up to date before merging**, represented by `required_status_checks.strict: true` in classic branch protection. This external rule blocks merge until the PR head is updated; the resulting `synchronize` event reruns both trust lanes against the new base.
 
-The bootstrap is not complete until both controls are enabled for each protected target branch:
+The bootstrap is not complete until all three controls are enabled for every protected target branch:
 
-1. `Causal PR Gate` is a required status check;
-2. **Require branches to be up to date before merging** is enabled.
+1. `CML Trust Root Gate` is a required status check;
+2. `Causal PR Gate` is a required status check;
+3. **Require branches to be up to date before merging** is enabled.
 
 An owner with repository administration read permission can verify classic protection with:
 
@@ -75,11 +89,11 @@ gh api repos/OWNER/REPO/branches/BRANCH/protection/required_status_checks \
   --jq '{strict,contexts,checks}'
 ```
 
-The returned object must show `strict: true` and include the required causal check. Repositories using rulesets must enforce the equivalent up-to-date-base and required-check rules.
+The returned object must show `strict: true` and include both required checks. Repositories using rulesets must enforce the equivalent up-to-date-base and required-check rules.
 
 ## Trust boundaries
 
-The gate proves that the declared transition and regression evidence are attached to one exact pull-request head and one exact base observation. It does not replace:
+The base-trusted gate proves that protected CI identities match the exact target branch's approved manifest. The causal gate proves that the declared transition and regression evidence are attached to one exact pull-request head and one exact base observation. Neither replaces:
 
 - CI test matrices;
 - package validation;
@@ -92,19 +106,21 @@ Review evidence supports a merge decision but never grants merge authority.
 
 ## Repository protection
 
-This workflow changes the protected CI trust root and therefore requires a dedicated bootstrap review. After it is merged to the default branch, configure every protected target branch to require `Causal PR Gate` alongside the existing CI, package, security, and trust-root checks, and require branches to be current before merge.
+This change modifies the protected CI trust root and therefore requires a dedicated bootstrap review. After it is merged to the default branch, configure every protected target branch to require `CML Trust Root Gate` and `Causal PR Gate` alongside the existing CI, package, and security checks, and require branches to be current before merge.
 
-Required status checks plus up-to-date-base enforcement are the merge boundary. Without those repository settings, the workflow still produces evidence but cannot prevent an administrator or alternate merge path from accepting stale evidence.
+The `CML Trust Root Gate` workflow itself has no target-branch filter. Its verifier is loaded from the exact target base, while the pull-request head is checked out only as data. A release or maintenance branch therefore evaluates proposed CI changes against its own approved trust root rather than trusting code supplied by the pull request.
+
+Required status checks plus up-to-date-base enforcement are the merge boundary. Without those repository settings, workflows still produce evidence but cannot prevent an administrator or alternate merge path from accepting stale or unauthenticated evidence.
 
 ## Failure recovery
 
-When the gate fails:
+When a gate fails:
 
-1. open the `causal-pr-report.md` and base-freshness artifacts;
+1. inspect the exact-attempt `trust-root-verification.json`, causal report, and base-freshness artifacts;
 2. read the explicit violations;
 3. update the PR causal-review sections or regression evidence;
 4. update the branch when the base branch has moved;
 5. push a bounded fix or edit the PR body;
-6. let the gate rerun against the new exact head and base.
+6. let both gates rerun against the new exact head and base.
 
-Do not suppress the gate, use `continue-on-error`, loosen artifact handling, replace full action SHAs with mutable tags, or disable up-to-date-base protection to make a merge appear green.
+Do not suppress either gate, use `continue-on-error`, loosen artifact handling, replace full action SHAs with mutable tags, execute subject trust-root helpers, add target-branch filters, or disable up-to-date-base protection to make a merge appear green.
