@@ -54,6 +54,7 @@ EXECUTABLE_TEST_SUFFIXES = {
     ".ts",
     ".tsx",
 }
+REGULAR_BLOB_MODES = {"100644", "100755"}
 
 SECTION_ALIASES = {
     "failure_path": {"failure path", "failure mode"},
@@ -360,7 +361,7 @@ def _surviving_changed_tests(
             change.path
             for change in changes
             if not change.status.startswith("D")
-            and change.mode == "100644"
+            and change.mode in REGULAR_BLOB_MODES
             and _is_executable_test_path(change.path)
             and _is_regular_repository_file(repo_root, change.path)
         }
