@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -44,22 +45,28 @@ def _evaluate(
     *,
     base_is_ancestor: bool = True,
 ):
+    normalized_changes: list[Change] = []
     for change in changes:
         candidate = tmp_path / change.path
-        if (
-            not change.status.startswith("D")
-            and _is_executable_test_path(change.path)
-            and not os.path.lexists(candidate)
-        ):
-            candidate.parent.mkdir(parents=True, exist_ok=True)
-            candidate.write_text(
-                "def test_regression():\n    assert True\n", encoding="utf-8"
-            )
+        normalized = change
+        if not change.status.startswith("D") and _is_executable_test_path(change.path):
+            if not os.path.lexists(candidate):
+                candidate.parent.mkdir(parents=True, exist_ok=True)
+                candidate.write_text(
+                    "def test_regression():\n    assert True\n", encoding="utf-8"
+                )
+            if (
+                change.mode is None
+                and candidate.is_file()
+                and not candidate.is_symlink()
+            ):
+                normalized = replace(change, mode="100644")
+        normalized_changes.append(normalized)
     return evaluate_transition(
         repo_root=tmp_path,
         base_sha=BASE_SHA,
         head_sha=HEAD_SHA,
-        changes=changes,
+        changes=normalized_changes,
         body=body,
         current_head=HEAD_SHA,
         dirty=False,
@@ -115,6 +122,19 @@ def test_runtime_suffixes_override_documentation_name_prefixes(tmp_path: Path) -
     )
     assert "README.py" not in report["groups"]["documentation"]
     assert "LICENSE.js" not in report["groups"]["documentation"]
+
+
+def test_documentation_prefix_requires_exact_filename(tmp_path: Path) -> None:
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("A", "README-runner"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
+    )
+    assert report["scope"] == "strict"
+    assert report["groups"]["other"] == ["README-runner"]
+    assert "README-runner" not in report["groups"]["documentation"]
 
 
 def test_genuine_documentation_names_remain_lightweight(tmp_path: Path) -> None:
@@ -214,9 +234,15 @@ def test_strict_change_without_test_evidence_fails(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "test_change",
     [
-        Change("D", "tests/test_old.py"),
-        Change("A", "tests/README.md"),
-        Change("R100", "tests/README.md", "tests/test_old.py"),
+        Change("D", "tests/test_old.py", previous_mode="100644"),
+        Change("A", "tests/README.md", mode="100644"),
+        Change(
+            "R100",
+            "tests/README.md",
+            "tests/test_old.py",
+            mode="100644",
+            previous_mode="100644",
+        ),
     ],
 )
 def test_non_runnable_test_change_does_not_satisfy_regression_contract(
@@ -239,7 +265,10 @@ def test_symlink_test_destination_does_not_satisfy_regression_contract(
     symlink.symlink_to("/dev/null")
     report = _evaluate(
         tmp_path,
-        [Change("M", "cml/record.py"), Change("A", "tests/test_regression.py")],
+        [
+            Change("M", "cml/record.py"),
+            Change("A", "tests/test_regression.py", mode="120000"),
+        ],
     )
     assert report["passed"] is False
     assert report["changed_regression_tests"] == []
@@ -264,15 +293,71 @@ def test_symlink_existing_test_reference_does_not_satisfy_contract(
     assert any("surviving executable" in item for item in report["violations"])
 
 
+def test_symlinked_ancestor_test_reference_does_not_satisfy_contract(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "docs" / "not_a_test.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("VALUE = 1\n", encoding="utf-8")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "alias").symlink_to("../docs", target_is_directory=True)
+    body = COMPLETE_BODY.replace(
+        "Added `tests/test_causal_pr_contract.py` to exercise the policy and failure paths.",
+        "Existing test: `tests/alias/not_a_test.py` exercises this invariant.",
+    )
+    report = _evaluate(tmp_path, [Change("M", "cml/record.py")], body=body)
+    assert report["passed"] is False
+    assert report["existing_test_references"] == []
+    assert any("surviving executable" in item for item in report["violations"])
+
+
+def test_gitlink_mode_test_destination_does_not_satisfy_contract(
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "tests" / "test_submodule.py"
+    destination.mkdir(parents=True)
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("M", "cml/record.py"),
+            Change("A", "tests/test_submodule.py", mode="160000"),
+        ],
+    )
+    assert report["passed"] is False
+    assert report["changed_regression_tests"] == []
+
+
 def test_surviving_executable_test_satisfies_regression_contract(
     tmp_path: Path,
 ) -> None:
     report = _evaluate(
         tmp_path,
-        [Change("M", "cml/record.py"), Change("M", "tests/test_record.py")],
+        [
+            Change("M", "cml/record.py"),
+            Change("M", "tests/test_record.py", mode="100644"),
+        ],
     )
     assert report["passed"] is True, report["violations"]
     assert report["changed_regression_tests"] == ["tests/test_record.py"]
+
+
+def test_regular_executable_test_blob_satisfies_regression_contract(
+    tmp_path: Path,
+) -> None:
+    test_file = tmp_path / "tests" / "test_cli.sh"
+    test_file.parent.mkdir(parents=True)
+    test_file.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    test_file.chmod(0o755)
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("M", "cml/record.py"),
+            Change("A", "tests/test_cli.sh", mode="100755"),
+        ],
+    )
+    assert report["passed"] is True, report["violations"]
+    assert report["changed_regression_tests"] == ["tests/test_cli.sh"]
 
 
 def test_rename_destination_executable_test_satisfies_contract(tmp_path: Path) -> None:
@@ -280,7 +365,13 @@ def test_rename_destination_executable_test_satisfies_contract(tmp_path: Path) -
         tmp_path,
         [
             Change("M", "cml/record.py"),
-            Change("R100", "tests/test_record_new.py", "tests/README.md"),
+            Change(
+                "R100",
+                "tests/test_record_new.py",
+                "tests/README.md",
+                mode="100644",
+                previous_mode="100644",
+            ),
         ],
     )
     assert report["passed"] is True, report["violations"]
@@ -292,7 +383,7 @@ def test_workflow_change_requires_contract_test(tmp_path: Path) -> None:
         tmp_path,
         [
             Change("M", ".github/workflows/ci.yml"),
-            Change("M", "tests/test_api_smoke.py"),
+            Change("M", "tests/test_api_smoke.py", mode="100644"),
         ],
     )
     assert any("workflow contract changes require" in item for item in report["violations"])
@@ -305,7 +396,11 @@ def test_deleted_workflow_contract_test_does_not_satisfy_contract(
         tmp_path,
         [
             Change("M", ".github/workflows/ci.yml"),
-            Change("D", "tests/test_ci_workflow_contract.py"),
+            Change(
+                "D",
+                "tests/test_ci_workflow_contract.py",
+                previous_mode="100644",
+            ),
         ],
     )
     assert any("workflow contract changes require" in item for item in report["violations"])
@@ -316,7 +411,7 @@ def test_workflow_change_with_contract_test_passes(tmp_path: Path) -> None:
         tmp_path,
         [
             Change("M", ".github/workflows/ci.yml"),
-            Change("M", "tests/test_ci_workflow_contract.py"),
+            Change("M", "tests/test_ci_workflow_contract.py", mode="100644"),
         ],
     )
     assert report["passed"] is True, report["violations"]
@@ -329,7 +424,10 @@ def test_placeholder_sections_fail_closed(tmp_path: Path) -> None:
     )
     report = _evaluate(
         tmp_path,
-        [Change("M", "scripts/ci/tool.py"), Change("M", "tests/test_tool.py")],
+        [
+            Change("M", "scripts/ci/tool.py"),
+            Change("M", "tests/test_tool.py", mode="100644"),
+        ],
         body=body,
     )
     assert any("contains a placeholder: failure_path" in item for item in report["violations"])
@@ -344,7 +442,7 @@ def test_placeholder_word_inside_real_explanation_is_allowed(tmp_path: Path) -> 
         tmp_path,
         [
             Change("M", "scripts/ci/tool.py"),
-            Change("M", "tests/test_causal_pr_contract.py"),
+            Change("M", "tests/test_causal_pr_contract.py", mode="100644"),
         ],
         body=body,
     )
@@ -353,7 +451,15 @@ def test_placeholder_word_inside_real_explanation_is_allowed(tmp_path: Path) -> 
 
 def test_rename_classifies_source_and_destination_paths() -> None:
     groups = classify_changes(
-        [Change("R100", "docs/deploy.md", "scripts/deploy.py")]
+        [
+            Change(
+                "R100",
+                "docs/deploy.md",
+                "scripts/deploy.py",
+                mode="100644",
+                previous_mode="100644",
+            )
+        ]
     )
     assert groups["documentation"] == ["docs/deploy.md"]
     assert groups["implementation"] == ["scripts/deploy.py"]
@@ -363,8 +469,14 @@ def test_rename_from_runtime_to_docs_remains_strict(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
         [
-            Change("R100", "docs/deploy.md", "scripts/deploy.py"),
-            Change("M", "tests/test_causal_pr_contract.py"),
+            Change(
+                "R100",
+                "docs/deploy.md",
+                "scripts/deploy.py",
+                mode="100644",
+                previous_mode="100644",
+            ),
+            Change("M", "tests/test_causal_pr_contract.py", mode="100644"),
         ],
     )
     assert report["scope"] == "strict"
@@ -374,7 +486,7 @@ def test_rename_from_runtime_to_docs_remains_strict(tmp_path: Path) -> None:
 def test_non_ancestor_transition_fails_closed(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
-        [Change("M", "tests/test_causal_pr_contract.py")],
+        [Change("M", "tests/test_causal_pr_contract.py", mode="100644")],
         base_is_ancestor=False,
     )
     assert report["passed"] is False
@@ -502,6 +614,33 @@ def test_changed_files_parses_real_rename_with_exact_paths(tmp_path: Path) -> No
     assert changes[0].status.startswith("R")
     assert changes[0].previous_path == old_name
     assert changes[0].path == new_name
+    assert changes[0].mode == "100644"
+    assert changes[0].previous_mode == "100644"
+
+
+def test_executable_exact_documentation_name_is_strict(tmp_path: Path) -> None:
+    repo = tmp_path / "mode-repo"
+    repo.mkdir()
+    _git(repo, "init", "-b", "main")
+    _git(repo, "config", "user.email", "ci@example.invalid")
+    _git(repo, "config", "user.name", "CI")
+    (repo / "baseline.txt").write_text("base\n", encoding="utf-8")
+    _git(repo, "add", "baseline.txt")
+    _git(repo, "commit", "-m", "base")
+    base = _git(repo, "rev-parse", "HEAD")
+
+    readme = repo / "README"
+    readme.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    readme.chmod(0o755)
+    _git(repo, "add", "README")
+    _git(repo, "commit", "-m", "add executable readme")
+    head = _git(repo, "rev-parse", "HEAD")
+
+    changes = changed_files(repo, base, head)
+    assert changes[0].mode == "100755"
+    groups = classify_changes(changes)
+    assert groups["implementation"] == ["README"]
+    assert groups["documentation"] == []
 
 
 def test_markdown_report_contains_graph_without_raw_url(tmp_path: Path) -> None:
@@ -513,7 +652,7 @@ def test_markdown_report_contains_graph_without_raw_url(tmp_path: Path) -> None:
         tmp_path,
         [
             Change("M", "cml/audit.py"),
-            Change("M", "tests/test_causal_pr_contract.py"),
+            Change("M", "tests/test_causal_pr_contract.py", mode="100644"),
         ],
         body=body,
     )
