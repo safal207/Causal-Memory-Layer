@@ -4,6 +4,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from scripts.ci.build_causal_pr_report import (
     Change,
     build_report,
@@ -54,7 +56,10 @@ def _evaluate(
 def test_strict_source_transition_with_changed_test_passes(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
-        [Change("M", "cml/audit.py"), Change("A", "tests/test_causal_pr_contract.py")],
+        [
+            Change("M", "cml/audit.py"),
+            Change("A", "tests/test_causal_pr_contract.py"),
+        ],
     )
     assert report["passed"] is True, report["violations"]
     assert report["scope"] == "strict"
@@ -105,7 +110,10 @@ def test_genuine_documentation_names_remain_lightweight(tmp_path: Path) -> None:
 def test_unknown_non_documentation_format_fails_closed(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
-        [Change("M", "assets/runtime-policy.bin"), Change("M", "tests/test_causal_pr_contract.py")],
+        [
+            Change("M", "assets/runtime-policy.bin"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
     )
     assert report["scope"] == "strict"
     assert report["groups"]["other"] == ["assets/runtime-policy.bin"]
@@ -114,7 +122,10 @@ def test_unknown_non_documentation_format_fails_closed(tmp_path: Path) -> None:
 def test_script_inside_docs_is_not_documentation(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
-        [Change("M", "docs/examples/deploy.py"), Change("M", "tests/test_causal_pr_contract.py")],
+        [
+            Change("M", "docs/examples/deploy.py"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
     )
     assert report["groups"]["implementation"] == ["docs/examples/deploy.py"]
 
@@ -127,6 +138,26 @@ def test_missing_causal_sections_fail(tmp_path: Path) -> None:
     )
     assert report["passed"] is False
     assert any("missing causal review section" in item for item in report["violations"])
+
+
+def test_duplicate_canonical_section_fails_closed(tmp_path: Path) -> None:
+    body = (
+        COMPLETE_BODY
+        + "\n### Invariant after change\nA second ambiguous invariant must be rejected.\n"
+    )
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("M", "api/server.py"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
+        body=body,
+    )
+    assert report["passed"] is False
+    assert "duplicate causal review section: invariant" in report["violations"]
+    assert report["sections"]["invariant"]["summary"].startswith(
+        "Every strict transition"
+    )
 
 
 def test_existing_regression_test_reference_can_satisfy_contract(tmp_path: Path) -> None:
@@ -166,7 +197,10 @@ def test_strict_change_without_test_evidence_fails(tmp_path: Path) -> None:
 def test_workflow_change_requires_contract_test(tmp_path: Path) -> None:
     report = _evaluate(
         tmp_path,
-        [Change("M", ".github/workflows/ci.yml"), Change("M", "tests/test_api_smoke.py")],
+        [
+            Change("M", ".github/workflows/ci.yml"),
+            Change("M", "tests/test_api_smoke.py"),
+        ],
     )
     assert any("workflow contract changes require" in item for item in report["violations"])
 
@@ -202,14 +236,19 @@ def test_placeholder_word_inside_real_explanation_is_allowed(tmp_path: Path) -> 
     )
     report = _evaluate(
         tmp_path,
-        [Change("M", "scripts/ci/tool.py"), Change("M", "tests/test_causal_pr_contract.py")],
+        [
+            Change("M", "scripts/ci/tool.py"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
         body=body,
     )
     assert report["passed"] is True, report["violations"]
 
 
 def test_rename_classifies_source_and_destination_paths() -> None:
-    groups = classify_changes([Change("R100", "docs/deploy.md", "scripts/deploy.py")])
+    groups = classify_changes(
+        [Change("R100", "docs/deploy.md", "scripts/deploy.py")]
+    )
     assert groups["documentation"] == ["docs/deploy.md"]
     assert groups["implementation"] == ["scripts/deploy.py"]
 
@@ -244,6 +283,17 @@ def _git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def test_build_report_rejects_invalid_sha_before_git(tmp_path: Path) -> None:
+    event = tmp_path / "event.json"
+    with pytest.raises(ValueError, match="base SHA must be"):
+        build_report(
+            repo_root=tmp_path / "missing-repository",
+            base_sha="--output=/tmp/cml-invalid",
+            head_sha=HEAD_SHA,
+            event_path=event,
+        )
+
+
 def test_build_report_rejects_divergent_base_and_head(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -269,7 +319,10 @@ def test_build_report_rejects_divergent_base_and_head(tmp_path: Path) -> None:
     _git(repo, "checkout", "feature")
 
     event = tmp_path / "event.json"
-    event.write_text(json.dumps({"pull_request": {"body": COMPLETE_BODY}}), encoding="utf-8")
+    event.write_text(
+        json.dumps({"pull_request": {"body": COMPLETE_BODY}}),
+        encoding="utf-8",
+    )
     report = build_report(
         repo_root=repo,
         base_sha=advanced_base,
@@ -281,6 +334,46 @@ def test_build_report_rejects_divergent_base_and_head(tmp_path: Path) -> None:
     assert any("not an ancestor" in item for item in report["violations"])
 
 
+def test_build_report_accepts_freshly_fetched_real_ancestor(tmp_path: Path) -> None:
+    upstream = tmp_path / "upstream"
+    upstream.mkdir()
+    _git(upstream, "init", "-b", "main")
+    _git(upstream, "config", "user.email", "ci@example.invalid")
+    _git(upstream, "config", "user.name", "CI")
+    (upstream / "README.md").write_text("base\n", encoding="utf-8")
+    _git(upstream, "add", "README.md")
+    _git(upstream, "commit", "-m", "base")
+    base_sha = _git(upstream, "rev-parse", "HEAD")
+    (upstream / "README.md").write_text("base\nfeature\n", encoding="utf-8")
+    _git(upstream, "add", "README.md")
+    _git(upstream, "commit", "-m", "feature docs")
+    head_sha = _git(upstream, "rev-parse", "HEAD")
+
+    remote = tmp_path / "remote.git"
+    _git(tmp_path, "init", "--bare", str(remote))
+    _git(upstream, "remote", "add", "origin", str(remote))
+    _git(upstream, "push", "origin", "main")
+
+    review = tmp_path / "review"
+    review.mkdir()
+    _git(review, "init")
+    _git(review, "fetch", "--no-tags", str(remote), head_sha)
+    _git(review, "checkout", "--detach", "FETCH_HEAD")
+    _git(review, "fetch", "--no-tags", str(remote), base_sha)
+
+    event = tmp_path / "fresh-event.json"
+    event.write_text(json.dumps({"pull_request": {"body": ""}}), encoding="utf-8")
+    report = build_report(
+        repo_root=review,
+        base_sha=base_sha,
+        head_sha=head_sha,
+        event_path=event,
+    )
+    assert report["passed"] is True, report["violations"]
+    assert report["base_is_ancestor"] is True
+    assert report["scope"] == "lightweight"
+
+
 def test_markdown_report_contains_graph_without_raw_url(tmp_path: Path) -> None:
     body = COMPLETE_BODY.replace(
         "Every strict transition is bound to its exact base, exact head, and regression evidence.",
@@ -288,7 +381,10 @@ def test_markdown_report_contains_graph_without_raw_url(tmp_path: Path) -> None:
     )
     report = _evaluate(
         tmp_path,
-        [Change("M", "cml/audit.py"), Change("M", "tests/test_causal_pr_contract.py")],
+        [
+            Change("M", "cml/audit.py"),
+            Change("M", "tests/test_causal_pr_contract.py"),
+        ],
         body=body,
     )
     markdown = render_markdown(report)
