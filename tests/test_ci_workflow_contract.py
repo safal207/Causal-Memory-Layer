@@ -26,6 +26,7 @@ CAUSAL_REQUIRED_TYPES = {
     "reopened",
     "synchronize",
 }
+EXPECTED_SHA_EXPRESSION = "${{ github.event.pull_request.head.sha || github.sha }}"
 
 
 def _mapping(value: Any) -> dict[str, Any]:
@@ -48,6 +49,8 @@ def _causal_contract_violations(path: Path) -> list[str]:
         violations.append("causal gate is missing required pull-request activity types")
 
     environment = _mapping(workflow.get("env"))
+    if environment.get("EXPECTED_SHA") != EXPECTED_SHA_EXPRESSION:
+        violations.append("EXPECTED_SHA is not bound to the PR head")
     if environment.get("BASE_SHA") != "${{ github.event.pull_request.base.sha }}":
         violations.append("BASE_SHA is not bound to the PR base")
     if environment.get("BASE_REF") != "${{ github.event.pull_request.base.ref }}":
@@ -59,6 +62,7 @@ def _causal_contract_violations(path: Path) -> list[str]:
 
     step_names: set[str] = set()
     run_text: list[str] = []
+    named_run_text: dict[str, str] = {}
     for raw_job in jobs.values():
         job = _mapping(raw_job)
         steps = job.get("steps")
@@ -72,6 +76,8 @@ def _causal_contract_violations(path: Path) -> list[str]:
             run = step.get("run")
             if isinstance(run, str):
                 run_text.append(run)
+                if isinstance(name, str):
+                    named_run_text[name] = run
 
     required_freshness_steps = {
         "Reconfirm base tip before evidence",
@@ -79,6 +85,12 @@ def _causal_contract_violations(path: Path) -> list[str]:
     }
     if not required_freshness_steps.issubset(step_names):
         violations.append("base freshness must be checked in both causal jobs")
+
+    base_fetch = named_run_text.get("Fetch exact base commit", "")
+    if "git fetch --no-tags" not in base_fetch:
+        violations.append("exact base commit must be fetched explicitly")
+    if "--depth" in base_fetch:
+        violations.append("exact base fetch may not create a shallow ancestry boundary")
 
     joined_run_text = "\n".join(run_text)
     for required_directive in (
@@ -213,6 +225,32 @@ def test_causal_contract_rejects_missing_edited_trigger(tmp_path: Path):
     )
     assert any(
         "missing required pull-request activity types" in item
+        for item in _causal_contract_violations(mutated)
+    )
+
+
+def test_causal_contract_rejects_unbound_expected_sha(tmp_path: Path):
+    mutated = _mutate(
+        tmp_path,
+        WORKFLOWS[-1],
+        "EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+        "EXPECTED_SHA: ${{ github.sha }}",
+    )
+    assert any(
+        "EXPECTED_SHA is not bound to the PR head" in item
+        for item in _causal_contract_violations(mutated)
+    )
+
+
+def test_causal_contract_rejects_shallow_base_fetch(tmp_path: Path):
+    mutated = _mutate(
+        tmp_path,
+        WORKFLOWS[-1],
+        "git fetch --no-tags \\",
+        "git fetch --no-tags --depth=1 \\",
+    )
+    assert any(
+        "shallow ancestry boundary" in item
         for item in _causal_contract_violations(mutated)
     )
 
