@@ -28,6 +28,30 @@ TEST_PATH_RE = re.compile(
     r"((?:tests|hackathons/[^/\s]+/tests)/[A-Za-z0-9_./-]+\."
     r"(?:py|pyi|js|jsx|mjs|cjs|ts|tsx|go|rs|java|kt|kts|rb|php|swift|scala|c|cc|cpp|cs|sh))"
 )
+EXECUTABLE_TEST_SUFFIXES = {
+    ".c",
+    ".cc",
+    ".cjs",
+    ".cpp",
+    ".cs",
+    ".go",
+    ".java",
+    ".js",
+    ".jsx",
+    ".kt",
+    ".kts",
+    ".mjs",
+    ".php",
+    ".py",
+    ".pyi",
+    ".rb",
+    ".rs",
+    ".scala",
+    ".sh",
+    ".swift",
+    ".ts",
+    ".tsx",
+}
 
 SECTION_ALIASES = {
     "failure_path": {"failure path", "failure mode"},
@@ -269,6 +293,24 @@ def _is_test_path(path: str) -> bool:
     )
 
 
+def _is_executable_test_path(path: str) -> bool:
+    normalized = path.casefold()
+    return _is_test_path(normalized) and Path(normalized).suffix in EXECUTABLE_TEST_SUFFIXES
+
+
+def _surviving_changed_tests(changes: Iterable[Change]) -> list[str]:
+    """Return executable test destinations that still exist after the transition."""
+
+    return sorted(
+        {
+            change.path
+            for change in changes
+            if not change.status.startswith("D")
+            and _is_executable_test_path(change.path)
+        }
+    )
+
+
 def _has_runtime_identity(path: str) -> bool:
     normalized = path.casefold()
     name = Path(normalized).name
@@ -345,29 +387,39 @@ def classify_changes(changes: Iterable[Change]) -> dict[str, list[str]]:
 
 
 def changed_files(repo_root: Path, base_sha: str, head_sha: str) -> list[Change]:
-    """Read a direct, rename-aware exact-base-to-head diff."""
+    """Read an exact-path, rename-aware direct base-to-head diff."""
 
     output = _run_git(
         repo_root,
         "diff",
         "--name-status",
+        "-z",
         "--find-renames",
         base_sha,
         head_sha,
         "--",
     )
+    fields = [field for field in output.split("\0") if field]
     changes: list[Change] = []
-    for line in output.splitlines():
-        if not line:
+    index = 0
+    while index < len(fields):
+        status = fields[index]
+        if status.startswith(("R", "C")):
+            if index + 2 >= len(fields):
+                raise ValueError("git diff returned an unsupported name-status record")
+            changes.append(
+                Change(
+                    status=status,
+                    previous_path=fields[index + 1],
+                    path=fields[index + 2],
+                )
+            )
+            index += 3
             continue
-        parts = line.split("\t")
-        status = parts[0]
-        if status.startswith(("R", "C")) and len(parts) == 3:
-            changes.append(Change(status=status, path=parts[2], previous_path=parts[1]))
-        elif len(parts) == 2:
-            changes.append(Change(status=status, path=parts[1]))
-        else:
+        if index + 1 >= len(fields):
             raise ValueError("git diff returned an unsupported name-status record")
+        changes.append(Change(status=status, path=fields[index + 1]))
+        index += 2
     return changes
 
 
@@ -439,6 +491,7 @@ def evaluate_transition(
         violations.append("reviewed base SHA is not an ancestor of the PR head")
 
     groups = classify_changes(changes)
+    changed_regression_tests = _surviving_changed_tests(changes)
     sections, duplicate_sections = _extract_sections(body)
     for name in sorted(duplicate_sections):
         violations.append(f"duplicate causal review section: {name}")
@@ -459,16 +512,18 @@ def evaluate_transition(
 
         regression = sections.get("regression_evidence", "")
         existing_references = _existing_test_references(regression, repo_root)
-        if not groups["tests"] and not existing_references:
+        if not changed_regression_tests and not existing_references:
             violations.append(
-                "strict changes require changed tests or explicit existing test paths"
+                "strict changes require a surviving executable changed test "
+                "or an explicit existing executable test path"
             )
 
     if groups["workflows"] and not (
-        WORKFLOW_CONTRACT_PATHS & set(groups["tests"])
+        WORKFLOW_CONTRACT_PATHS & set(changed_regression_tests)
     ):
         violations.append(
-            "workflow contract changes require a causal/workflow contract regression test"
+            "workflow contract changes require a surviving causal/workflow "
+            "contract regression test"
         )
 
     scope = "strict" if strict else "lightweight"
@@ -519,6 +574,7 @@ def evaluate_transition(
             for change in changes
         ],
         "groups": groups,
+        "changed_regression_tests": changed_regression_tests,
         "sections": section_metadata,
         "existing_test_references": _existing_test_references(
             sections.get("regression_evidence", ""), repo_root
@@ -546,6 +602,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- Head: `{report['head_sha']}`",
         f"- Base is ancestor: `{str(report['base_is_ancestor']).lower()}`",
         f"- Path transitions: `{report['change_count']}`",
+        f"- Surviving executable changed tests: `{len(report['changed_regression_tests'])}`",
         "",
         "```mermaid",
         "flowchart LR",
