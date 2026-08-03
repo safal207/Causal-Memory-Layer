@@ -4,6 +4,7 @@ import base64
 import hmac
 import json
 import os
+import re
 import uuid
 from typing import Any
 
@@ -17,6 +18,7 @@ from .store import CockroachMemoryStore, MemoryStore
 
 _store: MemoryStore | None = None
 _RUNTIME_INSTANCE_ID = str(uuid.uuid4())
+_GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -25,12 +27,22 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     try:
         if method == "GET" and path == "/healthz":
+            build_sha = os.getenv("BUILD_SHA", "")
+            if not _GIT_SHA_RE.fullmatch(build_sha):
+                return _response(
+                    503,
+                    {
+                        "status": "unhealthy",
+                        "service": "liminal-recall",
+                        "error": "invalid_build_identity",
+                    },
+                )
             return _response(
                 200,
                 {
                     "status": "ok",
                     "service": "liminal-recall",
-                    "build_sha": os.getenv("BUILD_SHA", ""),
+                    "build_sha": build_sha,
                     "database_configured": bool(os.getenv("DATABASE_URL")),
                     "semantic_recall_configured": bool(
                         os.getenv("DATABASE_URL")
