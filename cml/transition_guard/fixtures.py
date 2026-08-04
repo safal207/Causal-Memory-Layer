@@ -135,9 +135,14 @@ def asb15_case_from_evidence(
     read = by_action.get("read-secret")
     send = by_action.get("send-secret")
     all_blocked = bool(decisions) and all(not item.allowed for item in decisions)
-    reasons = {reason for item in decisions for reason in item.reasons}
-    authority_missing = "NO_TRUSTED_AUTHORITY_PATH" in reasons
-    read_blocked = bool(read and not read.allowed and authority_missing)
+    read_authority_missing = bool(
+        read and "NO_TRUSTED_AUTHORITY_PATH" in read.reasons
+    )
+    send_authority_missing = bool(
+        send and "NO_TRUSTED_AUTHORITY_PATH" in send.reasons
+    )
+    authority_missing = read_authority_missing or send_authority_missing
+    read_blocked = bool(read and not read.allowed and read_authority_missing)
     taint_blocked = bool(
         send
         and not send.allowed
