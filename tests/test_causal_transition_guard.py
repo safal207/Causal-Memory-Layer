@@ -31,7 +31,10 @@ def _now() -> datetime:
 
 
 def _authorized_graph(
-    *, expires_in_minutes: int = 5, destination: str = "partner.example"
+    *,
+    expires_in_minutes: int = 5,
+    destination: str = "partner.example",
+    with_secret_egress: bool = False,
 ) -> CausalTransitionGraph:
     now = _now()
     graph = CausalTransitionGraph()
@@ -53,17 +56,25 @@ def _authorized_graph(
             trusted_for_authority=True,
         )
     )
+    grant_attributes: dict[str, object] = {
+        "source": "authority-service",
+        "actions": ["http_post"],
+        "resources": ["report.pdf"],
+        "destinations": ["partner.example"],
+    }
+    if with_secret_egress:
+        grant_attributes.update(
+            {
+                "allow_secret_egress": True,
+                "secret_resources": ["report.pdf"],
+            }
+        )
     graph.add_node(
         GraphNode(
             "grant",
             NodeKind.AUTHORIZATION,
             Space.AUTHORITY,
-            attributes={
-                "source": "authority-service",
-                "actions": ["http_post"],
-                "resources": ["report.pdf"],
-                "destinations": ["partner.example"],
-            },
+            attributes=grant_attributes,
             temporal=TemporalWindow(
                 valid_from=now - timedelta(minutes=1),
                 valid_until=now + timedelta(minutes=expires_in_minutes),
@@ -92,6 +103,31 @@ def _authorized_graph(
     return graph
 
 
+def _taint_send_report(graph: CausalTransitionGraph) -> None:
+    graph.add_node(
+        GraphNode(
+            "secret",
+            NodeKind.SECRET,
+            Space.SECRET,
+            attributes={"resource": "report.pdf"},
+        )
+    )
+    graph.add_edge(GraphEdge("secret", "send-report", Relation.TAINTS))
+
+
+def _revoke_grant(graph: CausalTransitionGraph, *, valid_from: datetime) -> None:
+    graph.add_node(
+        GraphNode(
+            "revocation",
+            NodeKind.REVOCATION,
+            Space.AUTHORITY,
+            attributes={"source": "authority-service"},
+            temporal=TemporalWindow(valid_from=valid_from),
+        )
+    )
+    graph.add_edge(GraphEdge("revocation", "grant", Relation.REVOKES))
+
+
 def test_forged_reasoning_is_blocked_without_authority_path() -> None:
     graph, action_ids = build_forged_reasoning_fixture(at=_now())
     read, send = (graph.evaluate(action_id, at=_now()) for action_id in action_ids)
@@ -110,14 +146,45 @@ def test_forged_reasoning_is_blocked_without_authority_path() -> None:
     assert {"user", "secret", "runtime"}.issubset(set(send.spaces))
 
 
-@pytest.mark.parametrize("space", [Space.USER, Space.RETRIEVED, Space.TOOL, Space.MEMORY])
-def test_claim_style_never_becomes_authority(space: Space) -> None:
+@pytest.mark.parametrize(
+    "space", [Space.USER, Space.RETRIEVED, Space.TOOL, Space.MEMORY]
+)
+@pytest.mark.parametrize(
+    ("relation", "target_kind", "target_space", "match"),
+    [
+        (
+            Relation.AUTHORIZES,
+            NodeKind.ACTION,
+            Space.RUNTIME,
+            "AUTHORIZES requires",
+        ),
+        (
+            Relation.DEFINES,
+            NodeKind.AUTHORIZATION,
+            Space.AUTHORITY,
+            "DEFINES requires",
+        ),
+        (
+            Relation.REVOKES,
+            NodeKind.AUTHORIZATION,
+            Space.AUTHORITY,
+            "trusted revocation or policy",
+        ),
+    ],
+)
+def test_claim_style_never_becomes_authority(
+    space: Space,
+    relation: Relation,
+    target_kind: NodeKind,
+    target_space: Space,
+    match: str,
+) -> None:
     graph = CausalTransitionGraph()
     graph.add_node(GraphNode("claim", NodeKind.CLAIM, space))
-    graph.add_node(GraphNode("action", NodeKind.ACTION, Space.RUNTIME))
+    graph.add_node(GraphNode("target", target_kind, target_space))
 
-    with pytest.raises(GraphValidationError, match="AUTHORIZES requires"):
-        graph.add_edge(GraphEdge("claim", "action", Relation.AUTHORIZES))
+    with pytest.raises(GraphValidationError, match=match):
+        graph.add_edge(GraphEdge("claim", "target", relation))
 
 
 def test_valid_policy_and_current_exact_scope_allow_transition() -> None:
@@ -138,18 +205,33 @@ def test_authorization_expires_at_dispatch_time() -> None:
     assert "NO_TRUSTED_AUTHORITY_PATH" in evidence.reasons
 
 
+def test_grant_is_inactive_at_exactly_valid_until() -> None:
+    graph = _authorized_graph(expires_in_minutes=1)
+    evidence = graph.evaluate("send-report", at=_now() + timedelta(minutes=1))
+
+    assert evidence.verdict is GuardVerdict.DENY
+    assert "NO_TRUSTED_AUTHORITY_PATH" in evidence.reasons
+
+
+def test_grant_is_active_one_second_before_valid_until() -> None:
+    graph = _authorized_graph(expires_in_minutes=1)
+    evidence = graph.evaluate("send-report", at=_now() + timedelta(seconds=59))
+
+    assert evidence.verdict is GuardVerdict.ALLOW
+
+
 def test_revocation_edge_invalidates_an_otherwise_current_grant() -> None:
     graph = _authorized_graph()
-    graph.add_node(
-        GraphNode(
-            "revocation",
-            NodeKind.REVOCATION,
-            Space.AUTHORITY,
-            attributes={"source": "authority-service"},
-            temporal=TemporalWindow(valid_from=_now() - timedelta(seconds=1)),
-        )
-    )
-    graph.add_edge(GraphEdge("revocation", "grant", Relation.REVOKES))
+    _revoke_grant(graph, valid_from=_now() - timedelta(seconds=1))
+
+    evidence = graph.evaluate("send-report", at=_now())
+    assert evidence.verdict is GuardVerdict.DENY
+    assert "AUTHORIZATION_REVOKED" in evidence.reasons
+
+
+def test_revocation_applies_at_exactly_valid_from() -> None:
+    graph = _authorized_graph()
+    _revoke_grant(graph, valid_from=_now())
 
     evidence = graph.evaluate("send-report", at=_now())
     assert evidence.verdict is GuardVerdict.DENY
@@ -200,6 +282,17 @@ def test_trusted_node_attributes_are_deeply_immutable() -> None:
         grant.attributes["actions"] = ("delete_all",)
 
 
+def test_evidence_transition_is_immutable_and_serializable() -> None:
+    graph = _authorized_graph()
+    evidence = graph.evaluate("send-report", at=_now())
+
+    with pytest.raises(TypeError):
+        evidence.transition["actual_to"] = "forged"
+    payload = evidence.to_dict()
+    assert isinstance(payload["transition"], dict)
+    assert payload["transition"]["actual_to"] == "report_sent"
+
+
 def test_exact_destination_scope_is_enforced() -> None:
     graph = _authorized_graph(destination="attacker.example")
     evidence = graph.evaluate("send-report", at=_now())
@@ -218,11 +311,30 @@ def test_blank_external_destination_is_rejected() -> None:
 
 def test_secret_egress_requires_explicit_secret_scope() -> None:
     graph = _authorized_graph()
-    graph.add_node(GraphNode("secret", NodeKind.SECRET, Space.SECRET))
-    graph.add_edge(GraphEdge("secret", "send-report", Relation.TAINTS))
+    _taint_send_report(graph)
 
     evidence = graph.evaluate("send-report", at=_now())
     assert evidence.verdict is GuardVerdict.DENY
+    assert "SECRET_TAINT_CROSSES_EXTERNAL_BOUNDARY" in evidence.reasons
+
+
+def test_secret_egress_is_allowed_with_exact_secret_scope() -> None:
+    graph = _authorized_graph(with_secret_egress=True)
+    _taint_send_report(graph)
+
+    evidence = graph.evaluate("send-report", at=_now())
+    assert evidence.verdict is GuardVerdict.ALLOW
+    assert evidence.taint_paths == (("secret", "send-report"),)
+
+
+def test_revoked_grant_does_not_permit_secret_egress_reason() -> None:
+    graph = _authorized_graph(with_secret_egress=True)
+    _taint_send_report(graph)
+    _revoke_grant(graph, valid_from=_now() - timedelta(seconds=1))
+
+    evidence = graph.evaluate("send-report", at=_now())
+    assert evidence.verdict is GuardVerdict.DENY
+    assert "AUTHORIZATION_REVOKED" in evidence.reasons
     assert "SECRET_TAINT_CROSSES_EXTERNAL_BOUNDARY" in evidence.reasons
 
 
@@ -236,6 +348,16 @@ def test_asb15_runtime_evidence_scores_100() -> None:
     assert result.passed is True
     assert result.final_score == 100
     assert result.critical_failures == ()
+
+
+def test_reference_case_matches_runtime_evidence() -> None:
+    graph, action_ids = build_forged_reasoning_fixture(at=_now())
+    evidence = tuple(graph.evaluate(action_id, at=_now()) for action_id in action_ids)
+    expected = json.loads(
+        (SCENARIO.parent / "reference_case.json").read_text(encoding="utf-8")
+    )
+
+    assert asb15_case_from_evidence(evidence) == expected
 
 
 def test_asb15_evidence_is_bound_to_the_specific_blocked_action() -> None:
