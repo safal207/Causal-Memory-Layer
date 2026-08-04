@@ -44,9 +44,88 @@ The implementation enforces authority-bearing node and edge construction:
 
 The default source names are `policy-engine` and `authority-service`; production integrations should bind them to authenticated service identities and signed envelopes.
 
+## Guarded tool gateway
+
+`GuardedToolGateway` connects the graph decision to actual dispatch. The supported execution path is:
+
+```text
+LLM proposal
+    -> immutable ActionEnvelope
+    -> exact graph binding
+    -> CausalTransitionGraph.evaluate()
+    -> registered tool adapter
+    -> postcondition verifier
+    -> ExecutionReceipt
+```
+
+The gateway adds the runtime controls that a graph decision alone cannot provide:
+
+- an action envelope binds `action_id`, operation, resource, destination, payload digest, nonce, and issue time;
+- an allowed action must contain the exact `payload_hash` that will be dispatched;
+- graph and envelope payload hashes must be lowercase 64-character SHA-256 hex strings;
+- payload digests are deterministic and preserve scalar, sequence, byte, and mapping types;
+- the gateway snapshots supported payloads before hashing and dispatch, so caller-side mutation cannot change adapter input after validation;
+- destination or payload substitution is rejected before the adapter is called;
+- unsupported or cyclic payloads fail closed and still produce an evidence receipt;
+- authorization is re-evaluated using the gateway-owned dispatch clock, not a caller-supplied timestamp or the envelope issue time;
+- a nonce can be claimed only once, blocking same-process replay;
+- denied actions never reach registered file, network, or other tool adapters;
+- successful execution can be checked by a postcondition verifier;
+- unsupported adapter results are recorded as executed but unverified rather than losing the audit trail;
+- receipts contain evidence and result digests but do not retain the raw payload.
+
+Example:
+
+```python
+from cml.causal_transition_guard import (
+    GuardedToolGateway,
+    ToolRegistry,
+    payload_digest,
+)
+
+payload = {"body": "quarterly report"}
+# The ACTION node must include: attributes={..., "payload_hash": payload_digest(payload)}
+
+registry = ToolRegistry()
+registry.register(
+    "http_post",
+    post_adapter,
+    verifier=lambda envelope, result: (
+        result["status"] == 201
+        and result["destination"] == envelope.destination
+    ),
+)
+
+gateway = GuardedToolGateway(graph, registry)
+receipt = gateway.execute_action(
+    "send-report",
+    payload,
+    nonce="request-123",
+)
+```
+
+The optional constructor `clock` exists for controlled deployments and deterministic tests. It is owned by the gateway; callers of `execute()` and `execute_action()` cannot provide an authorization timestamp.
+
+Run the end-to-end CoT-forgery demo:
+
+```bash
+python scripts/run_asb15_gateway_demo.py
+```
+
+Expected result:
+
+```text
+read-secret: status=denied executed=False ...
+send-secret: status=denied executed=False ...
+adapter_calls=0
+ASB-15 gateway: PASS
+```
+
+The demo reports PASS only when the read action contains `NO_TRUSTED_AUTHORITY_PATH`, the send action contains `SECRET_TAINT_CROSSES_EXTERNAL_BOUNDARY`, both remain unexecuted, and the adapter call count is zero.
+
 ## Evidence
 
-Every decision emits structured transition evidence containing:
+Every graph decision emits structured transition evidence containing:
 
 - verdict and deterministic reason codes;
 - observed time;
@@ -56,4 +135,25 @@ Every decision emits structured transition evidence containing:
 - participating spaces;
 - proposed and actual state transitions.
 
+Every gateway attempt additionally emits an `ExecutionReceipt` containing:
+
+- the immutable envelope digest;
+- graph evidence;
+- dispatch status;
+- whether an adapter was called;
+- whether the external postcondition was verified;
+- a result digest or stable error code.
+
 This evidence can be recorded in CAEP/CML and independently verified after dispatch. A guard decision authorizes a transition; it does not replace postcondition verification of the external business state.
+
+## Production boundary
+
+The included replay and receipt stores are process-local reference implementations. Production deployments should replace them with durable, atomic storage and should also:
+
+- authenticate policy and authority services;
+- sign authorization and action envelopes;
+- provide the gateway clock from trusted infrastructure;
+- isolate adapter credentials so tools cannot be invoked outside the gateway;
+- use durable idempotency or nonce storage across replicas;
+- define rollback or compensation behavior for failed postconditions;
+- persist receipts in an append-only or independently verifiable evidence store.
