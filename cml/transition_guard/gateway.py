@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -174,7 +175,7 @@ class GuardedToolGateway:
         actual_hash = payload_digest(payload)
         expected_hash = action.attributes.get("payload_hash")
         if isinstance(expected_hash, str) and expected_hash:
-            if not hashlib.compare_digest(expected_hash, actual_hash):
+            if not hmac.compare_digest(expected_hash, actual_hash):
                 raise GatewayValidationError("payload does not match graph action")
 
         operation = action.attributes.get("operation")
@@ -345,9 +346,9 @@ class GuardedToolGateway:
             return "envelope_does_not_match_graph_action"
         expected_hash = action.attributes.get("payload_hash")
         if isinstance(expected_hash, str) and expected_hash:
-            if not hashlib.compare_digest(expected_hash, envelope.payload_hash):
+            if not hmac.compare_digest(expected_hash, envelope.payload_hash):
                 return "envelope_does_not_match_graph_payload"
-        if not hashlib.compare_digest(
+        if not hmac.compare_digest(
             envelope.payload_hash, payload_digest(payload)
         ):
             return "payload_hash_mismatch"
