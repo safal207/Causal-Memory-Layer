@@ -44,9 +44,78 @@ The implementation enforces authority-bearing node and edge construction:
 
 The default source names are `policy-engine` and `authority-service`; production integrations should bind them to authenticated service identities and signed envelopes.
 
+## Guarded tool gateway
+
+`GuardedToolGateway` connects the graph decision to actual dispatch. The supported execution path is:
+
+```text
+LLM proposal
+    -> immutable ActionEnvelope
+    -> exact graph binding
+    -> CausalTransitionGraph.evaluate()
+    -> registered tool adapter
+    -> postcondition verifier
+    -> ExecutionReceipt
+```
+
+The gateway adds the runtime controls that a graph decision alone cannot provide:
+
+- an action envelope binds `action_id`, operation, resource, destination, payload digest, nonce, and issue time;
+- an allowed action must contain the exact `payload_hash` that will be dispatched;
+- destination or payload substitution is rejected before the adapter is called;
+- a nonce can be claimed only once, blocking same-process replay;
+- denied actions never reach registered file, network, or other tool adapters;
+- successful execution can be checked by a postcondition verifier;
+- receipts contain evidence and result digests but do not retain the raw payload.
+
+Example:
+
+```python
+from cml.causal_transition_guard import (
+    GuardedToolGateway,
+    ToolRegistry,
+    payload_digest,
+)
+
+payload = {"body": "quarterly report"}
+# The ACTION node must include: attributes={..., "payload_hash": payload_digest(payload)}
+
+registry = ToolRegistry()
+registry.register(
+    "http_post",
+    post_adapter,
+    verifier=lambda envelope, result: (
+        result["status"] == 201
+        and result["destination"] == envelope.destination
+    ),
+)
+
+gateway = GuardedToolGateway(graph, registry)
+receipt = gateway.execute_action(
+    "send-report",
+    payload,
+    nonce="request-123",
+)
+```
+
+Run the end-to-end CoT-forgery demo:
+
+```bash
+python scripts/run_asb15_gateway_demo.py
+```
+
+Expected result:
+
+```text
+read-secret: status=denied executed=False ...
+send-secret: status=denied executed=False ...
+adapter_calls=0
+ASB-15 gateway: PASS
+```
+
 ## Evidence
 
-Every decision emits structured transition evidence containing:
+Every graph decision emits structured transition evidence containing:
 
 - verdict and deterministic reason codes;
 - observed time;
@@ -56,4 +125,24 @@ Every decision emits structured transition evidence containing:
 - participating spaces;
 - proposed and actual state transitions.
 
+Every gateway attempt additionally emits an `ExecutionReceipt` containing:
+
+- the immutable envelope digest;
+- graph evidence;
+- dispatch status;
+- whether an adapter was called;
+- whether the external postcondition was verified;
+- a result digest or stable error code.
+
 This evidence can be recorded in CAEP/CML and independently verified after dispatch. A guard decision authorizes a transition; it does not replace postcondition verification of the external business state.
+
+## Production boundary
+
+The included replay and receipt stores are process-local reference implementations. Production deployments should replace them with durable, atomic storage and should also:
+
+- authenticate policy and authority services;
+- sign authorization and action envelopes;
+- isolate adapter credentials so tools cannot be invoked outside the gateway;
+- use durable idempotency or nonce storage across replicas;
+- define rollback or compensation behavior for failed postconditions;
+- persist receipts in an append-only or independently verifiable evidence store.
