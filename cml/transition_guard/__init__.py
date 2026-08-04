@@ -6,6 +6,7 @@ from .gateway import (
     GatewayValidationError,
     GuardedToolGateway,
     InMemoryReplayStore,
+    ReplayStore,
     ToolRegistry,
     payload_digest,
 )
@@ -36,6 +37,7 @@ __all__ = [
     "InMemoryReplayStore",
     "NodeKind",
     "Relation",
+    "ReplayStore",
     "Space",
     "TemporalWindow",
     "ToolRegistry",
