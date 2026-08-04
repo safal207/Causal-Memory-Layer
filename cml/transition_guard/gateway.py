@@ -4,7 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -214,14 +214,14 @@ class GuardedToolGateway:
             envelope = self.build_envelope(
                 action_id, payload, nonce=nonce, at=observed_at
             )
-        except GatewayValidationError as exc:
+        except (GatewayValidationError, TypeError, ValueError) as exc:
             evidence = self._graph.evaluate(action_id, at=observed_at)
             return self._record(
                 "",
                 evidence,
                 observed_at,
                 GatewayStatus.ENVELOPE_MISMATCH,
-                error_code=str(exc),
+                error_code=_validation_error_code(exc),
             )
         return self.execute(envelope, payload, at=observed_at)
 
@@ -235,7 +235,10 @@ class GuardedToolGateway:
         observed_at = utc(at or datetime.now(timezone.utc))
         evidence = self._graph.evaluate(envelope.action_id, at=observed_at)
 
-        binding_error = self._binding_error(envelope, payload)
+        try:
+            binding_error = self._binding_error(envelope, payload)
+        except (TypeError, ValueError):
+            binding_error = "payload_not_canonicalizable"
         if binding_error:
             return self._record(
                 envelope.envelope_hash,
@@ -243,14 +246,6 @@ class GuardedToolGateway:
                 observed_at,
                 GatewayStatus.ENVELOPE_MISMATCH,
                 error_code=binding_error,
-            )
-        if not self._replay_store.claim(envelope.nonce):
-            return self._record(
-                envelope.envelope_hash,
-                evidence,
-                observed_at,
-                GatewayStatus.REPLAY_BLOCKED,
-                error_code="nonce_already_used",
             )
         if evidence.verdict is not GuardVerdict.ALLOW:
             return self._record(
@@ -282,6 +277,15 @@ class GuardedToolGateway:
                 GatewayStatus.TOOL_NOT_REGISTERED,
                 error_code="tool_not_registered",
             )
+        if not self._replay_store.claim(envelope.nonce):
+            return self._record(
+                envelope.envelope_hash,
+                evidence,
+                observed_at,
+                GatewayStatus.REPLAY_BLOCKED,
+                error_code="nonce_already_used",
+            )
+
         try:
             result = tool.handler(envelope, payload)
         except Exception as exc:  # noqa: BLE001 - adapter boundary
@@ -294,7 +298,17 @@ class GuardedToolGateway:
                 error_code=type(exc).__name__,
             )
 
-        result_hash = payload_digest(result)
+        try:
+            result_hash = payload_digest(result)
+        except (TypeError, ValueError):
+            return self._record(
+                envelope.envelope_hash,
+                evidence,
+                observed_at,
+                GatewayStatus.EXECUTED_UNVERIFIED,
+                executed=True,
+                error_code="result_not_canonicalizable",
+            )
         if tool.verifier is None:
             return self._record(
                 envelope.envelope_hash,
@@ -383,7 +397,7 @@ class GuardedToolGateway:
 
 
 def payload_digest(value: Any) -> str:
-    """Return a deterministic SHA-256 digest for JSON-like payloads."""
+    """Return a deterministic, type-preserving SHA-256 payload digest."""
 
     return _sha256_json(_canonicalize(value))
 
@@ -400,23 +414,44 @@ def _sha256_json(value: Any) -> str:
 
 
 def _canonicalize(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, bool)):
-        return value
+    if value is None:
+        return {"type": "null"}
+    if isinstance(value, bool):
+        return {"type": "bool", "value": value}
+    if isinstance(value, int):
+        return {"type": "int", "value": str(value)}
     if isinstance(value, float):
         if value != value or value in {float("inf"), float("-inf")}:
             raise TypeError("non-finite floats are not supported")
-        return value
+        return {"type": "float", "value": value.hex()}
+    if isinstance(value, str):
+        return {"type": "str", "value": value}
     if isinstance(value, bytes):
-        return {"__bytes__": base64.b64encode(value).decode("ascii")}
+        return {
+            "type": "bytes",
+            "value": base64.b64encode(value).decode("ascii"),
+        }
     if isinstance(value, Mapping):
         result: dict[str, Any] = {}
         for key, child in value.items():
             if not isinstance(key, str):
                 raise TypeError("payload mappings require string keys")
             result[key] = _canonicalize(child)
-        return result
-    if isinstance(value, Sequence) and not isinstance(
-        value, (str, bytes, bytearray)
-    ):
-        return [_canonicalize(child) for child in value]
+        return {"type": "mapping", "value": result}
+    if isinstance(value, list):
+        return {
+            "type": "list",
+            "value": [_canonicalize(child) for child in value],
+        }
+    if isinstance(value, tuple):
+        return {
+            "type": "tuple",
+            "value": [_canonicalize(child) for child in value],
+        }
     raise TypeError(f"unsupported payload type: {type(value).__name__}")
+
+
+def _validation_error_code(exc: Exception) -> str:
+    if isinstance(exc, GatewayValidationError):
+        return str(exc)
+    return "payload_not_canonicalizable"
