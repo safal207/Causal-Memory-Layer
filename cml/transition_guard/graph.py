@@ -82,11 +82,18 @@ class CausalTransitionGraph:
             reasons.append("NO_ACTIVE_INTENT_PATH")
 
         authority_path, authorization = self._authority_path(action, observed_at)
+        authorization_active = bool(
+            authorization and authorization.temporal.is_active(observed_at)
+        )
+        authorization_revoked = False
         if authorization is None:
             reasons.append("NO_TRUSTED_AUTHORITY_PATH")
         else:
             reasons.extend(self._scope_violations(action, authorization))
-            if self._is_revoked(authorization.node_id, observed_at):
+            authorization_revoked = self._is_revoked(
+                authorization.node_id, observed_at
+            )
+            if authorization_revoked:
                 reasons.append("AUTHORIZATION_REVOKED")
 
         taint_paths = self._secret_taint_paths(action_id, observed_at)
@@ -94,6 +101,8 @@ class CausalTransitionGraph:
         if taint_paths and external:
             secret_egress_allowed = bool(
                 authorization
+                and authorization_active
+                and not authorization_revoked
                 and authorization.attributes.get("allow_secret_egress") is True
                 and self._secret_scope_matches(action, authorization)
             )
