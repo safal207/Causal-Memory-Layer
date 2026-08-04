@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from threading import Lock
-from typing import Any
+from typing import Any, Protocol
 
 from .graph import CausalTransitionGraph
 from .model import GuardVerdict, NodeKind, TransitionEvidence, utc
@@ -91,6 +91,13 @@ PostconditionVerifier = Callable[[ActionEnvelope, Any], bool]
 Clock = Callable[[], datetime]
 
 
+class ReplayStore(Protocol):
+    """Atomic nonce-claim contract for process-local or durable stores."""
+
+    def claim(self, nonce: str) -> bool:
+        """Claim a nonce once; return False when it was already claimed."""
+
+
 @dataclass(frozen=True)
 class _RegisteredTool:
     handler: ToolHandler
@@ -118,11 +125,16 @@ class ToolRegistry:
         self._tools[normalized] = _RegisteredTool(handler, verifier)
 
     def get(self, operation: str) -> _RegisteredTool | None:
-        return self._tools.get(operation)
+        return self._tools.get(operation.strip())
 
 
 class InMemoryReplayStore:
-    """Thread-safe single-use nonce store for one gateway process."""
+    """Thread-safe process-lifetime nonce retention.
+
+    The store keeps one entry for every adapter-reaching attempt until the
+    process exits. Long-lived or unbounded deployments must replace it with a
+    durable ReplayStore that implements explicit retention and expiry policy.
+    """
 
     def __init__(self) -> None:
         self._claimed: set[str] = set()
@@ -146,7 +158,7 @@ class GuardedToolGateway:
         graph: CausalTransitionGraph,
         registry: ToolRegistry,
         *,
-        replay_store: InMemoryReplayStore | None = None,
+        replay_store: ReplayStore | None = None,
         clock: Clock | None = None,
     ) -> None:
         self._graph = graph
