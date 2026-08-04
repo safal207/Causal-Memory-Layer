@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping as MappingABC
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from types import MappingProxyType
@@ -114,15 +114,28 @@ class TransitionEvidence:
     spaces: tuple[str, ...]
     transition: Mapping[str, str]
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.transition, MappingABC):
+            raise TypeError("transition must be a mapping")
+        object.__setattr__(self, "transition", _freeze_value(self.transition))
+
     @property
     def allowed(self) -> bool:
         return self.verdict is GuardVerdict.ALLOW
 
     def to_dict(self) -> dict[str, Any]:
-        payload = asdict(self)
-        payload["verdict"] = self.verdict.value
-        payload["allowed"] = self.allowed
-        return payload
+        return {
+            "action_id": self.action_id,
+            "observed_at": self.observed_at,
+            "verdict": self.verdict.value,
+            "reasons": self.reasons,
+            "cause_path": self.cause_path,
+            "authority_path": self.authority_path,
+            "taint_paths": self.taint_paths,
+            "spaces": self.spaces,
+            "transition": dict(self.transition),
+            "allowed": self.allowed,
+        }
 
 
 def _freeze_value(value: Any) -> Any:
