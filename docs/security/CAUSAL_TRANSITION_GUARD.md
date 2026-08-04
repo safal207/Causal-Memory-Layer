@@ -62,10 +62,14 @@ The gateway adds the runtime controls that a graph decision alone cannot provide
 
 - an action envelope binds `action_id`, operation, resource, destination, payload digest, nonce, and issue time;
 - an allowed action must contain the exact `payload_hash` that will be dispatched;
+- payload digests are deterministic and preserve scalar, sequence, byte, and mapping types;
+- the gateway snapshots supported payloads before hashing and dispatch, so caller-side mutation cannot change adapter input after validation;
 - destination or payload substitution is rejected before the adapter is called;
+- unsupported or cyclic payloads fail closed and still produce an evidence receipt;
 - a nonce can be claimed only once, blocking same-process replay;
 - denied actions never reach registered file, network, or other tool adapters;
 - successful execution can be checked by a postcondition verifier;
+- unsupported adapter results are recorded as executed but unverified rather than losing the audit trail;
 - receipts contain evidence and result digests but do not retain the raw payload.
 
 Example:
