@@ -101,7 +101,9 @@ class CausalTransitionGraph:
                 reasons.append("SECRET_TAINT_CROSSES_EXTERNAL_BOUNDARY")
 
         destination = action.attributes.get("destination")
-        if external and not isinstance(destination, str):
+        if external and (
+            not isinstance(destination, str) or not destination.strip()
+        ):
             reasons.append("EXTERNAL_DESTINATION_MISSING")
 
         verdict = GuardVerdict.DENY if reasons else GuardVerdict.ALLOW
@@ -172,9 +174,12 @@ class CausalTransitionGraph:
                     "AUTHORIZES requires a trusted authorization and action target"
                 )
         elif edge.relation is Relation.REVOKES:
-            if source.kind not in {NodeKind.REVOCATION, NodeKind.POLICY}:
+            if not (
+                self._is_trusted_revocation(source)
+                or self._is_trusted_policy(source)
+            ):
                 raise GraphValidationError(
-                    "REVOKES requires a revocation or policy source"
+                    "REVOKES requires a trusted revocation or policy source"
                 )
             if target.kind is not NodeKind.AUTHORIZATION:
                 raise GraphValidationError(
@@ -192,6 +197,13 @@ class CausalTransitionGraph:
         return (
             node.kind is NodeKind.AUTHORIZATION
             and node.trusted_for_authority
+            and node.attributes.get("source") in self._trusted_authority_sources
+        )
+
+    def _is_trusted_revocation(self, node: GraphNode) -> bool:
+        return (
+            node.kind is NodeKind.REVOCATION
+            and node.space is Space.AUTHORITY
             and node.attributes.get("source") in self._trusted_authority_sources
         )
 
@@ -246,6 +258,11 @@ class CausalTransitionGraph:
     def _is_revoked(self, authorization_id: str, at: datetime) -> bool:
         for edge in self._incoming(authorization_id, Relation.REVOKES):
             revocation = self._nodes[edge.source]
+            if not (
+                self._is_trusted_revocation(revocation)
+                or self._is_trusted_policy(revocation)
+            ):
+                continue
             start = revocation.temporal.valid_from
             if start is None or utc(start) <= at:
                 return True
