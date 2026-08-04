@@ -172,7 +172,8 @@ class GuardedToolGateway:
         if not nonce.strip():
             raise GatewayValidationError("nonce must be non-empty")
 
-        actual_hash = payload_digest(payload)
+        payload_snapshot = _snapshot_payload(payload)
+        actual_hash = payload_digest(payload_snapshot)
         expected_hash = action.attributes.get("payload_hash")
         if isinstance(expected_hash, str) and expected_hash:
             if not hmac.compare_digest(expected_hash, actual_hash):
@@ -211,10 +212,11 @@ class GuardedToolGateway:
     ) -> ExecutionReceipt:
         observed_at = utc(at or datetime.now(timezone.utc))
         try:
+            payload_snapshot = _snapshot_payload(payload)
             envelope = self.build_envelope(
-                action_id, payload, nonce=nonce, at=observed_at
+                action_id, payload_snapshot, nonce=nonce, at=observed_at
             )
-        except (GatewayValidationError, TypeError, ValueError) as exc:
+        except (GatewayValidationError, TypeError, ValueError, RuntimeError) as exc:
             evidence = self._graph.evaluate(action_id, at=observed_at)
             return self._record(
                 "",
@@ -223,7 +225,7 @@ class GuardedToolGateway:
                 GatewayStatus.ENVELOPE_MISMATCH,
                 error_code=_validation_error_code(exc),
             )
-        return self.execute(envelope, payload, at=observed_at)
+        return self._execute_snapshot(envelope, payload_snapshot, at=observed_at)
 
     def execute(
         self,
@@ -233,17 +235,34 @@ class GuardedToolGateway:
         at: datetime | None = None,
     ) -> ExecutionReceipt:
         observed_at = utc(at or datetime.now(timezone.utc))
-        evidence = self._graph.evaluate(envelope.action_id, at=observed_at)
-
         try:
-            binding_error = self._binding_error(envelope, payload)
-        except (TypeError, ValueError):
-            binding_error = "payload_not_canonicalizable"
-        if binding_error:
+            payload_snapshot = _snapshot_payload(payload)
+        except (TypeError, ValueError, RuntimeError):
+            evidence = self._graph.evaluate(envelope.action_id, at=observed_at)
             return self._record(
                 envelope.envelope_hash,
                 evidence,
                 observed_at,
+                GatewayStatus.ENVELOPE_MISMATCH,
+                error_code="payload_not_canonicalizable",
+            )
+        return self._execute_snapshot(envelope, payload_snapshot, at=observed_at)
+
+    def _execute_snapshot(
+        self,
+        envelope: ActionEnvelope,
+        payload_snapshot: Any,
+        *,
+        at: datetime,
+    ) -> ExecutionReceipt:
+        evidence = self._graph.evaluate(envelope.action_id, at=at)
+
+        binding_error = self._binding_error(envelope, payload_snapshot)
+        if binding_error:
+            return self._record(
+                envelope.envelope_hash,
+                evidence,
+                at,
                 GatewayStatus.ENVELOPE_MISMATCH,
                 error_code=binding_error,
             )
@@ -251,7 +270,7 @@ class GuardedToolGateway:
             return self._record(
                 envelope.envelope_hash,
                 evidence,
-                observed_at,
+                at,
                 GatewayStatus.DENIED,
             )
 
@@ -263,7 +282,7 @@ class GuardedToolGateway:
             return self._record(
                 envelope.envelope_hash,
                 evidence,
-                observed_at,
+                at,
                 GatewayStatus.ENVELOPE_MISMATCH,
                 error_code="allowed_action_missing_payload_hash",
             )
@@ -273,7 +292,7 @@ class GuardedToolGateway:
             return self._record(
                 envelope.envelope_hash,
                 evidence,
-                observed_at,
+                at,
                 GatewayStatus.TOOL_NOT_REGISTERED,
                 error_code="tool_not_registered",
             )
@@ -281,30 +300,31 @@ class GuardedToolGateway:
             return self._record(
                 envelope.envelope_hash,
                 evidence,
-                observed_at,
+                at,
                 GatewayStatus.REPLAY_BLOCKED,
                 error_code="nonce_already_used",
             )
 
         try:
-            result = tool.handler(envelope, payload)
+            result = tool.handler(envelope, payload_snapshot)
         except Exception as exc:  # noqa: BLE001 - adapter boundary
             return self._record(
                 envelope.envelope_hash,
                 evidence,
-                observed_at,
+                at,
                 GatewayStatus.EXECUTION_FAILED,
                 executed=True,
                 error_code=type(exc).__name__,
             )
 
         try:
-            result_hash = payload_digest(result)
-        except (TypeError, ValueError):
+            result_snapshot = _snapshot_payload(result)
+            result_hash = payload_digest(result_snapshot)
+        except (TypeError, ValueError, RuntimeError):
             return self._record(
                 envelope.envelope_hash,
                 evidence,
-                observed_at,
+                at,
                 GatewayStatus.EXECUTED_UNVERIFIED,
                 executed=True,
                 error_code="result_not_canonicalizable",
@@ -313,18 +333,18 @@ class GuardedToolGateway:
             return self._record(
                 envelope.envelope_hash,
                 evidence,
-                observed_at,
+                at,
                 GatewayStatus.EXECUTED_UNVERIFIED,
                 executed=True,
                 result_hash=result_hash,
             )
         try:
-            verified = bool(tool.verifier(envelope, result))
+            verified = bool(tool.verifier(envelope, result_snapshot))
         except Exception as exc:  # noqa: BLE001 - verification fails closed
             return self._record(
                 envelope.envelope_hash,
                 evidence,
-                observed_at,
+                at,
                 GatewayStatus.POSTCONDITION_FAILED,
                 executed=True,
                 result_hash=result_hash,
@@ -333,7 +353,7 @@ class GuardedToolGateway:
         return self._record(
             envelope.envelope_hash,
             evidence,
-            observed_at,
+            at,
             GatewayStatus.VERIFIED if verified else GatewayStatus.POSTCONDITION_FAILED,
             executed=True,
             verified=verified,
@@ -449,6 +469,31 @@ def _canonicalize(value: Any) -> Any:
             "value": [_canonicalize(child) for child in value],
         }
     raise TypeError(f"unsupported payload type: {type(value).__name__}")
+
+
+def _snapshot_payload(value: Any, *, _seen: set[int] | None = None) -> Any:
+    if value is None or isinstance(value, (bool, int, float, str, bytes)):
+        return value
+    seen = _seen if _seen is not None else set()
+    object_id = id(value)
+    if object_id in seen:
+        raise TypeError("cyclic payloads are not supported")
+    seen.add(object_id)
+    try:
+        if isinstance(value, Mapping):
+            snapshot: dict[str, Any] = {}
+            for key, child in value.items():
+                if not isinstance(key, str):
+                    raise TypeError("payload mappings require string keys")
+                snapshot[key] = _snapshot_payload(child, _seen=seen)
+            return snapshot
+        if isinstance(value, list):
+            return [_snapshot_payload(child, _seen=seen) for child in value]
+        if isinstance(value, tuple):
+            return tuple(_snapshot_payload(child, _seen=seen) for child in value)
+        raise TypeError(f"unsupported payload type: {type(value).__name__}")
+    finally:
+        seen.remove(object_id)
 
 
 def _validation_error_code(exc: Exception) -> str:
