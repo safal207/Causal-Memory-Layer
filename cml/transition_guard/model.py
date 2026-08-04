@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping as MappingABC
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from types import MappingProxyType
 from typing import Any, Mapping
 
 
@@ -87,6 +89,11 @@ class GraphNode:
     temporal: TemporalWindow = field(default_factory=TemporalWindow)
     trusted_for_authority: bool = False
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.attributes, MappingABC):
+            raise TypeError("attributes must be a mapping")
+        object.__setattr__(self, "attributes", _freeze_value(self.attributes))
+
 
 @dataclass(frozen=True)
 class GraphEdge:
@@ -116,6 +123,18 @@ class TransitionEvidence:
         payload["verdict"] = self.verdict.value
         payload["allowed"] = self.allowed
         return payload
+
+
+def _freeze_value(value: Any) -> Any:
+    if isinstance(value, MappingABC):
+        return MappingProxyType(
+            {key: _freeze_value(child) for key, child in value.items()}
+        )
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_value(child) for child in value)
+    if isinstance(value, (set, frozenset)):
+        return frozenset(_freeze_value(child) for child in value)
+    return value
 
 
 def scope_contains(scope: Any, value: Any) -> bool:
