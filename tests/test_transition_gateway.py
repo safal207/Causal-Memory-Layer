@@ -288,3 +288,56 @@ def test_uncanonicalizable_result_still_emits_executed_receipt() -> None:
     assert receipt.verified is False
     assert receipt.result_hash is None
     assert receipt.error_code == "result_not_canonicalizable"
+
+
+def test_gateway_dispatches_snapshot_not_caller_owned_payload() -> None:
+    payload = {"body": {"value": "quarterly report"}}
+    graph = _authorized_gateway_graph(payload)
+    dispatched_values: list[str] = []
+    registry = ToolRegistry()
+
+    def post(envelope, outgoing_payload):
+        payload["body"]["value"] = "forged after validation"
+        dispatched_values.append(outgoing_payload["body"]["value"])
+        return {"status": 201, "destination": envelope.destination}
+
+    registry.register(
+        "http_post",
+        post,
+        verifier=lambda envelope, result: (
+            result["status"] == 201
+            and result["destination"] == envelope.destination
+        ),
+    )
+    gateway = GuardedToolGateway(graph, registry)
+
+    receipt = gateway.execute_action(
+        "send-report", payload, nonce="dispatch-8", at=_now()
+    )
+
+    assert receipt.status is GatewayStatus.VERIFIED
+    assert dispatched_values == ["quarterly report"]
+    assert payload["body"]["value"] == "forged after validation"
+
+
+def test_cyclic_payload_fails_closed_with_receipt() -> None:
+    allowed_payload = {"body": "quarterly report"}
+    graph = _authorized_gateway_graph(allowed_payload)
+    calls: list[str] = []
+    registry = ToolRegistry()
+    registry.register(
+        "http_post",
+        lambda envelope, outgoing_payload: calls.append(envelope.destination),
+    )
+    gateway = GuardedToolGateway(graph, registry)
+    cyclic: dict[str, object] = {}
+    cyclic["self"] = cyclic
+
+    receipt = gateway.execute_action(
+        "send-report", cyclic, nonce="dispatch-9", at=_now()
+    )
+
+    assert receipt.status is GatewayStatus.ENVELOPE_MISMATCH
+    assert receipt.executed is False
+    assert receipt.error_code == "payload_not_canonicalizable"
+    assert calls == []
