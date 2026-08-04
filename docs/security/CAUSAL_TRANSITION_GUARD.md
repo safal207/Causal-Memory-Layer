@@ -62,10 +62,12 @@ The gateway adds the runtime controls that a graph decision alone cannot provide
 
 - an action envelope binds `action_id`, operation, resource, destination, payload digest, nonce, and issue time;
 - an allowed action must contain the exact `payload_hash` that will be dispatched;
+- graph and envelope payload hashes must be lowercase 64-character SHA-256 hex strings;
 - payload digests are deterministic and preserve scalar, sequence, byte, and mapping types;
 - the gateway snapshots supported payloads before hashing and dispatch, so caller-side mutation cannot change adapter input after validation;
 - destination or payload substitution is rejected before the adapter is called;
 - unsupported or cyclic payloads fail closed and still produce an evidence receipt;
+- authorization is re-evaluated using the gateway-owned dispatch clock, not a caller-supplied timestamp or the envelope issue time;
 - a nonce can be claimed only once, blocking same-process replay;
 - denied actions never reach registered file, network, or other tool adapters;
 - successful execution can be checked by a postcondition verifier;
@@ -102,6 +104,8 @@ receipt = gateway.execute_action(
 )
 ```
 
+The optional constructor `clock` exists for controlled deployments and deterministic tests. It is owned by the gateway; callers of `execute()` and `execute_action()` cannot provide an authorization timestamp.
+
 Run the end-to-end CoT-forgery demo:
 
 ```bash
@@ -116,6 +120,8 @@ send-secret: status=denied executed=False ...
 adapter_calls=0
 ASB-15 gateway: PASS
 ```
+
+The demo reports PASS only when the read action contains `NO_TRUSTED_AUTHORITY_PATH`, the send action contains `SECRET_TAINT_CROSSES_EXTERNAL_BOUNDARY`, both remain unexecuted, and the adapter call count is zero.
 
 ## Evidence
 
@@ -146,6 +152,7 @@ The included replay and receipt stores are process-local reference implementatio
 
 - authenticate policy and authority services;
 - sign authorization and action envelopes;
+- provide the gateway clock from trusted infrastructure;
 - isolate adapter credentials so tools cannot be invoked outside the gateway;
 - use durable idempotency or nonce storage across replicas;
 - define rollback or compensation behavior for failed postconditions;
