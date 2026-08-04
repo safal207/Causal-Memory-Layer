@@ -15,11 +15,13 @@ from typing import Any
 
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 REPOSITORY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-SCHEMA_VERSION = "cml-trust-root-verification-v2"
+SCHEMA_VERSION = "cml-trust-root-verification-v3"
 MANIFEST_SCHEMA = "cml-trust-root-files-v1"
 PROTECTED_EXACT = {".github/workflows/trusted-pr-gate.yml"}
 PROTECTED_PREFIXES = (".github/trust-root/",)
 WORKFLOW_PREFIX = ".github/workflows/"
+REGULAR_BLOB_MODES = {"100644", "100755"}
+TREE_MODE = "040000"
 DANGEROUS_IMPORT_ROOTS = frozenset(sys.stdlib_module_names) | {
     "scripts",
     "sitecustomize",
@@ -78,6 +80,19 @@ def read_json_object(path: Path) -> dict[str, Any]:
     return payload
 
 
+def _run_git_bytes(repository_root: Path, *args: str) -> bytes:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=repository_root,
+        check=False,
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise TrustRootError(detail or f"git {' '.join(args)} failed")
+    return completed.stdout
+
+
 def resolve_git_head(repository_root: Path) -> str:
     completed = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -93,6 +108,8 @@ def resolve_git_head(repository_root: Path) -> str:
 
 
 def file_identity(path: Path) -> tuple[str, str, int]:
+    """Return a working-tree identity for trusted local manifest self-tests."""
+
     if path.is_symlink():
         raise TrustRootError(f"protected file cannot be a symbolic link: {path}")
     if not path.is_file():
@@ -105,12 +122,102 @@ def file_identity(path: Path) -> tuple[str, str, int]:
         capture_output=True,
     )
     if completed.returncode != 0:
-        detail = completed.stderr.decode("utf-8", errors="replace").strip() or "unknown git error"
-        raise TrustRootError(f"cannot compute Git blob identity for {path}: {detail}")
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise TrustRootError(
+            f"cannot compute Git blob identity for {path}: {detail or 'unknown git error'}"
+        )
     git_blob = completed.stdout.decode("ascii", errors="strict").strip().lower()
     if not SHA_PATTERN.fullmatch(git_blob):
         raise TrustRootError(f"Git returned an invalid blob identity for {path}")
     return git_blob, hashlib.sha256(content).hexdigest(), len(content)
+
+
+def _validate_repository_path(raw_path: str) -> PurePosixPath:
+    posix = PurePosixPath(raw_path)
+    if (
+        not raw_path
+        or posix.is_absolute()
+        or ".." in posix.parts
+        or any(part in {"", "."} for part in posix.parts)
+        or any(ord(character) < 32 for character in raw_path)
+    ):
+        raise TrustRootError(f"invalid protected file path: {raw_path}")
+    return posix
+
+
+def _git_tree_entry(
+    repository_root: Path,
+    commit_sha: str,
+    relative_path: str,
+) -> tuple[str, str, str] | None:
+    """Return exact mode, type, and object ID for one literal Git-tree path."""
+
+    output = _run_git_bytes(
+        repository_root,
+        "ls-tree",
+        "-z",
+        commit_sha,
+        "--",
+        f":(literal){relative_path}",
+    )
+    records = [record for record in output.split(b"\0") if record]
+    if not records:
+        return None
+    if len(records) != 1 or b"\t" not in records[0]:
+        raise TrustRootError(
+            f"Git returned an ambiguous tree entry for protected path: {relative_path}"
+        )
+    metadata, encoded_path = records[0].split(b"\t", 1)
+    try:
+        returned_path = encoded_path.decode("utf-8", errors="strict")
+        fields = metadata.decode("ascii", errors="strict").split(" ", 2)
+    except UnicodeDecodeError as exc:
+        raise TrustRootError(
+            f"Git returned an invalid encoded tree entry for {relative_path}"
+        ) from exc
+    if returned_path != relative_path or len(fields) != 3:
+        raise TrustRootError(
+            f"Git returned an unexpected tree entry for protected path: {relative_path}"
+        )
+    mode, object_type, object_id = fields
+    object_id = object_id.lower()
+    if not SHA_PATTERN.fullmatch(object_id):
+        raise TrustRootError(f"Git returned an invalid object ID for {relative_path}")
+    return mode, object_type, object_id
+
+
+def git_file_identity(
+    repository_root: Path,
+    commit_sha: str,
+    relative_path: str,
+) -> tuple[str, str, int, str]:
+    """Read one protected file directly from an exact commit's Git tree."""
+
+    posix = _validate_repository_path(relative_path)
+    parts = posix.parts
+    for index in range(1, len(parts)):
+        ancestor = PurePosixPath(*parts[:index]).as_posix()
+        entry = _git_tree_entry(repository_root, commit_sha, ancestor)
+        if entry is None:
+            raise TrustRootError(f"protected path ancestor is missing: {ancestor}")
+        mode, object_type, _ = entry
+        if mode != TREE_MODE or object_type != "tree":
+            raise TrustRootError(
+                f"protected path ancestor is not a Git tree: {ancestor} "
+                f"({mode} {object_type})"
+            )
+
+    entry = _git_tree_entry(repository_root, commit_sha, relative_path)
+    if entry is None:
+        raise TrustRootError(f"protected file is missing from Git tree: {relative_path}")
+    mode, object_type, object_id = entry
+    if object_type != "blob" or mode not in REGULAR_BLOB_MODES:
+        raise TrustRootError(
+            f"protected file is not a regular Git blob: {relative_path} "
+            f"({mode} {object_type})"
+        )
+    content = _run_git_bytes(repository_root, "cat-file", "blob", object_id)
+    return object_id, hashlib.sha256(content).hexdigest(), len(content), mode
 
 
 def load_protected_manifest(base_root: Path) -> dict[str, str]:
@@ -125,10 +232,10 @@ def load_protected_manifest(base_root: Path) -> dict[str, str]:
     normalized: dict[str, str] = {}
     for raw_path, raw_digest in files.items():
         if not isinstance(raw_path, str) or not isinstance(raw_digest, str):
-            raise TrustRootError("protected file manifest paths and object IDs must be strings")
-        posix = PurePosixPath(raw_path)
-        if posix.is_absolute() or ".." in posix.parts:
-            raise TrustRootError(f"invalid protected file path: {raw_path}")
+            raise TrustRootError(
+                "protected file manifest paths and object IDs must be strings"
+            )
+        _validate_repository_path(raw_path)
         digest = raw_digest.strip().lower()
         if not SHA_PATTERN.fullmatch(digest):
             raise TrustRootError(f"invalid Git blob object ID for {raw_path}")
@@ -157,7 +264,9 @@ def scan_tree(root: Path) -> dict[str, dict[str, Any]]:
         if not relative or relative == ".git" or relative.startswith(".git/"):
             return
         if any(ord(character) < 32 for character in relative):
-            raise TrustRootError(f"repository path contains a control character: {relative!r}")
+            raise TrustRootError(
+                f"repository path contains a control character: {relative!r}"
+            )
         canonical = relative.casefold()
         if canonical in canonical_paths:
             raise TrustRootError(f"case-insensitive duplicate repository path: {relative}")
@@ -219,20 +328,28 @@ def verify_subject(
     normalized_attempt = positive_int(run_attempt, label="run attempt")
     actual = resolve_git_head(subject_root)
     if actual != expected:
-        raise TrustRootError(f"subject checkout is stale: expected {expected}, got {actual}")
+        raise TrustRootError(
+            f"subject checkout is stale: expected {expected}, got {actual}"
+        )
 
     protected_files = load_protected_manifest(base_root)
-    approved_workflows = {path for path in protected_files if path.startswith(WORKFLOW_PREFIX)}
+    approved_workflows = {
+        path for path in protected_files if path.startswith(WORKFLOW_PREFIX)
+    }
     changed = compare_trees(base_root, subject_root)
     findings: list[dict[str, str]] = []
 
     for path in changed:
-        if path in PROTECTED_EXACT or any(path.startswith(prefix) for prefix in PROTECTED_PREFIXES):
+        if path in PROTECTED_EXACT or any(
+            path.startswith(prefix) for prefix in PROTECTED_PREFIXES
+        ):
             findings.append(
                 {
                     "code": "CML-TRUST-ROOT-PROTECTED-PATH-CHANGED",
                     "path": path,
-                    "message": "protected trust-root files require a dedicated bootstrap review",
+                    "message": (
+                        "protected trust-root files require a dedicated bootstrap review"
+                    ),
                 }
             )
         elif path in protected_files:
@@ -260,17 +377,24 @@ def verify_subject(
                     {
                         "code": "CML-TRUST-ROOT-IMPORT-SHADOWING",
                         "path": path,
-                        "message": "changed top-level path could shadow imports used by protected CI helpers",
+                        "message": (
+                            "changed top-level path could shadow imports used by "
+                            "protected CI helpers"
+                        ),
                     }
                 )
 
     observed_git_blobs: dict[str, str] = {}
     observed_sha256: dict[str, str] = {}
     observed_bytes: dict[str, int] = {}
+    observed_modes: dict[str, str] = {}
     for relative, expected_digest in sorted(protected_files.items()):
-        subject_path = subject_root / relative
         try:
-            observed, sha256, size = file_identity(subject_path)
+            observed, sha256, size, mode = git_file_identity(
+                subject_root,
+                actual,
+                relative,
+            )
         except TrustRootError as exc:
             findings.append(
                 {
@@ -283,12 +407,15 @@ def verify_subject(
         observed_git_blobs[relative] = observed
         observed_sha256[relative] = sha256
         observed_bytes[relative] = size
+        observed_modes[relative] = mode
         if observed != expected_digest:
             findings.append(
                 {
                     "code": "CML-TRUST-ROOT-PROTECTED-FILE-MISMATCH",
                     "path": relative,
-                    "message": f"Git blob object ID {observed} != trusted {expected_digest}",
+                    "message": (
+                        f"Git blob object ID {observed} != trusted {expected_digest}"
+                    ),
                 }
             )
 
@@ -305,6 +432,7 @@ def verify_subject(
         "approved_files": sorted(protected_files),
         "approved_workflows": sorted(approved_workflows),
         "observed_git_blob_sha1": observed_git_blobs,
+        "observed_git_modes": observed_modes,
         "observed_sha256": observed_sha256,
         "observed_bytes": observed_bytes,
         "changed_file_count": len(changed),
@@ -316,7 +444,10 @@ def verify_subject(
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def build_failure_report(
@@ -386,7 +517,8 @@ def main() -> None:
     write_json(args.output, result)
     if not result["passed"]:
         summary = "; ".join(
-            f"{finding['code']}:{finding['path']}" for finding in result["findings"]
+            f"{finding['code']}:{finding['path']}"
+            for finding in result["findings"]
         )
         raise SystemExit(f"CML trust-root verification failed closed: {summary}")
     print(f"CML trust-root verification passed for {result['actual_head']}")

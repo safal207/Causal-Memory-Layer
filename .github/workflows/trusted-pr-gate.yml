@@ -2,7 +2,6 @@ name: CML Trust Root Gate
 
 on:
   pull_request_target:
-    branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions: {}
@@ -18,8 +17,121 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+      pull-requests: read
+    outputs:
+      status_context: ${{ steps.scope.outputs.status_context }}
+      merge_sha: ${{ steps.identity.outputs.merge_sha }}
 
     steps:
+      - name: Derive branch-scoped trust context
+        id: scope
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import re
+
+          base_ref = os.environ["BASE_REF"]
+          base_sha = os.environ["BASE_SHA"].strip().lower()
+          if not base_ref or any(ord(character) < 32 for character in base_ref):
+              raise SystemExit("invalid pull request base ref")
+          if not re.fullmatch(r"[0-9a-f]{40}", base_sha):
+              raise SystemExit("invalid pull request base SHA")
+          context = "CML Trust Root Gate / " + hashlib.sha256(
+              base_ref.encode("utf-8")
+          ).hexdigest()
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"status_context={context}\n")
+          PY
+
+      - name: Resolve exact test merge identity
+        id: identity
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EXPECTED_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import time
+          import urllib.request
+          from pathlib import Path
+
+          repository = os.environ["REPOSITORY"]
+          pull_number = os.environ["PULL_NUMBER"]
+          expected_base_ref = os.environ["EXPECTED_BASE_REF"]
+          expected_base_sha = os.environ["EXPECTED_BASE_SHA"].strip().lower()
+          expected_head_sha = os.environ["EXPECTED_HEAD_SHA"].strip().lower()
+          expected_head_repository = os.environ["EXPECTED_HEAD_REPOSITORY"]
+          for value, label in (
+              (expected_base_sha, "base"),
+              (expected_head_sha, "head"),
+          ):
+              if not re.fullmatch(r"[0-9a-f]{40}", value):
+                  raise SystemExit(f"invalid expected {label} SHA")
+
+          url = f"https://api.github.com/repos/{repository}/pulls/{pull_number}"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "cml-trust-root-gate",
+          }
+          payload = None
+          for attempt in range(6):
+              request = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  payload = json.load(response)
+              merge_sha = payload.get("merge_commit_sha")
+              if isinstance(merge_sha, str) and re.fullmatch(
+                  r"[0-9a-f]{40}", merge_sha.lower()
+              ):
+                  break
+              if attempt == 5:
+                  raise SystemExit("test merge commit SHA is unavailable")
+              time.sleep(2)
+
+          assert isinstance(payload, dict)
+          base = payload.get("base") or {}
+          head = payload.get("head") or {}
+          head_repository = (head.get("repo") or {}).get("full_name")
+          observed = {
+              "base_ref": base.get("ref"),
+              "base_sha": str(base.get("sha", "")).lower(),
+              "head_sha": str(head.get("sha", "")).lower(),
+              "head_repository": head_repository,
+              "merge_sha": str(payload.get("merge_commit_sha", "")).lower(),
+          }
+          expected = {
+              "base_ref": expected_base_ref,
+              "base_sha": expected_base_sha,
+              "head_sha": expected_head_sha,
+              "head_repository": expected_head_repository,
+          }
+          for key, value in expected.items():
+              if observed.get(key) != value:
+                  raise SystemExit(f"pull request identity changed: {key}")
+          if not re.fullmatch(r"[0-9a-f]{40}", observed["merge_sha"]):
+              raise SystemExit("invalid test merge commit SHA")
+
+          path = Path("trust-merge-identity.json")
+          path.write_text(
+              json.dumps(observed, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"merge_sha={observed['merge_sha']}\n")
+          PY
+
       - name: Checkout protected base trust root
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
@@ -55,64 +167,155 @@ jobs:
             --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --output trust-root-verification.json
 
+      - name: Bind exact transition identity to trust evidence
+        if: always()
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MERGE_SHA: ${{ steps.identity.outputs.merge_sha }}
+          STATUS_CONTEXT: ${{ steps.scope.outputs.status_context }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path("trust-root-verification.json")
+          if not path.is_file():
+              raise SystemExit("trust-root verification evidence is missing")
+          values = {
+              "base_ref": os.environ["BASE_REF"],
+              "base_sha": os.environ["BASE_SHA"].strip().lower(),
+              "head_sha": os.environ["HEAD_SHA"].strip().lower(),
+              "merge_sha": os.environ["MERGE_SHA"].strip().lower(),
+              "status_context": os.environ["STATUS_CONTEXT"],
+          }
+          if not values["base_ref"] or any(
+              ord(character) < 32 for character in values["base_ref"]
+          ):
+              raise SystemExit("invalid pull request base ref")
+          for key in ("base_sha", "head_sha", "merge_sha"):
+              if not re.fullmatch(r"[0-9a-f]{40}", values[key]):
+                  raise SystemExit(f"invalid {key}")
+          if not values["status_context"].startswith("CML Trust Root Gate / "):
+              raise SystemExit("invalid branch-scoped trust status context")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          payload.update(values)
+          temporary = path.with_suffix(".tmp")
+          temporary.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          temporary.replace(path)
+          PY
+
       - name: Upload exact-attempt trust-root evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: cml-trust-root-pr${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: trust-root-verification.json
+          name: cml-trust-root-pr${{ github.event.pull_request.number }}-${{ steps.identity.outputs.merge_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            trust-root-verification.json
+            trust-merge-identity.json
           if-no-files-found: error
           retention-days: 30
 
   publish:
-    name: Publish trusted head status
+    name: Publish trusted merge status
     if: always()
     needs: [verify]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      pull-requests: read
       statuses: write
 
     steps:
-      - name: Publish immutable-context commit status
+      - name: Publish branch-scoped test merge status
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          PULL_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ needs.verify.outputs.merge_sha }}
+          STATUS_CONTEXT: ${{ needs.verify.outputs.status_context }}
           VERIFY_RESULT: ${{ needs.verify.result }}
           REPOSITORY: ${{ github.repository }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
         run: |
           python - <<'PY'
+          import hashlib
           import json
           import os
           import re
           import urllib.request
 
-          sha = os.environ["HEAD_SHA"].strip().lower()
-          if not re.fullmatch(r"[0-9a-f]{40}", sha):
-              raise SystemExit("invalid pull request head SHA")
+          repository = os.environ["REPOSITORY"]
+          pull_number = os.environ["PULL_NUMBER"]
+          head_sha = os.environ["HEAD_SHA"].strip().lower()
+          base_sha = os.environ["BASE_SHA"].strip().lower()
+          merge_sha = os.environ["MERGE_SHA"].strip().lower()
+          base_ref = os.environ["BASE_REF"]
+          for value, label in (
+              (head_sha, "head"),
+              (base_sha, "base"),
+              (merge_sha, "merge"),
+          ):
+              if not re.fullmatch(r"[0-9a-f]{40}", value):
+                  raise SystemExit(f"invalid pull request {label} SHA")
+          if not base_ref or any(ord(character) < 32 for character in base_ref):
+              raise SystemExit("invalid pull request base ref")
+          expected_context = "CML Trust Root Gate / " + hashlib.sha256(
+              base_ref.encode("utf-8")
+          ).hexdigest()
+          status_context = os.environ["STATUS_CONTEXT"]
+          if status_context != expected_context:
+              raise SystemExit("branch-scoped trust status context mismatch")
+
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "cml-trust-root-gate",
+          }
+          pull_request = urllib.request.Request(
+              f"https://api.github.com/repos/{repository}/pulls/{pull_number}",
+              headers=headers,
+          )
+          with urllib.request.urlopen(pull_request, timeout=30) as response:
+              current = json.load(response)
+          current_base = current.get("base") or {}
+          current_head = current.get("head") or {}
+          current_identity = (
+              current_base.get("ref"),
+              str(current_base.get("sha", "")).lower(),
+              str(current_head.get("sha", "")).lower(),
+              str(current.get("merge_commit_sha", "")).lower(),
+          )
+          expected_identity = (base_ref, base_sha, head_sha, merge_sha)
+          if current_identity != expected_identity:
+              print("pull request transition advanced; refusing stale status")
+              raise SystemExit(0)
+
           passed = os.environ["VERIFY_RESULT"] == "success"
           payload = {
               "state": "success" if passed else "failure",
-              "context": "CML Trust Root Gate",
+              "context": status_context,
               "description": (
-                  "Protected CI contract verified from base trust root"
+                  "Protected CI contract verified for exact test merge"
                   if passed
                   else "Protected CI contract rejected; inspect exact attempt"
               ),
               "target_url": os.environ["RUN_URL"],
           }
           request = urllib.request.Request(
-              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/statuses/{sha}",
+              f"https://api.github.com/repos/{repository}/statuses/{merge_sha}",
               data=json.dumps(payload).encode("utf-8"),
               method="POST",
-              headers={
-                  "Accept": "application/vnd.github+json",
-                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
-                  "Content-Type": "application/json",
-                  "X-GitHub-Api-Version": "2022-11-28",
-                  "User-Agent": "cml-trust-root-gate",
-              },
+              headers={**headers, "Content-Type": "application/json"},
           )
           with urllib.request.urlopen(request, timeout=30) as response:
               if response.status not in (200, 201):
