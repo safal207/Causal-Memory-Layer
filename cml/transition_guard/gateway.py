@@ -88,6 +88,7 @@ class ExecutionReceipt:
 
 ToolHandler = Callable[[ActionEnvelope, Any], Any]
 PostconditionVerifier = Callable[[ActionEnvelope, Any], bool]
+Clock = Callable[[], datetime]
 
 
 @dataclass(frozen=True)
@@ -111,9 +112,9 @@ class ToolRegistry:
     ) -> None:
         normalized = operation.strip()
         if not normalized:
-            raise GatewayValidationError("operation must be non-empty")
+            raise GatewayValidationError("operation_must_be_non_empty")
         if normalized in self._tools:
-            raise GatewayValidationError(f"duplicate tool operation: {normalized}")
+            raise GatewayValidationError(f"duplicate_tool_operation:{normalized}")
         self._tools[normalized] = _RegisteredTool(handler, verifier)
 
     def get(self, operation: str) -> _RegisteredTool | None:
@@ -146,10 +147,12 @@ class GuardedToolGateway:
         registry: ToolRegistry,
         *,
         replay_store: InMemoryReplayStore | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self._graph = graph
         self._registry = registry
         self._replay_store = replay_store or InMemoryReplayStore()
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._receipts: list[ExecutionReceipt] = []
         self._receipt_lock = Lock()
 
@@ -164,34 +167,35 @@ class GuardedToolGateway:
         payload: Any,
         *,
         nonce: str,
-        at: datetime | None = None,
     ) -> ActionEnvelope:
         action = self._graph.nodes.get(action_id)
         if action is None or action.kind is not NodeKind.ACTION:
-            raise GatewayValidationError("action must exist before dispatch")
+            raise GatewayValidationError("action_must_exist_before_dispatch")
         if not nonce.strip():
-            raise GatewayValidationError("nonce must be non-empty")
+            raise GatewayValidationError("nonce_must_be_non_empty")
 
         payload_snapshot = _snapshot_payload(payload)
         actual_hash = payload_digest(payload_snapshot)
         expected_hash = action.attributes.get("payload_hash")
-        if isinstance(expected_hash, str) and expected_hash:
+        if expected_hash is not None:
+            if not _is_sha256_hex(expected_hash):
+                raise GatewayValidationError("invalid_graph_payload_hash")
             if not hmac.compare_digest(expected_hash, actual_hash):
-                raise GatewayValidationError("payload does not match graph action")
+                raise GatewayValidationError("payload_does_not_match_graph_action")
 
         operation = action.attributes.get("operation")
         resource = action.attributes.get("resource")
         destination = action.attributes.get("destination", "")
         if not isinstance(operation, str) or not operation:
-            raise GatewayValidationError("action operation must be non-empty")
+            raise GatewayValidationError("action_operation_must_be_non_empty")
         if not isinstance(resource, str) or not resource:
-            raise GatewayValidationError("action resource must be non-empty")
+            raise GatewayValidationError("action_resource_must_be_non_empty")
         if destination is None:
             destination = ""
         if not isinstance(destination, str):
-            raise GatewayValidationError("action destination must be a string")
+            raise GatewayValidationError("action_destination_must_be_string")
 
-        issued = utc(at or datetime.now(timezone.utc))
+        issued = self._observed_at()
         return ActionEnvelope(
             action_id=action_id,
             operation=operation,
@@ -208,13 +212,12 @@ class GuardedToolGateway:
         payload: Any,
         *,
         nonce: str,
-        at: datetime | None = None,
     ) -> ExecutionReceipt:
-        observed_at = utc(at or datetime.now(timezone.utc))
+        observed_at = self._observed_at()
         try:
             payload_snapshot = _snapshot_payload(payload)
             envelope = self.build_envelope(
-                action_id, payload_snapshot, nonce=nonce, at=observed_at
+                action_id, payload_snapshot, nonce=nonce
             )
         except (GatewayValidationError, TypeError, ValueError, RuntimeError) as exc:
             evidence = self._graph.evaluate(action_id, at=observed_at)
@@ -231,10 +234,8 @@ class GuardedToolGateway:
         self,
         envelope: ActionEnvelope,
         payload: Any,
-        *,
-        at: datetime | None = None,
     ) -> ExecutionReceipt:
-        observed_at = utc(at or datetime.now(timezone.utc))
+        observed_at = self._observed_at()
         try:
             payload_snapshot = _snapshot_payload(payload)
         except (TypeError, ValueError, RuntimeError):
@@ -278,13 +279,21 @@ class GuardedToolGateway:
         expected_hash = (
             action.attributes.get("payload_hash") if action is not None else None
         )
-        if not isinstance(expected_hash, str) or not expected_hash:
+        if expected_hash is None:
             return self._record(
                 envelope.envelope_hash,
                 evidence,
                 at,
                 GatewayStatus.ENVELOPE_MISMATCH,
                 error_code="allowed_action_missing_payload_hash",
+            )
+        if not _is_sha256_hex(expected_hash):
+            return self._record(
+                envelope.envelope_hash,
+                evidence,
+                at,
+                GatewayStatus.ENVELOPE_MISMATCH,
+                error_code="invalid_graph_payload_hash",
             )
 
         tool = self._registry.get(envelope.operation)
@@ -367,6 +376,8 @@ class GuardedToolGateway:
         action = self._graph.nodes.get(envelope.action_id)
         if action is None or action.kind is not NodeKind.ACTION:
             return "action_not_found"
+        if not _is_sha256_hex(envelope.payload_hash):
+            return "invalid_envelope_payload_hash"
         destination = action.attributes.get("destination", "")
         if destination is None:
             destination = ""
@@ -379,7 +390,9 @@ class GuardedToolGateway:
         if expected != actual:
             return "envelope_does_not_match_graph_action"
         expected_hash = action.attributes.get("payload_hash")
-        if isinstance(expected_hash, str) and expected_hash:
+        if expected_hash is not None:
+            if not _is_sha256_hex(expected_hash):
+                return "invalid_graph_payload_hash"
             if not hmac.compare_digest(expected_hash, envelope.payload_hash):
                 return "envelope_does_not_match_graph_payload"
         if not hmac.compare_digest(
@@ -387,6 +400,9 @@ class GuardedToolGateway:
         ):
             return "payload_hash_mismatch"
         return None
+
+    def _observed_at(self) -> datetime:
+        return utc(self._clock())
 
     def _record(
         self,
@@ -431,6 +447,14 @@ def _sha256_json(value: Any) -> str:
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _is_sha256_hex(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _canonicalize(value: Any) -> Any:
