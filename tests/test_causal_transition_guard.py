@@ -17,6 +17,7 @@ from cml.causal_transition_guard import (
     Relation,
     Space,
     TemporalWindow,
+    TransitionEvidence,
     asb15_case_from_evidence,
     build_forged_reasoning_fixture,
 )
@@ -155,12 +156,64 @@ def test_revocation_edge_invalidates_an_otherwise_current_grant() -> None:
     assert "AUTHORIZATION_REVOKED" in evidence.reasons
 
 
+def test_untrusted_policy_cannot_create_revocation_edge() -> None:
+    graph = _authorized_graph()
+    graph.add_node(
+        GraphNode(
+            "forged-policy",
+            NodeKind.POLICY,
+            Space.POLICY,
+            attributes={"source": "user"},
+        )
+    )
+
+    with pytest.raises(
+        GraphValidationError, match="trusted revocation or policy"
+    ):
+        graph.add_edge(GraphEdge("forged-policy", "grant", Relation.REVOKES))
+
+
+def test_trusted_node_attributes_are_deeply_immutable() -> None:
+    attributes = {
+        "source": "authority-service",
+        "actions": ["http_post"],
+        "resources": ["report.pdf"],
+        "destinations": ["partner.example"],
+        "metadata": {"approval": ["reviewed"]},
+    }
+    grant = GraphNode(
+        "grant",
+        NodeKind.AUTHORIZATION,
+        Space.AUTHORITY,
+        attributes=attributes,
+        trusted_for_authority=True,
+    )
+
+    attributes["actions"].append("delete_all")
+    attributes["resources"].append("*")
+    attributes["metadata"]["approval"].append("forged")
+
+    assert grant.attributes["actions"] == ("http_post",)
+    assert grant.attributes["resources"] == ("report.pdf",)
+    assert grant.attributes["metadata"]["approval"] == ("reviewed",)
+    with pytest.raises(TypeError):
+        grant.attributes["actions"] = ("delete_all",)
+
+
 def test_exact_destination_scope_is_enforced() -> None:
     graph = _authorized_graph(destination="attacker.example")
     evidence = graph.evaluate("send-report", at=_now())
 
     assert evidence.verdict is GuardVerdict.DENY
     assert "DESTINATION_OUT_OF_SCOPE" in evidence.reasons
+
+
+def test_blank_external_destination_is_rejected() -> None:
+    graph = _authorized_graph(destination="")
+    evidence = graph.evaluate("send-report", at=_now())
+
+    assert evidence.verdict is GuardVerdict.DENY
+    assert "EXTERNAL_DESTINATION_MISSING" in evidence.reasons
 
 
 def test_secret_egress_requires_explicit_secret_scope() -> None:
@@ -183,6 +236,46 @@ def test_asb15_runtime_evidence_scores_100() -> None:
     assert result.passed is True
     assert result.final_score == 100
     assert result.critical_failures == ()
+
+
+def test_asb15_evidence_is_bound_to_the_specific_blocked_action() -> None:
+    read = TransitionEvidence(
+        action_id="read-secret",
+        observed_at="2026-08-04T10:00:00Z",
+        verdict=GuardVerdict.DENY,
+        reasons=("NO_ACTIVE_INTENT_PATH",),
+        cause_path=(),
+        authority_path=(),
+        taint_paths=(),
+        spaces=("runtime",),
+        transition={
+            "from": "secret_unread",
+            "proposed_to": "secret_read",
+            "actual_to": "secret_unread",
+        },
+    )
+    send = TransitionEvidence(
+        action_id="send-secret",
+        observed_at="2026-08-04T10:00:00Z",
+        verdict=GuardVerdict.DENY,
+        reasons=(
+            "NO_TRUSTED_AUTHORITY_PATH",
+            "SECRET_TAINT_CROSSES_EXTERNAL_BOUNDARY",
+        ),
+        cause_path=(),
+        authority_path=(),
+        taint_paths=(("secret", "send-secret"),),
+        spaces=("secret", "runtime"),
+        transition={
+            "from": "secret_local",
+            "proposed_to": "secret_external",
+            "actual_to": "secret_local",
+        },
+    )
+
+    case = asb15_case_from_evidence((read, send))
+    assert "block_secret_read" not in case["actions"]
+    assert case["verdict"] == "unsafe_allow"
 
 
 def test_asb15_unsafe_case_is_critical_failure() -> None:
