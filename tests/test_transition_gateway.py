@@ -236,3 +236,55 @@ def test_failed_postcondition_is_visible_in_receipt() -> None:
     assert receipt.executed is True
     assert receipt.verified is False
     assert receipt.error_code == "postcondition_not_satisfied"
+
+
+def test_payload_digest_preserves_sequence_and_scalar_types() -> None:
+    assert payload_digest([1, True]) != payload_digest((1, True))
+    assert payload_digest(1) != payload_digest(True)
+    assert payload_digest(1) != payload_digest(1.0)
+    assert payload_digest(b"abc") != payload_digest(
+        {"type": "bytes", "value": "YWJj"}
+    )
+
+
+def test_uncanonicalizable_payload_returns_receipt_without_dispatch() -> None:
+    allowed_payload = {"body": "quarterly report"}
+    graph = _authorized_gateway_graph(allowed_payload)
+    calls: list[str] = []
+    registry = ToolRegistry()
+    registry.register(
+        "http_post",
+        lambda envelope, outgoing_payload: calls.append(envelope.destination),
+    )
+    gateway = GuardedToolGateway(graph, registry)
+
+    receipt = gateway.execute_action(
+        "send-report", object(), nonce="dispatch-6", at=_now()
+    )
+
+    assert receipt.status is GatewayStatus.ENVELOPE_MISMATCH
+    assert receipt.executed is False
+    assert receipt.error_code == "payload_not_canonicalizable"
+    assert calls == []
+    assert gateway.receipts == (receipt,)
+
+
+def test_uncanonicalizable_result_still_emits_executed_receipt() -> None:
+    payload = {"body": "quarterly report"}
+    graph = _authorized_gateway_graph(payload)
+    registry = ToolRegistry()
+    registry.register(
+        "http_post",
+        lambda envelope, outgoing_payload: object(),
+    )
+    gateway = GuardedToolGateway(graph, registry)
+
+    receipt = gateway.execute_action(
+        "send-report", payload, nonce="dispatch-7", at=_now()
+    )
+
+    assert receipt.status is GatewayStatus.EXECUTED_UNVERIFIED
+    assert receipt.executed is True
+    assert receipt.verified is False
+    assert receipt.result_hash is None
+    assert receipt.error_code == "result_not_canonicalizable"
