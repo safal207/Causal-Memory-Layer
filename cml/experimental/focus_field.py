@@ -4,6 +4,10 @@ The protocol models context recovery as a switch from local graph traversal
 ("focus") to a bounded field of candidate recovery anchors ("defocus"),
 followed by deterministic re-anchoring into the graph.
 
+A value anchor is evaluated before broad field similarity. In human terms this
+can represent "what matters about the work"; in CML it is simply an explicit,
+inspectable constraint carried through recovery.
+
 This module intentionally avoids embeddings and model calls. Its first goal is
 measurement: make recovery decisions reproducible, inspectable, and testable.
 """
@@ -21,6 +25,7 @@ class RecoveryAnchor:
 
     anchor_id: str
     concepts: frozenset[str]
+    value_tags: frozenset[str] = frozenset()
     goal_tags: frozenset[str] = frozenset()
     causal_tags: frozenset[str] = frozenset()
     phase: str | None = None
@@ -36,6 +41,7 @@ class RecoveryQuery:
     """Signals available when an agent leaves focus and searches the field."""
 
     concepts: frozenset[str]
+    value_tags: frozenset[str] = frozenset()
     goal_tags: frozenset[str] = frozenset()
     causal_tags: frozenset[str] = frozenset()
     phase: str | None = None
@@ -52,6 +58,7 @@ class CandidateScore:
     anchor_id: str
     total: float
     concept_overlap: float
+    value_overlap: float
     goal_overlap: float
     causal_overlap: float
     phase_match: float
@@ -73,13 +80,14 @@ class RecoveryDecision:
 
 
 WEIGHTS = {
-    "concept": 0.30,
-    "goal": 0.20,
+    "concept": 0.25,
+    "value": 0.15,
+    "goal": 0.15,
     "causal": 0.15,
     "phase": 0.10,
-    "time": 0.10,
-    "unresolved": 0.05,
-    "evidence": 0.10,
+    "time": 0.08,
+    "unresolved": 0.04,
+    "evidence": 0.08,
 }
 
 
@@ -109,11 +117,7 @@ def _as_utc(value: datetime) -> datetime:
 
 
 def _temporal_proximity(query_time: datetime | None, anchor_time: datetime | None) -> float:
-    """Return a bounded time affinity using one-hour buckets.
-
-    Same-hour anchors score 1.0. Each additional hour halves affinity through
-    1 / (1 + hours). The exact curve is intentionally simple and deterministic.
-    """
+    """Return a bounded time affinity using a simple reciprocal decay curve."""
 
     if query_time is None or anchor_time is None:
         return 0.0
@@ -141,6 +145,7 @@ def score_candidate(query: RecoveryQuery, anchor: RecoveryAnchor) -> CandidateSc
         return None
 
     concept_overlap = _jaccard(query.concepts, anchor.concepts)
+    value_overlap = _jaccard(query.value_tags, anchor.value_tags)
     goal_overlap = _jaccard(query.goal_tags, anchor.goal_tags)
     causal_overlap = _jaccard(query.causal_tags, anchor.causal_tags)
     phase_match = _phase_match(query.phase, anchor.phase)
@@ -150,6 +155,7 @@ def score_candidate(query: RecoveryQuery, anchor: RecoveryAnchor) -> CandidateSc
 
     total = (
         WEIGHTS["concept"] * concept_overlap
+        + WEIGHTS["value"] * value_overlap
         + WEIGHTS["goal"] * goal_overlap
         + WEIGHTS["causal"] * causal_overlap
         + WEIGHTS["phase"] * phase_match
@@ -162,6 +168,7 @@ def score_candidate(query: RecoveryQuery, anchor: RecoveryAnchor) -> CandidateSc
         anchor_id=anchor.anchor_id,
         total=round(total, 6),
         concept_overlap=round(concept_overlap, 6),
+        value_overlap=round(value_overlap, 6),
         goal_overlap=round(goal_overlap, 6),
         causal_overlap=round(causal_overlap, 6),
         phase_match=round(phase_match, 6),
@@ -180,7 +187,11 @@ def recover(query: RecoveryQuery, anchors: Iterable[RecoveryAnchor]) -> Recovery
     re-enter focus; the protocol remains in ``defocus``.
     """
 
-    scored = [score for anchor in anchors if (score := score_candidate(query, anchor)) is not None]
+    scored = [
+        score
+        for anchor in anchors
+        if (score := score_candidate(query, anchor)) is not None
+    ]
     ranked = tuple(sorted(scored, key=lambda item: (-item.total, item.anchor_id)))
 
     if not ranked or ranked[0].total < query.minimum_score:
