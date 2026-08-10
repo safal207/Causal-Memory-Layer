@@ -44,6 +44,29 @@ def test_field_recovery_prefers_relevant_anchor_over_nearest_graph_position() ->
     assert result.ranked_candidates[0].anchor_id == "node-6"
 
 
+def test_value_anchor_can_break_semantic_tie() -> None:
+    query = RecoveryQuery(
+        concepts=frozenset({"agent", "context"}),
+        value_tags=frozenset({"preserve-user-intent", "minimize-replay"}),
+        minimum_score=0.0,
+    )
+    same_words_wrong_value = RecoveryAnchor(
+        anchor_id="semantic-only",
+        concepts=frozenset({"agent", "context"}),
+        value_tags=frozenset({"maximize-throughput"}),
+    )
+    aligned = RecoveryAnchor(
+        anchor_id="value-aligned",
+        concepts=frozenset({"agent", "context"}),
+        value_tags=frozenset({"preserve-user-intent", "minimize-replay"}),
+    )
+
+    result = recover(query, [same_words_wrong_value, aligned])
+
+    assert result.selected_anchor_id == "value-aligned"
+    assert result.ranked_candidates[0].value_overlap == 1.0
+
+
 def test_require_verified_filters_unverified_anchor() -> None:
     query = RecoveryQuery(
         concepts=frozenset({"goal"}),
