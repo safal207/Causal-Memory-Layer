@@ -40,6 +40,7 @@ ENVIRONMENT_FIELDS = (
     "model_version",
 )
 REQUIRED_CURRENT_BINDINGS = ("repository", "commit_sha")
+LINEAGE_STATES = frozenset({"active", "superseded", "retired", "erased"})
 
 
 class ApplicabilityStatus(str, Enum):
@@ -75,6 +76,35 @@ class SourceObservation:
             raise TypeError("refetchable must be boolean")
         if self.exists is not None and not isinstance(self.exists, bool):
             raise TypeError("exists must be boolean or None")
+        for label, value in (
+            ("expected_digest", self.expected_digest),
+            ("observed_digest", self.observed_digest),
+        ):
+            if value is not None and not SHA256_HEX.fullmatch(value):
+                raise ValueError(f"{label} must be a lowercase SHA-256 digest")
+
+
+@dataclass(frozen=True)
+class LineageDependency:
+    """Current observation of one dependency used to derive a memory.
+
+    Lineage is intentionally distinct from the derived record's own source.
+    A summary can still match its own source while one of the records it was
+    derived from has been superseded, retired, erased, or changed.
+    """
+
+    dependency_id: str
+    state: str
+    expected_digest: str | None = None
+    observed_digest: str | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.dependency_id, str) or not self.dependency_id.strip():
+            raise ValueError("dependency_id must be a non-empty string")
+        if self.state not in LINEAGE_STATES:
+            raise ValueError(
+                "state must be one of: active, superseded, retired, erased"
+            )
         for label, value in (
             ("expected_digest", self.expected_digest),
             ("observed_digest", self.observed_digest),
@@ -182,6 +212,41 @@ def missing_historical_required_bindings(
     return tuple(sorted(missing))
 
 
+def lineage_revalidation_reasons(
+    lineage: tuple[LineageDependency, ...],
+) -> tuple[str, ...]:
+    """Return deterministic reasons a derived memory must be revalidated.
+
+    The check is local to the memory store: it does not require re-fetching the
+    derived record's external source. This lets supersession and erasure remain
+    detectable even when source refetch coverage is low.
+    """
+
+    reasons: list[str] = []
+    seen: set[str] = set()
+
+    for dependency in lineage:
+        if dependency.dependency_id in seen:
+            reasons.append(f"lineage_duplicate:{dependency.dependency_id}")
+            continue
+        seen.add(dependency.dependency_id)
+
+        if dependency.state != "active":
+            reasons.append(
+                f"lineage_invalidated:{dependency.dependency_id}:{dependency.state}"
+            )
+            continue
+
+        if dependency.expected_digest is None or dependency.observed_digest is None:
+            reasons.append(f"lineage_unverifiable:{dependency.dependency_id}")
+            continue
+
+        if dependency.expected_digest != dependency.observed_digest:
+            reasons.append(f"lineage_changed:{dependency.dependency_id}")
+
+    return tuple(sorted(reasons))
+
+
 def environment_mismatches(
     stored: EnvironmentBinding,
     current: EnvironmentBinding,
@@ -213,15 +278,17 @@ def evaluate_memory_applicability(
     current_environment: EnvironmentBinding,
     now: datetime,
     caller_metadata: Mapping[str, object] | None = None,
+    lineage: tuple[LineageDependency, ...] = (),
 ) -> ApplicabilityResult:
-    """Evaluate source integrity and current-state applicability.
+    """Evaluate source integrity, lineage, and current-state applicability.
 
     Precedence is deliberately fail-closed:
 
     REJECT -> UNRESOLVABLE -> ORPHAN -> DRIFT -> REVALIDATE -> MATCH.
 
-    Source I/O is adapter-owned. This pure function consumes the authoritative
-    observation so the verdict itself is deterministic and fixture-friendly.
+    Within ``REVALIDATE``, lineage/supersession is checked before environment
+    drift. Source I/O is adapter-owned. This pure function consumes trusted
+    observations so the verdict itself is deterministic and fixture-friendly.
     """
 
     forged = forged_reserved_metadata(caller_metadata)
@@ -259,19 +326,23 @@ def evaluate_memory_applicability(
             ("source_digest_mismatch",),
         )
 
+    lineage_reasons = lineage_revalidation_reasons(lineage)
     missing_bindings = missing_historical_required_bindings(
         stored_environment,
         current_environment,
     )
-    if missing_bindings:
-        return ApplicabilityResult(ApplicabilityStatus.REVALIDATE, missing_bindings)
-
     mismatches = environment_mismatches(
         stored_environment,
         current_environment,
         now=now,
     )
-    if mismatches:
-        return ApplicabilityResult(ApplicabilityStatus.REVALIDATE, mismatches)
+    revalidation_reasons = tuple(
+        sorted((*lineage_reasons, *missing_bindings, *mismatches))
+    )
+    if revalidation_reasons:
+        return ApplicabilityResult(
+            ApplicabilityStatus.REVALIDATE,
+            revalidation_reasons,
+        )
 
     return ApplicabilityResult(ApplicabilityStatus.MATCH, ())
