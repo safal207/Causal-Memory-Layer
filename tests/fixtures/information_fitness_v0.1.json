@@ -1,0 +1,51 @@
+{
+  "version": "0.1",
+  "contract": "information_fitness_for_action",
+  "cases": [
+    {
+      "id": "match_ready",
+      "applicability": {"status": "MATCH", "reasons": []},
+      "quality": {"readiness": "READY", "reasons": []},
+      "expected_status": "READY_FOR_AUTHORITY_CHECK",
+      "expected_reasons": []
+    },
+    {
+      "id": "revalidate_ready",
+      "applicability": {"status": "REVALIDATE", "reasons": ["environment_mismatch:commit_sha"]},
+      "quality": {"readiness": "READY", "reasons": []},
+      "expected_status": "REVIEW_REQUIRED",
+      "expected_reasons": ["applicability:environment_mismatch:commit_sha"]
+    },
+    {
+      "id": "match_review",
+      "applicability": {"status": "MATCH", "reasons": []},
+      "quality": {"readiness": "REVIEW", "reasons": ["completeness_missing:approval"]},
+      "expected_status": "REVIEW_REQUIRED",
+      "expected_reasons": ["quality:completeness_missing:approval"]
+    },
+    {
+      "id": "drift_ready",
+      "applicability": {"status": "DRIFT", "reasons": ["source_digest_mismatch"]},
+      "quality": {"readiness": "READY", "reasons": []},
+      "expected_status": "NOT_FIT",
+      "expected_reasons": ["applicability:source_digest_mismatch"]
+    },
+    {
+      "id": "match_exclude",
+      "applicability": {"status": "MATCH", "reasons": []},
+      "quality": {"readiness": "EXCLUDE", "reasons": ["truth_contradicted"]},
+      "expected_status": "NOT_FIT",
+      "expected_reasons": ["quality:truth_contradicted"]
+    },
+    {
+      "id": "blocked_precedes_review",
+      "applicability": {"status": "ORPHAN", "reasons": ["source_missing"]},
+      "quality": {"readiness": "REVIEW", "reasons": ["truth_no_authoritative_evidence"]},
+      "expected_status": "NOT_FIT",
+      "expected_reasons": [
+        "applicability:source_missing",
+        "quality:truth_no_authoritative_evidence"
+      ]
+    }
+  ]
+}
