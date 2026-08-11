@@ -108,6 +108,8 @@ Lineage-aware systems should additionally report:
 
 This metric must not be inferred from schema presence. It should be measured from records that can actually be evaluated.
 
+The executable v0.1 definition is frozen in [`LINEAGE_VERIFICATION_COVERAGE_V0_1.md`](LINEAGE_VERIFICATION_COVERAGE_V0_1.md) and `tests/fixtures/memory_lineage_coverage_v0.1.json`. In particular, known-derived records with missing lineage edges remain in the denominator; recognized non-active parent state is decisive before digest checks; and an active digest mismatch counts as successful verification even though applicability later returns `REVALIDATE`.
+
 ## Compatibility
 
 This is an additive v0.1 extension. Existing callers that do not supply `lineage` preserve the previous Current-State Applicability behavior. The accepted Memory Pack schema is unchanged.
