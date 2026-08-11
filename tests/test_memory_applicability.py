@@ -35,6 +35,8 @@ def test_vendor_neutral_applicability_fixtures() -> None:
         )
         observed_statuses.add(result.status.value)
         assert result.status.value == case["expected_status"], case["id"]
+        if "expected_reasons" in case:
+            assert result.reasons == tuple(case["expected_reasons"]), case["id"]
         assert result.may_influence_action is (
             result.status is ApplicabilityStatus.MATCH
         )
@@ -66,6 +68,32 @@ def test_reserved_metadata_rejects_before_source_checks() -> None:
     assert result.reasons == ("reserved_metadata:_cml_environment_verified",)
 
 
+def test_current_repository_and_commit_require_historical_binding() -> None:
+    digest = "a" * 64
+    result = evaluate_memory_applicability(
+        source=SourceObservation(
+            locator="git:" + "a" * 40,
+            refetchable=True,
+            exists=True,
+            expected_digest=digest,
+            observed_digest=digest,
+        ),
+        stored_environment=EnvironmentBinding(),
+        current_environment=EnvironmentBinding(
+            repository="org/repo",
+            commit_sha="a" * 40,
+        ),
+        now=datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status is ApplicabilityStatus.REVALIDATE
+    assert result.may_influence_action is False
+    assert result.reasons == (
+        "environment_unbound:commit_sha",
+        "environment_unbound:repository",
+    )
+
+
 def test_missing_current_bound_dimension_requires_revalidation() -> None:
     digest = "a" * 64
     result = evaluate_memory_applicability(
@@ -83,6 +111,54 @@ def test_missing_current_bound_dimension_requires_revalidation() -> None:
 
     assert result.status is ApplicabilityStatus.REVALIDATE
     assert result.reasons == ("environment_mismatch:tenant",)
+
+
+@pytest.mark.parametrize(
+    ("source", "expected_status"),
+    [
+        (
+            SourceObservation(
+                locator="agent:scholar",
+                refetchable=False,
+                exists=None,
+            ),
+            ApplicabilityStatus.UNRESOLVABLE,
+        ),
+        (
+            SourceObservation(
+                locator="https://example.test/deleted",
+                refetchable=True,
+                exists=False,
+                expected_digest="a" * 64,
+            ),
+            ApplicabilityStatus.ORPHAN,
+        ),
+        (
+            SourceObservation(
+                locator="https://example.test/source",
+                refetchable=True,
+                exists=True,
+                expected_digest="a" * 64,
+                observed_digest="b" * 64,
+            ),
+            ApplicabilityStatus.DRIFT,
+        ),
+    ],
+)
+def test_source_integrity_precedes_environment_revalidation(
+    source: SourceObservation,
+    expected_status: ApplicabilityStatus,
+) -> None:
+    result = evaluate_memory_applicability(
+        source=source,
+        stored_environment=EnvironmentBinding(tenant="tenant-a"),
+        current_environment=EnvironmentBinding(tenant="tenant-b"),
+        now=datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert result.status is expected_status
+    assert result.status is not ApplicabilityStatus.REVALIDATE
+    assert result.may_influence_action is False
 
 
 def test_reasons_are_stably_sorted() -> None:
