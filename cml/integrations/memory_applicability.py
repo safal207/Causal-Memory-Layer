@@ -39,6 +39,7 @@ ENVIRONMENT_FIELDS = (
     "api_version",
     "model_version",
 )
+REQUIRED_CURRENT_BINDINGS = ("repository", "commit_sha")
 
 
 class ApplicabilityStatus(str, Enum):
@@ -86,9 +87,10 @@ class SourceObservation:
 class EnvironmentBinding:
     """Environment facts a memory was validated against.
 
-    A ``None`` value means that dimension was not bound historically. Only
-    dimensions bound by the historical memory are required to match current
-    authoritative state.
+    A ``None`` value normally means that dimension was not bound historically.
+    Repository and commit SHA are stricter: if current authoritative state
+    provides either dimension, historical evidence must have bound it before an
+    exact ``MATCH`` is possible.
     """
 
     repository: str | None = None
@@ -164,6 +166,20 @@ def forged_reserved_metadata(metadata: Mapping[str, object] | None) -> tuple[str
         if key in RESERVED_METADATA_KEYS or key.startswith(RESERVED_METADATA_PREFIX):
             forged.append(key)
     return tuple(sorted(forged))
+
+
+def missing_historical_required_bindings(
+    stored: EnvironmentBinding,
+    current: EnvironmentBinding,
+) -> tuple[str, ...]:
+    """Return current immutable bindings absent from historical evidence."""
+
+    missing = [
+        f"environment_unbound:{name}"
+        for name in REQUIRED_CURRENT_BINDINGS
+        if getattr(current, name) is not None and getattr(stored, name) is None
+    ]
+    return tuple(sorted(missing))
 
 
 def environment_mismatches(
@@ -242,6 +258,13 @@ def evaluate_memory_applicability(
             ApplicabilityStatus.DRIFT,
             ("source_digest_mismatch",),
         )
+
+    missing_bindings = missing_historical_required_bindings(
+        stored_environment,
+        current_environment,
+    )
+    if missing_bindings:
+        return ApplicabilityResult(ApplicabilityStatus.REVALIDATE, missing_bindings)
 
     mismatches = environment_mismatches(
         stored_environment,
