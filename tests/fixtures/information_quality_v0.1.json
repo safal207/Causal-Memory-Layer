@@ -1,0 +1,90 @@
+{
+  "contract": "information_quality_v0.1",
+  "cases": [
+    {
+      "id": "ready-supported-complete-relevant",
+      "input": {
+        "supporting_evidence": ["ev:policy-1"],
+        "contradicting_evidence": [],
+        "required_aspects": ["identity", "amount", "recipient"],
+        "observed_aspects": ["identity", "amount", "recipient"],
+        "claim_aspects": ["recipient"]
+      },
+      "expected": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "READY",
+        "reasons": []
+      }
+    },
+    {
+      "id": "review-conflicting-evidence",
+      "input": {
+        "supporting_evidence": ["ev:source-a"],
+        "contradicting_evidence": ["ev:source-b"],
+        "required_aspects": ["identity"],
+        "observed_aspects": ["identity"],
+        "claim_aspects": ["identity"]
+      },
+      "expected": {
+        "semantic_truth": "UNRESOLVED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "REVIEW",
+        "reasons": ["truth_conflicting_evidence"]
+      }
+    },
+    {
+      "id": "review-incomplete-decision-scope",
+      "input": {
+        "supporting_evidence": ["ev:payment-record"],
+        "contradicting_evidence": [],
+        "required_aspects": ["identity", "amount", "recipient"],
+        "observed_aspects": ["identity", "amount"],
+        "claim_aspects": ["amount"]
+      },
+      "expected": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "INCOMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "REVIEW",
+        "reasons": ["completeness_missing:recipient"]
+      }
+    },
+    {
+      "id": "exclude-irrelevant-to-current-decision",
+      "input": {
+        "supporting_evidence": ["ev:weather-report"],
+        "contradicting_evidence": [],
+        "required_aspects": ["identity", "amount", "recipient"],
+        "observed_aspects": ["identity", "amount", "recipient"],
+        "claim_aspects": ["weather"]
+      },
+      "expected": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "COMPLETE",
+        "relevance": "IRRELEVANT",
+        "readiness": "EXCLUDE",
+        "reasons": ["relevance_no_required_aspect"]
+      }
+    },
+    {
+      "id": "exclude-contradicted-claim",
+      "input": {
+        "supporting_evidence": [],
+        "contradicting_evidence": ["ev:revocation"],
+        "required_aspects": ["permission"],
+        "observed_aspects": ["permission"],
+        "claim_aspects": ["permission"]
+      },
+      "expected": {
+        "semantic_truth": "CONTRADICTED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "EXCLUDE",
+        "reasons": ["truth_contradicted"]
+      }
+    }
+  ]
+}
