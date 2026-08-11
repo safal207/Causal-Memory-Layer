@@ -11,12 +11,12 @@ A memory can remain historically valid while the world around it changes. A bran
 
 | Verdict | Meaning | Default action |
 | --- | --- | --- |
-| `MATCH` | Source integrity matches and all historically bound environment dimensions still match. | May proceed to the next guard. |
+| `MATCH` | Source integrity matches and all required/current environment bindings are satisfied. | May proceed to the next guard. |
 | `DRIFT` | Re-fetchable source exists but its observed digest differs from the stored digest. | Refresh/reconcile evidence. |
 | `ORPHAN` | Re-fetchable source was deleted or is no longer present. | Quarantine from current-action authority. |
 | `UNRESOLVABLE` | Source cannot be re-fetched or cannot be verified deterministically. | Abstain from treating it as current authority. |
 | `REJECT` | Caller attempted to supply reserved internal trust/provenance state. | Deny the attempt. |
-| `REVALIDATE` | Historical evidence is intact, but current authoritative environment no longer matches the environment it was validated against. | Re-check current state before action. |
+| `REVALIDATE` | Historical evidence is intact, but current authoritative environment no longer matches or is not sufficiently bound to the environment it was validated against. | Re-check current state before action. |
 
 The core precedence is fail-closed:
 
@@ -40,7 +40,9 @@ REJECT -> UNRESOLVABLE -> ORPHAN -> DRIFT -> REVALIDATE -> MATCH
 - model version
 - observation time and `valid_until`
 
-Only fields explicitly bound by the historical memory must match. If a bound field is missing from current authoritative state, the result is `REVALIDATE`, not a silent match.
+Most dimensions are optional and only fields explicitly bound by historical memory must match. If a historically bound field is missing from current authoritative state, the result is `REVALIDATE`, not a silent match.
+
+Repository and commit SHA are stricter because they anchor evidence to an immutable code context. If current authoritative state supplies `repository` or `commit_sha` but historical evidence did not bind the corresponding dimension, CML returns `REVALIDATE` with `environment_unbound:<dimension>`. This prevents stale-SHA acceptance and cross-repository substitution from reaching `MATCH` merely because the source digest itself still matches.
 
 ## Source identity is not source reachability
 
@@ -55,6 +57,8 @@ A source is considered verified only when the adapter supplies:
 - the currently observed digest.
 
 The pure applicability core performs no network I/O. Git, GitHub, filesystem, database, DOI, URL, or other adapters are responsible for producing the authoritative observation. This keeps the verdict deterministic and testable.
+
+Source-integrity failures are evaluated before environment drift. If the source is unresolvable, orphaned, or digest-drifted while the environment also changed, the source verdict wins. This prevents a weaker `REVALIDATE` result from masking stale or missing historical evidence.
 
 ## Reserved internal trust state
 
@@ -95,7 +99,7 @@ Implementations should report these separately rather than collapse them into on
 3. `source_enumeration_coverage` — fraction whose authoritative source can be enumerated to detect deletions/orphans.
 4. `environment_binding_coverage` — fraction bound to enough current-state dimensions to make reuse decisions meaningful.
 
-The fixture `tests/fixtures/memory_applicability_v0.1.json` freezes all six verdicts, including environment drift and forged internal metadata.
+The fixture `tests/fixtures/memory_applicability_v0.1.json` freezes all six verdicts, repository substitution, missing immutable PR bindings, source/environment collision precedence, environment drift, and forged internal metadata.
 
 ## Compatibility
 
