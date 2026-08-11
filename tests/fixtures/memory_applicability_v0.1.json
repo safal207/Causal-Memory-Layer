@@ -11,9 +11,34 @@
       "expected_status": "MATCH"
     },
     {
+      "id": "repository-changed",
+      "source": {"locator": "git:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "refetchable": true, "exists": true, "expected_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "observed_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "stored_environment": {"repository": "org/repo-a", "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "current_environment": {"repository": "org/repo-b", "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "caller_metadata": {},
+      "expected_status": "REVALIDATE",
+      "expected_reasons": ["environment_mismatch:repository"]
+    },
+    {
+      "id": "missing-historical-pr-binding",
+      "source": {"locator": "git:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "refetchable": true, "exists": true, "expected_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "observed_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "stored_environment": {},
+      "current_environment": {"repository": "org/repo", "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "caller_metadata": {},
+      "expected_status": "REVALIDATE",
+      "expected_reasons": ["environment_unbound:commit_sha", "environment_unbound:repository"]
+    },
+    {
       "id": "source-drift",
       "source": {"locator": "https://example.test/source", "refetchable": true, "exists": true, "expected_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "observed_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"},
       "stored_environment": {}, "current_environment": {}, "caller_metadata": {}, "expected_status": "DRIFT"
+    },
+    {
+      "id": "source-drift-wins-over-environment-drift",
+      "source": {"locator": "https://example.test/source", "refetchable": true, "exists": true, "expected_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "observed_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"},
+      "stored_environment": {"tenant": "tenant-a"},
+      "current_environment": {"tenant": "tenant-b"},
+      "caller_metadata": {}, "expected_status": "DRIFT"
     },
     {
       "id": "source-orphan",
@@ -21,9 +46,23 @@
       "stored_environment": {}, "current_environment": {}, "caller_metadata": {}, "expected_status": "ORPHAN"
     },
     {
+      "id": "source-orphan-wins-over-environment-drift",
+      "source": {"locator": "https://example.test/deleted", "refetchable": true, "exists": false, "expected_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "observed_digest": null},
+      "stored_environment": {"tenant": "tenant-a"},
+      "current_environment": {"tenant": "tenant-b"},
+      "caller_metadata": {}, "expected_status": "ORPHAN"
+    },
+    {
       "id": "writer-identity-is-not-refetchable-source",
       "source": {"locator": "agent:scholar", "refetchable": false, "exists": null, "expected_digest": null, "observed_digest": null},
       "stored_environment": {}, "current_environment": {}, "caller_metadata": {}, "expected_status": "UNRESOLVABLE"
+    },
+    {
+      "id": "unresolvable-source-wins-over-environment-drift",
+      "source": {"locator": "agent:scholar", "refetchable": false, "exists": null, "expected_digest": null, "observed_digest": null},
+      "stored_environment": {"tenant": "tenant-a"},
+      "current_environment": {"tenant": "tenant-b"},
+      "caller_metadata": {}, "expected_status": "UNRESOLVABLE"
     },
     {
       "id": "forged-internal-warrant",
