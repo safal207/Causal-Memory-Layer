@@ -1,5 +1,6 @@
 {
   "contract": "information_quality_v0.1",
+  "evidence_binding_required": true,
   "cases": [
     {
       "id": "ready-supported-complete-relevant",
@@ -8,7 +9,18 @@
         "contradicting_evidence": [],
         "required_aspects": ["identity", "amount", "recipient"],
         "observed_aspects": ["identity", "amount", "recipient"],
-        "claim_aspects": ["recipient"]
+        "claim_aspects": ["recipient"],
+        "evaluated_item_id": "claim:payment-authorization",
+        "source_record_id": "record:payment-policy",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:policy-1",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:payment-policy",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
       },
       "expected": {
         "semantic_truth": "SUPPORTED",
@@ -25,7 +37,24 @@
         "contradicting_evidence": ["ev:source-b"],
         "required_aspects": ["identity"],
         "observed_aspects": ["identity"],
-        "claim_aspects": ["identity"]
+        "claim_aspects": ["identity"],
+        "evaluated_item_id": "claim:payment-authorization",
+        "source_record_id": "record:payment-policy",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:source-a",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:payment-policy",
+            "accepted_state_token": "tok:state-v1"
+          },
+          {
+            "evidence_id": "ev:source-b",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:payment-policy",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
       },
       "expected": {
         "semantic_truth": "UNRESOLVED",
@@ -42,7 +71,18 @@
         "contradicting_evidence": [],
         "required_aspects": ["identity", "amount", "recipient"],
         "observed_aspects": ["identity", "amount"],
-        "claim_aspects": ["amount"]
+        "claim_aspects": ["amount"],
+        "evaluated_item_id": "claim:payment-authorization",
+        "source_record_id": "record:payment-record",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:payment-record",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:payment-record",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
       },
       "expected": {
         "semantic_truth": "SUPPORTED",
@@ -59,7 +99,18 @@
         "contradicting_evidence": [],
         "required_aspects": ["identity", "amount", "recipient"],
         "observed_aspects": ["identity", "amount", "recipient"],
-        "claim_aspects": ["weather"]
+        "claim_aspects": ["weather"],
+        "evaluated_item_id": "claim:payment-authorization",
+        "source_record_id": "record:weather-report",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:weather-report",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:weather-report",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
       },
       "expected": {
         "semantic_truth": "SUPPORTED",
@@ -76,7 +127,18 @@
         "contradicting_evidence": ["ev:revocation"],
         "required_aspects": ["permission"],
         "observed_aspects": ["permission"],
-        "claim_aspects": ["permission"]
+        "claim_aspects": ["permission"],
+        "evaluated_item_id": "claim:permission-claim",
+        "source_record_id": "record:revocation-record",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:revocation",
+            "evaluated_item_id": "claim:permission-claim",
+            "source_record_id": "record:revocation-record",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
       },
       "expected": {
         "semantic_truth": "CONTRADICTED",
