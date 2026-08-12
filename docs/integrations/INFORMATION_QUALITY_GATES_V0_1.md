@@ -55,6 +55,37 @@ The evaluator consumes two explicit sets:
 
 The evidence identifiers are assumed to come from a trusted adapter or reviewer that has already classified the evidence relationship.
 
+## Evidence binding (REQUIRED precondition)
+
+Before semantic truth evaluation, every declared supporting and contradicting evidence identifier must be explicitly bound to the evaluation context. This is a **required precondition**, not pipeline guidance: unbound or mismatched evidence fails closed and can never produce `READY`.
+
+Each binding carries four dimensions:
+
+- `evidence_id` — the identifier listed in `supporting_evidence` / `contradicting_evidence`;
+- `evaluated_item_id` — the item/claim the evidence actually supports or contradicts;
+- `source_record_id` — the memory/source record the evidence comes from;
+- `accepted_state_token` — the immutable state token the evidence was accepted against.
+
+The observation declares the corresponding current identifiers (`evaluated_item_id`, `source_record_id`, `accepted_state_token`) and the `evidence_bindings` tuple. Validation rules:
+
+- every declared evidence identifier must have a binding;
+- every binding must match the observation's declared evaluated item, source record, and accepted state token;
+- bindings for identifiers that are not declared are rejected;
+- if evidence is declared but the observation does not declare the evaluation identifiers, the evaluation is rejected.
+
+Failure semantics (fail closed):
+
+```text
+missing binding            -> EXCLUDE
+item mismatch              -> EXCLUDE   (cross-claim substitution)
+source-record mismatch     -> EXCLUDE   (cross-record substitution)
+undeclared binding         -> EXCLUDE
+scope undeclared           -> EXCLUDE
+stale state-token mismatch -> REVIEW    (revalidation required)
+```
+
+`EXCLUDE` means the evidence cannot be treated as certified for the current claim. `REVIEW` means the evidence is correctly bound to the item and record but refers to an older accepted state, so revalidation is required. In no case does mismatched evidence reach `READY`.
+
 Statuses:
 
 ```text
@@ -64,7 +95,7 @@ both                 -> UNRESOLVED / truth_conflicting_evidence
 neither              -> UNRESOLVED / truth_no_authoritative_evidence
 ```
 
-`SUPPORTED` therefore means **supported by the declared authoritative evidence**, not "universally true".
+`SUPPORTED` therefore means **supported by the declared authoritative evidence bound to the current evaluation context**, not "universally true".
 
 ## Bounded completeness
 
@@ -113,10 +144,12 @@ No `claim_aspects` produces `UNRESOLVED`, not `IRRELEVANT`, because missing scop
 The aggregate result answers only whether the information may proceed to a separate authority check.
 
 ```text
+binding integrity failure (missing/mismatched/undeclared/scope) -> EXCLUDE
+binding stale state-token mismatch only                          -> REVIEW
 CONTRADICTED or IRRELEVANT -> EXCLUDE
 any unresolved dimension   -> REVIEW
 INCOMPLETE                  -> REVIEW
-SUPPORTED + COMPLETE + RELEVANT -> READY
+SUPPORTED + COMPLETE + RELEVANT + bound evidence -> READY
 ```
 
 `READY` never means "action allowed".
@@ -128,6 +161,7 @@ retrieval reliability
     -> provenance / source integrity
     -> lineage / supersession
     -> current-state applicability
+    -> evidence binding validation (REQUIRED precondition)
     -> evidence-bounded semantic support
     -> bounded completeness
     -> task relevance
@@ -147,6 +181,8 @@ retrieval reliability
 5. contradicted claim -> `EXCLUDE`.
 
 The fixture compares all three dimension statuses, aggregate readiness, and deterministic reasons.
+
+Each case now declares the required evidence binding context (`evaluated_item_id`, `source_record_id`, `accepted_state_token`, `evidence_bindings`). The fixture is parsed with strict deterministic JSON: duplicate keys are rejected at every nesting level instead of silently keeping the last value.
 
 ## Relationship to classical information properties
 

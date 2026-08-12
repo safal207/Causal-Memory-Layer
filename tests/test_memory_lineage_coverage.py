@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from cml.integrations.memory_lineage_coverage import (
     LineageCoverageDependency,
     LineageCoverageRecord,
@@ -131,3 +133,61 @@ def test_digest_mismatch_is_verified_even_when_applicability_will_revalidate() -
     assert result.coverage == 1.0
     assert result.verified_derived_records == 1
     assert result.gaps == ()
+
+
+def test_dependency_list_is_snapshotted_not_shared() -> None:
+    mutable_dependencies: list[LineageCoverageDependency] = []
+    record = LineageCoverageRecord(
+        record_id="derived-snapshot",
+        is_derived=True,
+        dependencies=mutable_dependencies,
+    )
+    assert isinstance(record.dependencies, tuple)
+
+    mutable_dependencies.append(
+        LineageCoverageDependency(dependency_id="dep-late", state="active")
+    )
+
+    assert record.dependencies == ()
+    assert lineage_coverage_gaps(record) == ("lineage_undeclared",)
+
+
+def test_dependency_entries_must_be_lineage_coverage_dependency() -> None:
+    with pytest.raises(TypeError, match="LineageCoverageDependency"):
+        LineageCoverageRecord(
+            record_id="derived-invalid-dep",
+            is_derived=True,
+            dependencies=("not-a-dependency",),
+        )
+
+
+def test_measurement_rejects_duplicate_record_id_before_filtering() -> None:
+    covered = LineageCoverageRecord(
+        record_id="derived-duplicate",
+        is_derived=True,
+        dependencies=(
+            LineageCoverageDependency(
+                dependency_id="dep-active",
+                state="active",
+                expected_digest="a" * 64,
+                observed_digest="a" * 64,
+            ),
+        ),
+    )
+    uncovered = LineageCoverageRecord(
+        record_id="derived-duplicate",
+        is_derived=True,
+    )
+
+    with pytest.raises(ValueError, match="duplicate record_id in population"):
+        measure_lineage_verification_coverage((covered, uncovered))
+
+
+def test_duplicate_record_id_is_rejected_even_when_population_unenumerable() -> None:
+    record = LineageCoverageRecord(record_id="derived-duplicate", is_derived=True)
+
+    with pytest.raises(ValueError, match="duplicate record_id in population"):
+        measure_lineage_verification_coverage(
+            (record, record),
+            derived_population_enumerable=False,
+        )

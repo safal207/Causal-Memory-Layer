@@ -55,6 +55,18 @@ class LineageCoverageRecord:
         if not isinstance(self.is_derived, bool):
             raise TypeError("is_derived must be boolean")
 
+        dependencies = tuple(self.dependencies)
+        if not all(
+            isinstance(dependency, LineageCoverageDependency)
+            for dependency in dependencies
+        ):
+            raise TypeError(
+                "dependencies must contain only LineageCoverageDependency values"
+            )
+        # Snapshot so later mutation of a caller-supplied mutable list cannot
+        # change the coverage evidence this record certifies.
+        object.__setattr__(self, "dependencies", dependencies)
+
 
 @dataclass(frozen=True)
 class LineageCoverageGap:
@@ -156,6 +168,18 @@ def measure_lineage_verification_coverage(
 
     if not isinstance(derived_population_enumerable, bool):
         raise TypeError("derived_population_enumerable must be boolean")
+
+    # Duplicate record ids would count the same record twice (or attach the
+    # same identity to two different coverage states) after the is_derived
+    # filter. Reject the population before any filtering; never deduplicate
+    # silently.
+    seen_record_ids: set[str] = set()
+    for record in records:
+        if record.record_id in seen_record_ids:
+            raise ValueError(
+                f"duplicate record_id in population: {record.record_id}"
+            )
+        seen_record_ids.add(record.record_id)
 
     if not derived_population_enumerable:
         return LineageVerificationCoverage(
