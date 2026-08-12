@@ -66,6 +66,44 @@ neither              -> UNRESOLVED / truth_no_authoritative_evidence
 
 `SUPPORTED` therefore means **supported by the declared authoritative evidence**, not "universally true".
 
+## Evidence binding (REQUIRED precondition)
+
+Every evidence identifier that asserts support or contradiction must be bound to
+the item it was classified against and to the accepted-state token in effect at
+classification time.
+
+Binding dimensions:
+
+- `evidence_id` — the identifier also present in `supporting_evidence` or `contradicting_evidence`;
+- `evaluated_item_id` — the information item the evidence speaks to;
+- `source_record_id` — the record the evidence came from;
+- `accepted_state_token` — the token of the accepted state the evidence was classified under.
+
+This is a **REQUIRED precondition** enforced by the evaluator, not pipeline
+guidance. When bindings are supplied:
+
+- they must bind exactly the declared evidence identifiers;
+- the observation must declare its own `evaluated_item_id` and `accepted_state_token`;
+- every binding must match both observation identifiers.
+
+Mismatched evidence fails closed:
+
+```text
+evidence bound to claim A
++ evaluating claim B
+-> EXCLUDE
+-> evidence_binding_item_mismatch:<evidence_id>
+
+evidence bound to state token T1
++ evaluating under token T2
+-> EXCLUDE
+-> evidence_binding_state_mismatch:<evidence_id>
+```
+
+Mismatched evidence can **never** produce `READY`. The frozen v0.1 fixture
+remains valid as the legacy string-only contract; new integrations must supply
+bindings.
+
 ## Bounded completeness
 
 Completeness is defined relative to `required_aspects` for a specific decision.
@@ -113,6 +151,7 @@ No `claim_aspects` produces `UNRESOLVED`, not `IRRELEVANT`, because missing scop
 The aggregate result answers only whether the information may proceed to a separate authority check.
 
 ```text
+mismatched evidence binding   -> EXCLUDE
 CONTRADICTED or IRRELEVANT -> EXCLUDE
 any unresolved dimension   -> REVIEW
 INCOMPLETE                  -> REVIEW

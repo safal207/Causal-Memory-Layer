@@ -54,6 +54,15 @@ class LineageCoverageRecord:
             raise ValueError("record_id must be a non-empty string")
         if not isinstance(self.is_derived, bool):
             raise TypeError("is_derived must be boolean")
+        dependencies = tuple(self.dependencies)
+        if any(
+            not isinstance(dep, LineageCoverageDependency)
+            for dep in dependencies
+        ):
+            raise TypeError(
+                "dependencies entries must be LineageCoverageDependency instances"
+            )
+        object.__setattr__(self, "dependencies", dependencies)
 
 
 @dataclass(frozen=True)

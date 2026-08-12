@@ -53,11 +53,47 @@ class QualityReadiness(str, Enum):
 
 
 @dataclass(frozen=True)
+class EvidenceBinding:
+    """Binds one evidence identifier to the item and accepted state it was
+    classified against.
+
+    ``evaluated_item_id`` names the information item the evidence speaks to;
+    ``source_record_id`` names the record the evidence came from;
+    ``accepted_state_token`` is the token of the accepted state in effect when
+    the evidence relationship was classified. A binding whose identifiers do
+    not match the observation being evaluated is invalid and fails closed.
+    """
+
+    evidence_id: str
+    evaluated_item_id: str
+    source_record_id: str
+    accepted_state_token: str
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "evidence_id",
+            "evaluated_item_id",
+            "source_record_id",
+            "accepted_state_token",
+        ):
+            value = getattr(self, field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field_name} must be a non-empty string")
+
+
+@dataclass(frozen=True)
 class InformationQualityObservation:
     """Trusted observations used by the deterministic quality evaluator.
 
     ``supporting_evidence`` and ``contradicting_evidence`` contain identifiers
     of authoritative evidence already classified by an adapter or reviewer.
+
+    ``supporting_bindings`` and ``contradicting_bindings`` bind each evidence
+    identifier to the item and accepted-state token it was classified against.
+    When bindings are supplied they must bind exactly the declared evidence
+    identifiers, and the observation must declare ``evaluated_item_id`` and
+    ``accepted_state_token``. Mismatched bindings fail closed to EXCLUDE and
+    can never produce READY.
 
     ``required_aspects`` defines the bounded decision schema. Completeness is
     measured only against this declared set; the evaluator never claims global
@@ -70,6 +106,10 @@ class InformationQualityObservation:
 
     supporting_evidence: tuple[str, ...] = ()
     contradicting_evidence: tuple[str, ...] = ()
+    supporting_bindings: tuple[EvidenceBinding, ...] = ()
+    contradicting_bindings: tuple[EvidenceBinding, ...] = ()
+    evaluated_item_id: str | None = None
+    accepted_state_token: str | None = None
     required_aspects: tuple[str, ...] = ()
     observed_aspects: tuple[str, ...] = ()
     claim_aspects: tuple[str, ...] = ()
@@ -89,6 +129,43 @@ class InformationQualityObservation:
                 raise ValueError(f"{field_name} entries must be non-empty strings")
             if len(set(values)) != len(values):
                 raise ValueError(f"{field_name} entries must be unique")
+
+        for field_name in ("supporting_bindings", "contradicting_bindings"):
+            bindings = getattr(self, field_name)
+            if not isinstance(bindings, tuple):
+                raise TypeError(f"{field_name} must be a tuple")
+            if any(
+                not isinstance(binding, EvidenceBinding) for binding in bindings
+            ):
+                raise TypeError(
+                    f"{field_name} entries must be EvidenceBinding instances"
+                )
+            evidence_ids = tuple(binding.evidence_id for binding in bindings)
+            if len(set(evidence_ids)) != len(evidence_ids):
+                raise ValueError(
+                    f"{field_name} entries must bind unique evidence ids"
+                )
+
+        if self.supporting_bindings or self.contradicting_bindings:
+            for identifier_name in ("evaluated_item_id", "accepted_state_token"):
+                value = getattr(self, identifier_name)
+                if not isinstance(value, str) or not value.strip():
+                    raise ValueError(
+                        f"{identifier_name} is required when evidence bindings "
+                        "are supplied"
+                    )
+            for side, evidence_field, bindings_field in (
+                ("supporting", "supporting_evidence", "supporting_bindings"),
+                ("contradicting", "contradicting_evidence", "contradicting_bindings"),
+            ):
+                bindings = getattr(self, bindings_field)
+                if bindings and set(getattr(self, evidence_field)) != {
+                    binding.evidence_id for binding in bindings
+                }:
+                    raise ValueError(
+                        f"{side} bindings must bind exactly the "
+                        f"{side}_evidence entries"
+                    )
 
 
 @dataclass(frozen=True)
@@ -151,6 +228,29 @@ def _relevance(
     return RelevanceStatus.IRRELEVANT, ("relevance_no_required_aspect",)
 
 
+def _evidence_binding_consistency_reasons(
+    observation: InformationQualityObservation,
+) -> tuple[str, ...]:
+    """Fail closed when evidence is bound to a different item or state token.
+
+    Evidence classified against claim A (or under state token T1) must not be
+    replayed against claim B (or under token T2). Any mismatch is decisive and
+    forces the aggregate gate to EXCLUDE; READY is unreachable with mismatched
+    evidence.
+    """
+
+    reasons: list[str] = []
+    for binding in (
+        *observation.supporting_bindings,
+        *observation.contradicting_bindings,
+    ):
+        if binding.evaluated_item_id != observation.evaluated_item_id:
+            reasons.append(f"evidence_binding_item_mismatch:{binding.evidence_id}")
+        if binding.accepted_state_token != observation.accepted_state_token:
+            reasons.append(f"evidence_binding_state_mismatch:{binding.evidence_id}")
+    return tuple(sorted(reasons))
+
+
 def evaluate_information_quality(
     observation: InformationQualityObservation,
 ) -> InformationQualityResult:
@@ -158,6 +258,7 @@ def evaluate_information_quality(
 
     Precedence for the aggregate readiness result is intentionally conservative:
 
+    - mismatched evidence bindings are excluded (fail closed, never READY);
     - contradicted information is excluded;
     - explicitly irrelevant information is excluded from the current decision;
     - incomplete or unresolved dimensions require review;
@@ -170,12 +271,22 @@ def evaluate_information_quality(
     truth_status, truth_reasons = _semantic_truth(observation)
     completeness_status, completeness_reasons = _completeness(observation)
     relevance_status, relevance_reasons = _relevance(observation)
+    binding_reasons = _evidence_binding_consistency_reasons(observation)
 
     reasons = tuple(
-        sorted((*truth_reasons, *completeness_reasons, *relevance_reasons))
+        sorted(
+            (
+                *truth_reasons,
+                *completeness_reasons,
+                *relevance_reasons,
+                *binding_reasons,
+            )
+        )
     )
 
-    if (
+    if binding_reasons:
+        readiness = QualityReadiness.EXCLUDE
+    elif (
         truth_status is SemanticTruthStatus.CONTRADICTED
         or relevance_status is RelevanceStatus.IRRELEVANT
     ):
