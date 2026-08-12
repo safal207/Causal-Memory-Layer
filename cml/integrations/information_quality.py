@@ -221,9 +221,6 @@ def evidence_binding_reasons(
     """
 
     declared = (*observation.supporting_evidence, *observation.contradicting_evidence)
-    if not declared:
-        return ()
-
     by_id = {binding.evidence_id: binding for binding in observation.evidence_bindings}
     reasons: list[str] = []
 

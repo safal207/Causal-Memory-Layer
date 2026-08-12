@@ -280,6 +280,33 @@ def test_evidence_bound_to_stale_state_token_never_ready() -> None:
     assert result.reasons == ("evidence_binding_state_token_mismatch:ev:1",)
 
 
+def test_orphan_evidence_binding_without_declared_evidence_excluded() -> None:
+    observation = InformationQualityObservation(
+        required_aspects=("permission",),
+        observed_aspects=("permission",),
+        claim_aspects=("permission",),
+        evaluated_item_id="claim:payment-authorization",
+        source_record_id="record:payment-policy",
+        accepted_state_token="tok:state-v1",
+        evidence_bindings=(
+            EvidenceBinding(
+                evidence_id="ev:orphan",
+                evaluated_item_id="claim:payment-authorization",
+                source_record_id="record:payment-policy",
+                accepted_state_token="tok:state-v1",
+            ),
+        ),
+    )
+
+    result = evaluate_information_quality(observation)
+
+    assert result.readiness is QualityReadiness.EXCLUDE
+    assert result.reasons == (
+        "evidence_binding_undeclared:ev:orphan",
+        "truth_no_authoritative_evidence",
+    )
+
+
 def test_correctly_bound_evidence_preserves_supported_ready() -> None:
     result = evaluate_information_quality(
         _bound_observation(supporting_evidence=("ev:1",))
