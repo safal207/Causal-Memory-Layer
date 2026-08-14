@@ -12,7 +12,7 @@ BUNDLE_VERSION = "0.2.0"
 TRACE_PROFILE = "org.proofpath.agent-safety-trace"
 TRACE_VERSION = "0.1.0"
 CASE_ID = "ASB-01"
-DEMO_SIGNATURE_SECRET = "proofpath-demo-secret-v0"
+DEMO_SIGNATURE_SECRET = "proofpath-demo-secret-v0"  # fcrp: fixture
 
 REQUIRED_CHECKSUM_FILES = {
     "audit.jsonl",
