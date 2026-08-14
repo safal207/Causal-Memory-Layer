@@ -3,6 +3,9 @@
 This benchmark is deliberately deterministic. It measures recovery work in
 abstract steps rather than model tokens or wall-clock time so that CI can
 validate the comparison without external services.
+
+v0.2 keeps the original recovery-work comparison but binds trusted recovery
+anchors to the current CML applicability and information-quality contracts.
 """
 
 from __future__ import annotations
@@ -10,6 +13,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from cml.experimental.focus_field import RecoveryAnchor, RecoveryQuery, recover
+from cml.integrations.information_quality import (
+    CompletenessStatus,
+    InformationQualityResult,
+    QualityReadiness,
+    RelevanceStatus,
+    SemanticTruthStatus,
+)
+from cml.integrations.memory_applicability import ApplicabilityResult, ApplicabilityStatus
 
 
 @dataclass(frozen=True)
@@ -32,6 +43,7 @@ class StrategyResult:
     rewind_steps_avoided: int
     goal_consistent: bool
     causal_consistent: bool
+    trusted_continuation: bool
 
 
 @dataclass(frozen=True)
@@ -49,6 +61,20 @@ class Comparison:
         if self.sequential.recovery_steps == 0:
             return 0.0
         return round(self.step_reduction / self.sequential.recovery_steps, 6)
+
+
+def _applicable() -> ApplicabilityResult:
+    return ApplicabilityResult(ApplicabilityStatus.MATCH, ())
+
+
+def _quality_ready() -> InformationQualityResult:
+    return InformationQualityResult(
+        semantic_truth=SemanticTruthStatus.SUPPORTED,
+        completeness=CompletenessStatus.COMPLETE,
+        relevance=RelevanceStatus.RELEVANT,
+        readiness=QualityReadiness.READY,
+        reasons=(),
+    )
 
 
 def _anchor_by_id(scenario: Scenario, anchor_id: str | None) -> RecoveryAnchor | None:
@@ -82,6 +108,8 @@ def sequential_replay(scenario: Scenario) -> StrategyResult:
     The baseline models a history/graph rewind that must revisit each prior
     position. It intentionally receives the expected target as an oracle so it
     is not disadvantaged on correctness; the comparison is about recovery work.
+    The benchmark treats the known target as trusted by construction so the
+    baseline comparison remains about traversal cost, not verification policy.
     """
 
     target = _anchor_by_id(scenario, scenario.target_anchor_id)
@@ -104,6 +132,7 @@ def sequential_replay(scenario: Scenario) -> StrategyResult:
         rewind_steps_avoided=0,
         goal_consistent=_goal_consistent(scenario.query, selected_anchor),
         causal_consistent=_causal_consistent(scenario.query, selected_anchor),
+        trusted_continuation=success,
     )
 
 
@@ -125,6 +154,7 @@ def focus_field_recovery(scenario: Scenario) -> StrategyResult:
         rewind_steps_avoided=decision.rewind_steps_saved or 0,
         goal_consistent=_goal_consistent(scenario.query, selected_anchor),
         causal_consistent=_causal_consistent(scenario.query, selected_anchor),
+        trusted_continuation=decision.trusted_continuation,
     )
 
 
@@ -133,6 +163,15 @@ def compare(scenario: Scenario) -> Comparison:
         scenario_id=scenario.scenario_id,
         sequential=sequential_replay(scenario),
         focus_field=focus_field_recovery(scenario),
+    )
+
+
+def _trusted_anchor(**kwargs) -> RecoveryAnchor:
+    return RecoveryAnchor(
+        evidence_refs=(f"proof:{kwargs['anchor_id']}",),
+        applicability=_applicable(),
+        information_quality=_quality_ready(),
+        **kwargs,
     )
 
 
@@ -155,26 +194,23 @@ def demo_scenarios() -> tuple[Scenario, ...]:
                 minimum_score=0.35,
             ),
             anchors=(
-                RecoveryAnchor(
+                _trusted_anchor(
                     anchor_id="node-8",
                     concepts=frozenset({"context", "payment", "idempotency"}),
                     value_tags=frozenset({"preserve-user-intent"}),
                     goal_tags=frozenset({"finish-payment-verification"}),
                     causal_tags=frozenset({"duplicate-request"}),
                     phase="verification",
-                    verified=True,
-                    evidence_refs=("proof:payment-8",),
+                    unresolved=True,
                     graph_depth=8,
                 ),
-                RecoveryAnchor(
+                _trusted_anchor(
                     anchor_id="node-17",
                     concepts=frozenset({"payment", "logging"}),
                     value_tags=frozenset({"maximize-throughput"}),
                     goal_tags=frozenset({"cleanup"}),
                     causal_tags=frozenset({"timeout"}),
                     phase="execution",
-                    verified=True,
-                    evidence_refs=("proof:payment-17",),
                     graph_depth=17,
                 ),
                 RecoveryAnchor(
@@ -197,7 +233,7 @@ def demo_scenarios() -> tuple[Scenario, ...]:
                 minimum_score=0.20,
             ),
             anchors=(
-                RecoveryAnchor(
+                _trusted_anchor(
                     anchor_id="node-5",
                     concepts=frozenset({"agent", "context"}),
                     value_tags=frozenset({"preserve-user-intent", "minimize-replay"}),
@@ -228,7 +264,7 @@ def demo_scenarios() -> tuple[Scenario, ...]:
                 minimum_score=0.20,
             ),
             anchors=(
-                RecoveryAnchor(
+                _trusted_anchor(
                     anchor_id="node-9",
                     concepts=frozenset({"schema", "validation"}),
                     goal_tags=frozenset({"finish-validation"}),
@@ -260,4 +296,5 @@ if __name__ == "__main__":
             f"step_reduction={result.step_reduction}",
             f"step_reduction_ratio={result.step_reduction_ratio}",
             f"success={result.focus_field.success}",
+            f"trusted={result.focus_field.trusted_continuation}",
         )
