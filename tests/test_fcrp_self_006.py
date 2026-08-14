@@ -22,7 +22,10 @@ def test_fcrp_self_006_identifies_temporal_contract_drift() -> None:
 def test_fcrp_self_006_refactor_uses_current_cml_gate_outputs() -> None:
     source = SOURCE.read_text(encoding="utf-8")
 
-    assert "verified: bool" not in source
+    # Reject the legacy RecoveryAnchor field itself without accidentally matching
+    # the still-valid caller policy switch `require_verified: bool`.
+    assert "\n    verified: bool" not in source
+    assert "anchor.verified" not in source
     assert "ApplicabilityResult" in source
     assert "InformationQualityResult" in source
     assert "anchor.applicability.may_influence_action" in source
