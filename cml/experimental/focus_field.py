@@ -4,12 +4,16 @@ The protocol models context recovery as a switch from local graph traversal
 ("focus") to a bounded field of candidate recovery anchors ("defocus"),
 followed by deterministic re-anchoring into the graph.
 
-A value anchor is evaluated before broad field similarity. In human terms this
-can represent "what matters about the work"; in CML it is simply an explicit,
-inspectable constraint carried through recovery.
+v0.2 deliberately separates *historical usefulness* from *trusted current
+continuation*. A candidate may remain useful for exploratory context recovery,
+but it is trusted for continuation only when current CML gates say:
 
-This module intentionally avoids embeddings and model calls. Its first goal is
-measurement: make recovery decisions reproducible, inspectable, and testable.
+- memory applicability is an exact current-state MATCH; and
+- information quality is READY for a separate authority check; and
+- the anchor retains explicit evidence references.
+
+This prevents an old ``verified: true`` flag from silently outranking current
+lineage, environment, source, or evidence-binding semantics.
 """
 
 from __future__ import annotations
@@ -18,10 +22,18 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
 
+from cml.integrations.information_quality import InformationQualityResult
+from cml.integrations.memory_applicability import ApplicabilityResult
+
 
 @dataclass(frozen=True)
 class RecoveryAnchor:
-    """A stable graph location that may be selected during context recovery."""
+    """A stable graph location that may be selected during context recovery.
+
+    ``applicability`` and ``information_quality`` are outputs from the canonical
+    CML integration gates. They are intentionally not booleans: historical
+    evidence can remain useful while current applicability requires revalidation.
+    """
 
     anchor_id: str
     concepts: frozenset[str]
@@ -31,14 +43,20 @@ class RecoveryAnchor:
     phase: str | None = None
     timestamp: datetime | None = None
     unresolved: bool = False
-    verified: bool = False
     evidence_refs: tuple[str, ...] = ()
+    applicability: ApplicabilityResult | None = None
+    information_quality: InformationQualityResult | None = None
     graph_depth: int | None = None
 
 
 @dataclass(frozen=True)
 class RecoveryQuery:
-    """Signals available when an agent leaves focus and searches the field."""
+    """Signals available when an agent leaves focus and searches the field.
+
+    ``require_verified`` is retained as the experimental v0.1 caller switch,
+    but its v0.2 meaning is stronger: only anchors that pass the *current* CML
+    applicability and information-quality gates are eligible.
+    """
 
     concepts: frozenset[str]
     value_tags: frozenset[str] = frozenset()
@@ -65,18 +83,25 @@ class CandidateScore:
     temporal_proximity: float
     unresolved_bonus: float
     evidence_quality: float
+    verification_ready: bool
     rewind_steps_saved: int | None
 
 
 @dataclass(frozen=True)
 class RecoveryDecision:
-    """Result of a field-mediated context recovery attempt."""
+    """Result of a field-mediated context recovery attempt.
+
+    ``trusted_continuation`` is separate from selection. An exploratory caller
+    may inspect a stale/historical candidate, but that selection is not a trusted
+    continuation point until current CML gates pass.
+    """
 
     state: str
     selected_anchor_id: str | None
     score: float
     ranked_candidates: tuple[CandidateScore, ...]
     rewind_steps_saved: int | None
+    trusted_continuation: bool
 
 
 WEIGHTS = {
@@ -126,10 +151,20 @@ def _temporal_proximity(query_time: datetime | None, anchor_time: datetime | Non
     return 1.0 / (1.0 + hours)
 
 
+def verification_ready(anchor: RecoveryAnchor) -> bool:
+    """Return whether an anchor may be a trusted current continuation point."""
+
+    return bool(
+        anchor.evidence_refs
+        and anchor.applicability is not None
+        and anchor.applicability.may_influence_action
+        and anchor.information_quality is not None
+        and anchor.information_quality.ready_for_authority_check
+    )
+
+
 def _evidence_quality(anchor: RecoveryAnchor) -> float:
-    if not anchor.verified:
-        return 0.0
-    return 1.0 if anchor.evidence_refs else 0.5
+    return 1.0 if verification_ready(anchor) else 0.0
 
 
 def _rewind_steps_saved(query: RecoveryQuery, anchor: RecoveryAnchor) -> int | None:
@@ -139,9 +174,10 @@ def _rewind_steps_saved(query: RecoveryQuery, anchor: RecoveryAnchor) -> int | N
 
 
 def score_candidate(query: RecoveryQuery, anchor: RecoveryAnchor) -> CandidateScore | None:
-    """Score one anchor or reject it when the verification policy requires it."""
+    """Score one anchor or reject it when trusted verification is required."""
 
-    if query.require_verified and not anchor.verified:
+    ready = verification_ready(anchor)
+    if query.require_verified and not ready:
         return None
 
     concept_overlap = _jaccard(query.concepts, anchor.concepts)
@@ -175,6 +211,7 @@ def score_candidate(query: RecoveryQuery, anchor: RecoveryAnchor) -> CandidateSc
         temporal_proximity=round(temporal_proximity, 6),
         unresolved_bonus=unresolved_bonus,
         evidence_quality=evidence_quality,
+        verification_ready=ready,
         rewind_steps_saved=_rewind_steps_saved(query, anchor),
     )
 
@@ -182,9 +219,11 @@ def score_candidate(query: RecoveryQuery, anchor: RecoveryAnchor) -> CandidateSc
 def recover(query: RecoveryQuery, anchors: Iterable[RecoveryAnchor]) -> RecoveryDecision:
     """Select a recovery anchor from a field without traversing graph edges.
 
-    Candidates are ordered by descending score and then ``anchor_id`` so that
-    ties are stable across runs. A candidate below ``minimum_score`` does not
-    re-enter focus; the protocol remains in ``defocus``.
+    Candidates are ordered by descending score and then ``anchor_id`` so ties
+    are stable. A candidate below ``minimum_score`` leaves the protocol in
+    ``defocus``. When verification is not required, a stale/historical candidate
+    may be selected for exploration, but the state is explicitly
+    ``reanchored_exploratory`` and ``trusted_continuation`` remains false.
     """
 
     scored = [
@@ -201,13 +240,16 @@ def recover(query: RecoveryQuery, anchors: Iterable[RecoveryAnchor]) -> Recovery
             score=ranked[0].total if ranked else 0.0,
             ranked_candidates=ranked,
             rewind_steps_saved=None,
+            trusted_continuation=False,
         )
 
     selected = ranked[0]
+    trusted = selected.verification_ready
     return RecoveryDecision(
-        state="reanchored",
+        state="reanchored" if trusted else "reanchored_exploratory",
         selected_anchor_id=selected.anchor_id,
         score=selected.total,
         ranked_candidates=ranked,
         rewind_steps_saved=selected.rewind_steps_saved,
+        trusted_continuation=trusted,
     )
