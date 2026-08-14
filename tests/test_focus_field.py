@@ -1,6 +1,45 @@
 from datetime import datetime, timedelta, timezone
 
 from cml.experimental.focus_field import RecoveryAnchor, RecoveryQuery, recover
+from cml.integrations.information_quality import (
+    CompletenessStatus,
+    InformationQualityResult,
+    QualityReadiness,
+    RelevanceStatus,
+    SemanticTruthStatus,
+)
+from cml.integrations.memory_applicability import ApplicabilityResult, ApplicabilityStatus
+
+
+def applicable() -> ApplicabilityResult:
+    return ApplicabilityResult(ApplicabilityStatus.MATCH, ())
+
+
+def stale() -> ApplicabilityResult:
+    return ApplicabilityResult(
+        ApplicabilityStatus.REVALIDATE,
+        ("environment_mismatch:commit_sha",),
+    )
+
+
+def quality_ready() -> InformationQualityResult:
+    return InformationQualityResult(
+        semantic_truth=SemanticTruthStatus.SUPPORTED,
+        completeness=CompletenessStatus.COMPLETE,
+        relevance=RelevanceStatus.RELEVANT,
+        readiness=QualityReadiness.READY,
+        reasons=(),
+    )
+
+
+def quality_exclude() -> InformationQualityResult:
+    return InformationQualityResult(
+        semantic_truth=SemanticTruthStatus.SUPPORTED,
+        completeness=CompletenessStatus.COMPLETE,
+        relevance=RelevanceStatus.RELEVANT,
+        readiness=QualityReadiness.EXCLUDE,
+        reasons=("evidence_binding_item_mismatch:proof:stale",),
+    )
 
 
 def test_field_recovery_prefers_relevant_anchor_over_nearest_graph_position() -> None:
@@ -31,8 +70,9 @@ def test_field_recovery_prefers_relevant_anchor_over_nearest_graph_position() ->
         phase="verification",
         timestamp=now - timedelta(minutes=5),
         unresolved=True,
-        verified=True,
         evidence_refs=("trace:42",),
+        applicability=applicable(),
+        information_quality=quality_ready(),
         graph_depth=6,
     )
 
@@ -42,6 +82,8 @@ def test_field_recovery_prefers_relevant_anchor_over_nearest_graph_position() ->
     assert result.selected_anchor_id == "node-6"
     assert result.rewind_steps_saved == 6
     assert result.ranked_candidates[0].anchor_id == "node-6"
+    assert result.ranked_candidates[0].verification_ready is True
+    assert result.trusted_continuation is True
 
 
 def test_value_anchor_can_break_semantic_tie() -> None:
@@ -59,36 +101,95 @@ def test_value_anchor_can_break_semantic_tie() -> None:
         anchor_id="value-aligned",
         concepts=frozenset({"agent", "context"}),
         value_tags=frozenset({"preserve-user-intent", "minimize-replay"}),
+        evidence_refs=("proof:value-aligned",),
+        applicability=applicable(),
+        information_quality=quality_ready(),
     )
 
     result = recover(query, [same_words_wrong_value, aligned])
 
     assert result.selected_anchor_id == "value-aligned"
     assert result.ranked_candidates[0].value_overlap == 1.0
+    assert result.state == "reanchored"
+    assert result.trusted_continuation is True
 
 
-def test_require_verified_filters_unverified_anchor() -> None:
+def test_require_verified_filters_stale_and_quality_excluded_anchors() -> None:
     query = RecoveryQuery(
         concepts=frozenset({"goal"}),
         require_verified=True,
         minimum_score=0.0,
     )
-    unverified = RecoveryAnchor(
-        anchor_id="a",
-        concepts=frozenset({"goal"}),
-        verified=False,
+    stale_anchor = RecoveryAnchor(
+        anchor_id="a-stale",
+        concepts=frozenset({"goal", "high-semantic-match"}),
+        evidence_refs=("proof:stale",),
+        applicability=stale(),
+        information_quality=quality_ready(),
     )
-    verified = RecoveryAnchor(
-        anchor_id="b",
+    quality_excluded = RecoveryAnchor(
+        anchor_id="b-excluded",
         concepts=frozenset({"goal"}),
-        verified=True,
-        evidence_refs=("proof:1",),
+        evidence_refs=("proof:excluded",),
+        applicability=applicable(),
+        information_quality=quality_exclude(),
+    )
+    current = RecoveryAnchor(
+        anchor_id="c-current",
+        concepts=frozenset({"goal"}),
+        evidence_refs=("proof:current",),
+        applicability=applicable(),
+        information_quality=quality_ready(),
     )
 
-    result = recover(query, [unverified, verified])
+    result = recover(query, [stale_anchor, quality_excluded, current])
 
-    assert [candidate.anchor_id for candidate in result.ranked_candidates] == ["b"]
-    assert result.selected_anchor_id == "b"
+    assert [candidate.anchor_id for candidate in result.ranked_candidates] == ["c-current"]
+    assert result.selected_anchor_id == "c-current"
+    assert result.state == "reanchored"
+    assert result.trusted_continuation is True
+
+
+def test_historical_anchor_can_be_explored_but_not_trusted_for_continuation() -> None:
+    query = RecoveryQuery(
+        concepts=frozenset({"incident", "recovery"}),
+        require_verified=False,
+        minimum_score=0.0,
+    )
+    historical = RecoveryAnchor(
+        anchor_id="historical",
+        concepts=frozenset({"incident", "recovery"}),
+        evidence_refs=("proof:historical",),
+        applicability=stale(),
+        information_quality=quality_ready(),
+    )
+
+    result = recover(query, [historical])
+
+    assert result.selected_anchor_id == "historical"
+    assert result.state == "reanchored_exploratory"
+    assert result.trusted_continuation is False
+    assert result.ranked_candidates[0].verification_ready is False
+    assert result.ranked_candidates[0].evidence_quality == 0.0
+
+
+def test_missing_current_quality_gate_is_not_equivalent_to_verified() -> None:
+    query = RecoveryQuery(
+        concepts=frozenset({"goal"}),
+        require_verified=True,
+        minimum_score=0.0,
+    )
+    legacy_shaped = RecoveryAnchor(
+        anchor_id="legacy-shaped",
+        concepts=frozenset({"goal"}),
+        evidence_refs=("proof:legacy",),
+    )
+
+    result = recover(query, [legacy_shaped])
+
+    assert result.state == "defocus"
+    assert result.selected_anchor_id is None
+    assert result.trusted_continuation is False
 
 
 def test_ties_are_deterministic_by_anchor_id() -> None:
@@ -108,6 +209,8 @@ def test_ties_are_deterministic_by_anchor_id() -> None:
         "a-anchor",
         "z-anchor",
     ]
+    assert result.state == "reanchored_exploratory"
+    assert result.trusted_continuation is False
 
 
 def test_low_confidence_field_remains_in_defocus() -> None:
@@ -122,3 +225,4 @@ def test_low_confidence_field_remains_in_defocus() -> None:
     assert result.state == "defocus"
     assert result.selected_anchor_id is None
     assert result.rewind_steps_saved is None
+    assert result.trusted_continuation is False
