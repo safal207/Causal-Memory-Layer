@@ -288,9 +288,9 @@ def run_demo() -> tuple[Comparison, ...]:
 
 
 if __name__ == "__main__":
-    for result in run_demo():
+    for index, result in enumerate(run_demo(), start=1):
         print(
-            result.scenario_id,
+            f"scenario_no={index}",
             f"sequential_steps={result.sequential.recovery_steps}",
             f"field_steps={result.focus_field.recovery_steps}",
             f"step_reduction={result.step_reduction}",
