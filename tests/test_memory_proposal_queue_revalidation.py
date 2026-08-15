@@ -31,8 +31,8 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
             "expected_source_core_digest": SOURCE_CORE,
             "observed_source_core_digest": SOURCE_CORE,
             "full_pack_replay_match": False,
-            "changed_evidence_components": ["source-checks"],
-            "self_observation_completion_drift": True,
+            "changed_evidence_components": ["source-pr", "source-checks"],
+            "self_observation_completion_drift": False,
             "source_exists": True,
             "source_ancestor_of_main": True,
             "evidence_refs": [
@@ -41,7 +41,7 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
             ],
         }
 
-    def test_operational_check_drift_does_not_become_source_identity_drift(self):
+    def test_mutable_pr_and_check_drift_do_not_become_source_identity_drift(self):
         record = build_planner_record(self.observation())
         self.assertEqual(record["applicability"]["status"], "REVALIDATE")
         self.assertIn(
@@ -59,11 +59,20 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         self.assertFalse(record["revalidation"]["full_pack_replay_match"])
         self.assertTrue(record["revalidation"]["stable_source_core_match"])
         self.assertEqual(
+            record["revalidation"]["descriptive_metadata_changed_components"],
+            ["source-pr"],
+        )
+        self.assertEqual(
             record["revalidation"]["operational_evidence_changed_components"],
             ["source-checks"],
         )
-        self.assertTrue(
-            record["revalidation"]["self_observation_completion_drift"]
+        self.assertEqual(
+            record["revalidation"]["mutable_evidence_changed_components"],
+            ["source-pr", "source-checks"],
+        )
+        self.assertEqual(
+            record["revalidation"]["immutable_evidence_changed_components"],
+            [],
         )
         self.assertFalse(record["authority_granted"])
         self.assertFalse(record["acceptance_authority"])
@@ -72,7 +81,6 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         observation = self.observation()
         observation["observed_source_core_digest"] = SOURCE_CORE_DRIFT
         observation["changed_evidence_components"] = ["source-files", "source-checks"]
-        observation["self_observation_completion_drift"] = False
         record = build_planner_record(observation)
         self.assertEqual(record["applicability"]["status"], "DRIFT")
         self.assertIn("source_digest_mismatch", record["applicability"]["reasons"])
@@ -100,7 +108,6 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         observation["replayed_pack_id"] = PACK
         observation["full_pack_replay_match"] = True
         observation["changed_evidence_components"] = []
-        observation["self_observation_completion_drift"] = False
         record = build_planner_record(observation)
         self.assertEqual(record["applicability"]["status"], "MATCH")
         self.assertEqual(record["quality"]["readiness"], "REVIEW")
@@ -115,7 +122,7 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         ):
             build_planner_record(observation)
 
-    def test_core_component_change_cannot_claim_stable_core_match(self):
+    def test_immutable_evidence_change_cannot_claim_stable_core_match(self):
         observation = self.observation()
         observation["changed_evidence_components"] = ["source-files"]
         with self.assertRaisesRegex(
