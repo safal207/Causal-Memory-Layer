@@ -92,7 +92,7 @@ class GitHubReader:
         page = 1
         while True:
             payload = self.get(
-                f"/repos/{repository}/commits/{head_sha}/check-runs?per_page=100&page={page}"
+                f"/repos/{repository}/commits/{head_sha}/check-runs?filter=latest&per_page=100&page={page}"
             )
             if not isinstance(payload, dict):
                 raise CollectionError("check-runs response must be an object")
@@ -207,13 +207,7 @@ def _self_completion_explains_checks(
     checks: list[dict[str, Any]],
     original_checks_digest: str,
 ) -> bool:
-    """Test the expected self-observation TOCTOU shape without mutating evidence.
-
-    The learning job queries check-runs while its own `Propose merged-cycle memory`
-    job is still executing. After the Memory Pack is written, GitHub transitions
-    that same check to completed/success. Replaying later therefore sees a
-    different operational snapshot despite the same check set.
-    """
+    """Test the expected self-observation TOCTOU shape without mutating evidence."""
 
     normalized = learning.normalize_checks(checks)
     found = False
