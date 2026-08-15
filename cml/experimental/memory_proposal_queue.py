@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import re
 from collections import Counter
 from datetime import datetime, timezone
