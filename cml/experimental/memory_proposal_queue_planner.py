@@ -72,7 +72,12 @@ def _parse_time(value: Any, field: str) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def _string_tuple(value: Any, field: str, *, require_nonempty: bool = False) -> tuple[str, ...]:
+def _string_tuple(
+    value: Any,
+    field: str,
+    *,
+    require_nonempty: bool = False,
+) -> tuple[str, ...]:
     if not isinstance(value, list):
         raise QueuePlanningError(f"{field} must be a list")
     normalized = tuple(_nonempty(item, f"{field} entry") for item in value)
@@ -93,7 +98,12 @@ def _enum(enum_type, value: Any, field: str):
 
 
 def _digest(payload: Any) -> str:
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    canonical = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -102,7 +112,10 @@ def _record(raw: Any) -> dict[str, Any]:
         raise QueuePlanningError("each record must be an object")
 
     proposal_pr = _positive_int(raw.get("proposal_pr"), "proposal_pr")
-    source_pr = _positive_int(raw.get("source_pr"), f"proposal {proposal_pr}.source_pr")
+    source_pr = _positive_int(
+        raw.get("source_pr"),
+        f"proposal {proposal_pr}.source_pr",
+    )
 
     source_merge = raw.get("source_merge")
     if not isinstance(source_merge, str) or not HEX40.fullmatch(source_merge):
@@ -133,7 +146,9 @@ def _record(raw: Any) -> dict[str, Any]:
 
     applicability_raw = raw.get("applicability")
     if not isinstance(applicability_raw, dict):
-        raise QueuePlanningError(f"proposal {proposal_pr}.applicability must be an object")
+        raise QueuePlanningError(
+            f"proposal {proposal_pr}.applicability must be an object"
+        )
     applicability = ApplicabilityResult(
         status=_enum(
             ApplicabilityStatus,
@@ -187,7 +202,8 @@ def _record(raw: Any) -> dict[str, Any]:
     )
     if claimed_fitness is not canonical_fitness.status:
         raise QueuePlanningError(
-            f"proposal {proposal_pr}.claimed_fitness_status contradicts canonical CML fitness"
+            f"proposal {proposal_pr}.claimed_fitness_status contradicts "
+            "canonical CML fitness"
         )
 
     return {
@@ -220,15 +236,25 @@ def plan(payload: dict[str, Any]) -> dict[str, Any]:
     if payload.get("schema") != INPUT_SCHEMA:
         raise QueuePlanningError(f"schema must be {INPUT_SCHEMA}")
     if payload.get("source_audit_schema") != SOURCE_AUDIT_SCHEMA:
-        raise QueuePlanningError(f"source_audit_schema must be {SOURCE_AUDIT_SCHEMA}")
+        raise QueuePlanningError(
+            f"source_audit_schema must be {SOURCE_AUDIT_SCHEMA}"
+        )
 
     source_audit_digest = payload.get("source_audit_digest")
-    if not isinstance(source_audit_digest, str) or not SHA256_REF.fullmatch(source_audit_digest):
+    if (
+        not isinstance(source_audit_digest, str)
+        or not SHA256_REF.fullmatch(source_audit_digest)
+    ):
         raise QueuePlanningError("source_audit_digest must be a sha256: digest")
 
     current_main_revision = payload.get("current_main_revision")
-    if not isinstance(current_main_revision, str) or not HEX40.fullmatch(current_main_revision):
-        raise QueuePlanningError("current_main_revision must be a 40-char lowercase hex SHA")
+    if (
+        not isinstance(current_main_revision, str)
+        or not HEX40.fullmatch(current_main_revision)
+    ):
+        raise QueuePlanningError(
+            "current_main_revision must be a 40-char lowercase hex SHA"
+        )
 
     captured_at = _parse_time(payload.get("captured_at"), "captured_at")
     synthetic = payload.get("synthetic")
@@ -244,7 +270,8 @@ def plan(payload: dict[str, Any]) -> dict[str, Any]:
     )
     if expected_record_count != len(records_raw):
         raise QueuePlanningError(
-            "revalidation coverage incomplete: expected_record_count must equal records length"
+            "revalidation coverage incomplete: expected_record_count must equal "
+            "records length"
         )
 
     records = [_record(raw) for raw in records_raw]
@@ -350,7 +377,10 @@ def plan(payload: dict[str, Any]) -> dict[str, Any]:
         "captured_at": captured_at.isoformat(),
         "record_count": len(decision_records),
         "group_count": len(groups),
-        "decisions": sorted(decision_records, key=lambda item: item["proposal_pr"]),
+        "decisions": sorted(
+            decision_records,
+            key=lambda item: item["proposal_pr"],
+        ),
         "groups": groups,
         "invariants": [
             "one planner decision is preserved per Memory Pack",
@@ -370,7 +400,10 @@ def plan(payload: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Plan bounded review groups from CML memory proposal revalidation results"
+        description=(
+            "Plan bounded review groups from CML memory proposal "
+            "revalidation results"
+        )
     )
     parser.add_argument("input", type=Path)
     parser.add_argument("--pretty", action="store_true")
@@ -383,7 +416,14 @@ def main() -> int:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False))
         return 2
 
-    print(json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2 if args.pretty else None))
+    print(
+        json.dumps(
+            result,
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2 if args.pretty else None,
+        )
+    )
     return 0
 
 
