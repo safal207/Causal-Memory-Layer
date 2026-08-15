@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Collect live, read-only evidence for every open CML Memory Proposal.
 
-Network collection is intentionally separated from trust decisions.  This script
-uses GitHub's read-only REST API to recover the exact proposal Memory Pack and the
-current authoritative source PR/files/reviews/check-runs, replays the source-owned
-Memory Pack builder, then hands only normalized observations to the pure v0.3
-adapter and Planner v0.2.
+Network collection is intentionally separated from trust decisions. For each
+proposal this collector validates the frozen pack, rebuilds it from current
+GitHub observations, then compares evidence components before handing a stable
+provenance core to the pure v0.3 adapter.
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ import os
 from pathlib import Path
 import re
 import sys
-from typing import Any
+from typing import Any, Mapping
 from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -38,6 +37,9 @@ SOURCE_MERGE_RE = re.compile(r"^- source merge: `([0-9a-f]{40})`$", re.MULTILINE
 SOURCE_HEAD_RE = re.compile(r"^- source head: `([0-9a-f]{40})`$", re.MULTILINE)
 MEMORY_PATH_RE = re.compile(r"^- memory path: `([^`]+)`$", re.MULTILINE)
 PACK_ID_RE = re.compile(r"^- pack ID: `([0-9a-f]{64})`$", re.MULTILINE)
+CORE_EVIDENCE = ("source-pr", "source-files", "source-merge")
+OPERATIONAL_EVIDENCE = ("source-reviews", "source-checks")
+SELF_CHECK_NAME = "Propose merged-cycle memory"
 
 
 class CollectionError(RuntimeError):
@@ -173,6 +175,59 @@ def _pack_text(
     return text, blob_sha
 
 
+def _evidence_digests(pack: Mapping[str, Any]) -> dict[str, str]:
+    raw = pack.get("evidence")
+    if not isinstance(raw, list):
+        raise CollectionError("Memory Pack evidence must be a list")
+    result: dict[str, str] = {}
+    for item in raw:
+        if not isinstance(item, dict):
+            raise CollectionError("Memory Pack evidence entry must be an object")
+        evidence_id = item.get("id")
+        digest = item.get("digest")
+        if not isinstance(evidence_id, str) or not isinstance(digest, str):
+            raise CollectionError("Memory Pack evidence entry missing id/digest")
+        if evidence_id in result:
+            raise CollectionError(f"duplicate Memory Pack evidence id: {evidence_id}")
+        result[evidence_id] = digest
+    required = set((*CORE_EVIDENCE, *OPERATIONAL_EVIDENCE))
+    if not required.issubset(result):
+        missing = ",".join(sorted(required - set(result)))
+        raise CollectionError(f"Memory Pack missing required evidence: {missing}")
+    return result
+
+
+def _source_core_digest(evidence_digests: Mapping[str, str]) -> str:
+    return learning.sha256_json(
+        {key: evidence_digests[key] for key in CORE_EVIDENCE}
+    )
+
+
+def _self_completion_explains_checks(
+    checks: list[dict[str, Any]],
+    original_checks_digest: str,
+) -> bool:
+    """Test the expected self-observation TOCTOU shape without mutating evidence.
+
+    The learning job queries check-runs while its own `Propose merged-cycle memory`
+    job is still executing. After the Memory Pack is written, GitHub transitions
+    that same check to completed/success. Replaying later therefore sees a
+    different operational snapshot despite the same check set.
+    """
+
+    normalized = learning.normalize_checks(checks)
+    found = False
+    hypothetical: list[dict[str, Any]] = []
+    for item in normalized:
+        candidate = dict(item)
+        if candidate.get("name") == SELF_CHECK_NAME:
+            candidate["status"] = "in_progress"
+            candidate["conclusion"] = None
+            found = True
+        hypothetical.append(candidate)
+    return found and learning.sha256_json(hypothetical) == original_checks_digest
+
+
 def collect(repository: str, token: str) -> dict[str, Any]:
     reader = GitHubReader(token)
     captured_at = _utc_now()
@@ -195,7 +250,10 @@ def collect(repository: str, token: str) -> dict[str, Any]:
     if not memory_pulls:
         raise CollectionError("no open automatic Memory Proposals found")
 
-    proposals = sorted((_parse_proposal(pull) for pull in memory_pulls), key=lambda x: x["proposal_pr"])
+    proposals = sorted(
+        (_parse_proposal(pull) for pull in memory_pulls),
+        key=lambda item: item["proposal_pr"],
+    )
 
     queue_snapshot = {
         "schema": "cml.memory-proposal-queue.snapshot.v0.1",
@@ -223,8 +281,13 @@ def collect(repository: str, token: str) -> dict[str, Any]:
     queue_result = audit(queue_snapshot)
 
     records: list[dict[str, Any]] = []
-    source_replay_matches = 0
+    full_replay_matches = 0
+    stable_core_matches = 0
     ancestry_matches = 0
+    operational_drift_count = 0
+    self_completion_drift_count = 0
+    generator_contract_drift_count = 0
+    component_mismatches: Counter[str] = Counter()
 
     for item in proposals:
         pack_text, pack_blob_sha = _pack_text(
@@ -246,14 +309,18 @@ def collect(repository: str, token: str) -> dict[str, Any]:
             raise CollectionError(
                 f"proposal #{item['proposal_pr']} source commit mismatch"
             )
+        original_pack = json.loads(pack_text)
+        if not isinstance(original_pack, dict):
+            raise CollectionError("Memory Pack must decode to an object")
+        original_evidence = _evidence_digests(original_pack)
 
-        source_pull = reader.get(
-            f"/repos/{repository}/pulls/{item['source_pr']}"
-        )
+        source_pull = reader.get(f"/repos/{repository}/pulls/{item['source_pr']}")
         if not isinstance(source_pull, dict):
             raise CollectionError("source pull response must be an object")
         if source_pull.get("merged_at") is None:
-            raise CollectionError(f"source PR #{item['source_pr']} is no longer recorded as merged")
+            raise CollectionError(
+                f"source PR #{item['source_pr']} is no longer recorded as merged"
+            )
         if source_pull.get("merge_commit_sha") != item["source_merge"]:
             raise CollectionError(
                 f"source PR #{item['source_pr']} merge SHA contradicts proposal"
@@ -279,8 +346,41 @@ def collect(repository: str, token: str) -> dict[str, Any]:
             check_runs=checks,
         )
         replayed_pack_id = replayed["pack_id"]
-        replay_match = replayed_pack_id == item["pack_id"]
-        source_replay_matches += int(replay_match)
+        replayed_evidence = _evidence_digests(replayed)
+
+        full_replay_match = replayed_pack_id == item["pack_id"]
+        full_replay_matches += int(full_replay_match)
+        changed_components = sorted(
+            component
+            for component in set((*original_evidence, *replayed_evidence))
+            if original_evidence.get(component) != replayed_evidence.get(component)
+        )
+        component_mismatches.update(changed_components)
+
+        expected_source_core = _source_core_digest(original_evidence)
+        observed_source_core = _source_core_digest(replayed_evidence)
+        stable_core_match = expected_source_core == observed_source_core
+        stable_core_matches += int(stable_core_match)
+
+        operational_changed = [
+            component
+            for component in changed_components
+            if component in OPERATIONAL_EVIDENCE
+        ]
+        operational_drift_count += int(bool(operational_changed))
+
+        self_completion_drift = (
+            "source-checks" in changed_components
+            and _self_completion_explains_checks(
+                checks,
+                original_evidence["source-checks"],
+            )
+        )
+        self_completion_drift_count += int(self_completion_drift)
+        generator_contract_drift = bool(
+            not full_replay_match and not changed_components
+        )
+        generator_contract_drift_count += int(generator_contract_drift)
 
         compare = reader.get(
             f"/repos/{repository}/compare/{item['source_merge']}...{main_sha}"
@@ -301,6 +401,11 @@ def collect(repository: str, token: str) -> dict[str, Any]:
                 "pack_id": item["pack_id"],
                 "validated_pack_id": document.pack_id,
                 "replayed_pack_id": replayed_pack_id,
+                "expected_source_core_digest": expected_source_core,
+                "observed_source_core_digest": observed_source_core,
+                "full_pack_replay_match": full_replay_match,
+                "changed_evidence_components": changed_components,
+                "self_observation_completion_drift": self_completion_drift,
                 "source_exists": True,
                 "source_ancestor_of_main": ancestor,
                 "evidence_refs": [
@@ -348,8 +453,14 @@ def collect(repository: str, token: str) -> dict[str, Any]:
         "proposal_count": len(proposals),
         "planner_record_count": planner_result["record_count"],
         "planner_group_count": planner_result["group_count"],
-        "source_replay_match_count": source_replay_matches,
-        "source_replay_drift_count": len(proposals) - source_replay_matches,
+        "full_pack_replay_match_count": full_replay_matches,
+        "full_pack_replay_drift_count": len(proposals) - full_replay_matches,
+        "stable_source_core_match_count": stable_core_matches,
+        "stable_source_core_drift_count": len(proposals) - stable_core_matches,
+        "operational_evidence_drift_count": operational_drift_count,
+        "self_observation_completion_drift_count": self_completion_drift_count,
+        "generator_contract_drift_count": generator_contract_drift_count,
+        "evidence_component_mismatch_counts": dict(sorted(component_mismatches.items())),
         "source_ancestor_of_main_count": ancestry_matches,
         "source_not_ancestor_of_main_count": len(proposals) - ancestry_matches,
         "applicability_counts": dict(sorted(applicability_counts.items())),
@@ -369,10 +480,16 @@ def collect(repository: str, token: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Collect live CML queue revalidation evidence")
+    parser = argparse.ArgumentParser(
+        description="Collect live CML queue revalidation evidence"
+    )
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--token-env", default="GITHUB_TOKEN")
-    parser.add_argument("--out-dir", type=Path, default=Path("artifacts/memory-queue-revalidation"))
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path("artifacts/memory-queue-revalidation"),
+    )
     args = parser.parse_args()
 
     if not args.repository or "/" not in args.repository:
@@ -382,7 +499,12 @@ def main() -> int:
 
     try:
         result = collect(args.repository, token)
-    except (CollectionError, retrieval.RetrievalError, learning.LearningLoopError, ValueError) as exc:
+    except (
+        CollectionError,
+        retrieval.RetrievalError,
+        learning.LearningLoopError,
+        ValueError,
+    ) as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2
 
