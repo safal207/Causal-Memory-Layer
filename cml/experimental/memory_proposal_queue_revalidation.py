@@ -1,17 +1,18 @@
 """Evidence-bounded revalidation adapter for live CML Memory Proposals.
 
-This module is deliberately pure: GitHub/network collection lives outside the
-trust decision.  The adapter consumes trusted observations, reuses the existing
-CML applicability + information-quality + information-fitness gates, and emits
-one Planner v0.2 record per Memory Pack.
+The adapter keeps three identities separate:
 
-A structurally replayable Memory Pack is *not* treated as semantically accepted.
-Independent semantic acceptance evidence is intentionally absent here, so the
-quality gate remains REVIEW even when provenance replay succeeds.
+1. Memory Pack identity proves the frozen proposal was not tampered with;
+2. stable provenance core tracks source PR/files/merge identity;
+3. appendable operational evidence (reviews/checks) may legitimately evolve.
+
+Only stable provenance core is used as the source digest for canonical CML
+applicability. Full-pack replay remains a diagnostic and never grants authority.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import hashlib
 import json
 import re
@@ -33,6 +34,7 @@ from cml.integrations.memory_applicability import (
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+OPERATIONAL_COMPONENTS = frozenset({"source-reviews", "source-checks"})
 
 
 class QueueRevalidationError(ValueError):
@@ -80,6 +82,15 @@ def _refs(value: Any, field: str) -> tuple[str, ...]:
     return refs
 
 
+def _components(value: Any, field: str) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise QueueRevalidationError(f"{field} must be a list")
+    components = tuple(_text(item, f"{field} entry") for item in value)
+    if len(components) != len(set(components)):
+        raise QueueRevalidationError(f"{field} entries must be unique")
+    return components
+
+
 def _digest(value: Mapping[str, Any]) -> str:
     canonical = json.dumps(
         value,
@@ -94,14 +105,10 @@ def _digest(value: Mapping[str, Any]) -> str:
 def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
     """Convert one trusted live observation into a Planner v0.2 record.
 
-    ``pack_id`` is the identity declared by the proposal queue.
-    ``validated_pack_id`` is obtained by strict Memory Pack parsing.
-    ``replayed_pack_id`` is rebuilt from the currently fetched authoritative
-    source PR/files/reviews/check-runs using the source-owned learning core.
-
-    The expected-vs-observed source digest used by the applicability gate is
-    therefore the original deterministic pack identity vs the deterministic
-    live replay identity.  Any source snapshot drift becomes DRIFT before review.
+    The proposal's strict ``pack_id`` is validated first. Applicability then
+    compares a stable provenance core made only from source PR/files/merge
+    evidence. Reviews/checks are explicitly appendable operational evidence and
+    cannot by themselves turn historical source identity into DRIFT.
     """
 
     if not isinstance(observation, Mapping):
@@ -124,6 +131,14 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
     replayed_pack_id = _sha64(
         observation.get("replayed_pack_id"), "replayed_pack_id"
     )
+    expected_source_core_digest = _sha64(
+        observation.get("expected_source_core_digest"),
+        "expected_source_core_digest",
+    )
+    observed_source_core_digest = _sha64(
+        observation.get("observed_source_core_digest"),
+        "observed_source_core_digest",
+    )
 
     if validated_pack_id != pack_id:
         raise QueueRevalidationError(
@@ -134,14 +149,43 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
     source_ancestor_of_main = _boolean(
         observation.get("source_ancestor_of_main"), "source_ancestor_of_main"
     )
+    full_pack_replay_match = _boolean(
+        observation.get("full_pack_replay_match"), "full_pack_replay_match"
+    )
+    self_observation_completion_drift = _boolean(
+        observation.get("self_observation_completion_drift"),
+        "self_observation_completion_drift",
+    )
     evidence_refs = _refs(observation.get("evidence_refs"), "evidence_refs")
+    changed_components = _components(
+        observation.get("changed_evidence_components"),
+        "changed_evidence_components",
+    )
+
+    stable_source_core_match = (
+        expected_source_core_digest == observed_source_core_digest
+    )
+    operational_changed = tuple(
+        component for component in changed_components if component in OPERATIONAL_COMPONENTS
+    )
+    non_operational_changed = tuple(
+        component for component in changed_components if component not in OPERATIONAL_COMPONENTS
+    )
+
+    if stable_source_core_match and any(
+        component in {"source-pr", "source-files", "source-merge"}
+        for component in non_operational_changed
+    ):
+        raise QueueRevalidationError(
+            "stable source core cannot match while a core evidence component changed"
+        )
 
     source = SourceObservation(
         locator=f"https://github.com/{repository}/pull/{source_pr}",
         refetchable=True,
         exists=source_exists,
-        expected_digest=pack_id,
-        observed_digest=replayed_pack_id if source_exists else None,
+        expected_digest=expected_source_core_digest,
+        observed_digest=observed_source_core_digest if source_exists else None,
     )
     stored_environment = EnvironmentBinding(
         repository=repository,
@@ -153,20 +197,14 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
         branch="main",
         commit_sha=current_main_revision,
     )
-
     lineage = (
         LineageDependency(
             dependency_id=f"source-merge:{source_merge}",
             state="active" if source_ancestor_of_main else "superseded",
-            expected_digest=pack_id,
-            observed_digest=replayed_pack_id if source_exists else None,
+            expected_digest=expected_source_core_digest,
+            observed_digest=observed_source_core_digest if source_exists else None,
         ),
     )
-
-    # ``now`` is irrelevant unless a historical valid_until exists; none is
-    # invented by this adapter.  Use a fixed timezone-aware value so the pure
-    # result is deterministic for the same observation.
-    from datetime import datetime, timezone
 
     applicability = evaluate_memory_applicability(
         source=source,
@@ -180,15 +218,20 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
     contradicting: list[str] = []
     observed_aspects: list[str] = ["pack_identity"]
 
-    if source_exists and replayed_pack_id == pack_id:
-        supporting.append("source-replay")
-        observed_aspects.append("source_replay")
+    if stable_source_core_match:
+        supporting.append("stable-source-core")
+        observed_aspects.append("stable_source_core")
     else:
-        contradicting.append("source-replay-mismatch")
+        contradicting.append("stable-source-core-mismatch")
 
     if source_ancestor_of_main:
         supporting.append("main-ancestry")
         observed_aspects.append("current_main_ancestry")
+
+    # Operational evidence is observed whether or not it changed. Change is a
+    # revalidation signal, not a contradiction of the frozen historical source.
+    supporting.append("operational-evidence-observed")
+    observed_aspects.append("operational_evidence")
 
     evidence_ids = tuple((*supporting, *contradicting))
     item_id = f"memory-pack:{pack_id}"
@@ -209,15 +252,17 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
             contradicting_evidence=tuple(contradicting),
             required_aspects=(
                 "pack_identity",
-                "source_replay",
+                "stable_source_core",
                 "current_main_ancestry",
+                "operational_evidence",
                 "semantic_acceptance",
             ),
             observed_aspects=tuple(observed_aspects),
             claim_aspects=(
                 "pack_identity",
-                "source_replay",
+                "stable_source_core",
                 "current_main_ancestry",
+                "operational_evidence",
                 "semantic_acceptance",
             ),
             evaluated_item_id=item_id,
@@ -231,10 +276,7 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
         quality=quality,
     )
 
-    # No shared lineage is inferred from similar templates or proximity.  A
-    # later evidence-backed lineage pass may replace this per-source root.
     lineage_root_id = f"source-pr:{source_pr}"
-
     identity = {
         "proposal_pr": proposal_pr,
         "source_pr": source_pr,
@@ -242,6 +284,9 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
         "pack_id": pack_id,
         "current_main_revision": current_main_revision,
         "replayed_pack_id": replayed_pack_id,
+        "stable_source_core_match": stable_source_core_match,
+        "changed_evidence_components": sorted(changed_components),
+        "self_observation_completion_drift": self_observation_completion_drift,
         "source_ancestor_of_main": source_ancestor_of_main,
         "applicability": applicability.status.value,
         "quality": quality.readiness.value,
@@ -271,6 +316,14 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
         "revalidation": {
             "validated_pack_id": validated_pack_id,
             "replayed_pack_id": replayed_pack_id,
+            "full_pack_replay_match": full_pack_replay_match,
+            "expected_source_core_digest": expected_source_core_digest,
+            "observed_source_core_digest": observed_source_core_digest,
+            "stable_source_core_match": stable_source_core_match,
+            "changed_evidence_components": list(changed_components),
+            "operational_evidence_changed_components": list(operational_changed),
+            "non_operational_changed_components": list(non_operational_changed),
+            "self_observation_completion_drift": self_observation_completion_drift,
             "source_exists": source_exists,
             "source_ancestor_of_main": source_ancestor_of_main,
             "semantic_acceptance_evidence": "NOT_COLLECTED",
