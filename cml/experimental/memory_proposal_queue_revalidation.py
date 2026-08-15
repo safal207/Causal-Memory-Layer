@@ -3,8 +3,8 @@
 The adapter keeps three identities separate:
 
 1. Memory Pack identity proves the frozen proposal was not tampered with;
-2. stable provenance core tracks source PR/files/merge identity;
-3. appendable operational evidence (reviews/checks) may legitimately evolve.
+2. stable provenance core tracks immutable source code/commit bindings;
+3. mutable evidence (PR narrative, reviews, checks) may legitimately evolve.
 
 Only stable provenance core is used as the source digest for canonical CML
 applicability. Full-pack replay remains a diagnostic and never grants authority.
@@ -34,7 +34,10 @@ from cml.integrations.memory_applicability import (
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+DESCRIPTIVE_COMPONENTS = frozenset({"source-pr"})
 OPERATIONAL_COMPONENTS = frozenset({"source-reviews", "source-checks"})
+MUTABLE_COMPONENTS = DESCRIPTIVE_COMPONENTS | OPERATIONAL_COMPONENTS
+IMMUTABLE_EVIDENCE_COMPONENTS = frozenset({"source-files", "source-merge"})
 
 
 class QueueRevalidationError(ValueError):
@@ -105,10 +108,10 @@ def _digest(value: Mapping[str, Any]) -> str:
 def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
     """Convert one trusted live observation into a Planner v0.2 record.
 
-    The proposal's strict ``pack_id`` is validated first. Applicability then
-    compares a stable provenance core made only from source PR/files/merge
-    evidence. Reviews/checks are explicitly appendable operational evidence and
-    cannot by themselves turn historical source identity into DRIFT.
+    The strict proposal ``pack_id`` is validated first. Applicability then
+    compares an immutable source core supplied by the collector. PR body/title,
+    reviews and checks are mutable evidence: changes there require human review
+    but do not by themselves establish source-code DRIFT.
     """
 
     if not isinstance(observation, Mapping):
@@ -165,19 +168,28 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
     stable_source_core_match = (
         expected_source_core_digest == observed_source_core_digest
     )
-    operational_changed = tuple(
-        component for component in changed_components if component in OPERATIONAL_COMPONENTS
+    descriptive_changed = tuple(
+        component
+        for component in changed_components
+        if component in DESCRIPTIVE_COMPONENTS
     )
-    non_operational_changed = tuple(
-        component for component in changed_components if component not in OPERATIONAL_COMPONENTS
+    operational_changed = tuple(
+        component
+        for component in changed_components
+        if component in OPERATIONAL_COMPONENTS
+    )
+    mutable_changed = tuple(
+        component for component in changed_components if component in MUTABLE_COMPONENTS
+    )
+    immutable_changed = tuple(
+        component
+        for component in changed_components
+        if component in IMMUTABLE_EVIDENCE_COMPONENTS
     )
 
-    if stable_source_core_match and any(
-        component in {"source-pr", "source-files", "source-merge"}
-        for component in non_operational_changed
-    ):
+    if stable_source_core_match and immutable_changed:
         raise QueueRevalidationError(
-            "stable source core cannot match while a core evidence component changed"
+            "stable source core cannot match while immutable evidence changed"
         )
 
     source = SourceObservation(
@@ -228,10 +240,8 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
         supporting.append("main-ancestry")
         observed_aspects.append("current_main_ancestry")
 
-    # Operational evidence is observed whether or not it changed. Change is a
-    # revalidation signal, not a contradiction of the frozen historical source.
-    supporting.append("operational-evidence-observed")
-    observed_aspects.append("operational_evidence")
+    supporting.append("mutable-evidence-observed")
+    observed_aspects.append("mutable_evidence")
 
     evidence_ids = tuple((*supporting, *contradicting))
     item_id = f"memory-pack:{pack_id}"
@@ -254,7 +264,7 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
                 "pack_identity",
                 "stable_source_core",
                 "current_main_ancestry",
-                "operational_evidence",
+                "mutable_evidence",
                 "semantic_acceptance",
             ),
             observed_aspects=tuple(observed_aspects),
@@ -262,7 +272,7 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
                 "pack_identity",
                 "stable_source_core",
                 "current_main_ancestry",
-                "operational_evidence",
+                "mutable_evidence",
                 "semantic_acceptance",
             ),
             evaluated_item_id=item_id,
@@ -321,8 +331,10 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
             "observed_source_core_digest": observed_source_core_digest,
             "stable_source_core_match": stable_source_core_match,
             "changed_evidence_components": list(changed_components),
+            "descriptive_metadata_changed_components": list(descriptive_changed),
             "operational_evidence_changed_components": list(operational_changed),
-            "non_operational_changed_components": list(non_operational_changed),
+            "mutable_evidence_changed_components": list(mutable_changed),
+            "immutable_evidence_changed_components": list(immutable_changed),
             "self_observation_completion_drift": self_observation_completion_drift,
             "source_exists": source_exists,
             "source_ancestor_of_main": source_ancestor_of_main,
