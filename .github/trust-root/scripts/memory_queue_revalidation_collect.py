@@ -3,8 +3,8 @@
 
 Network collection is intentionally separated from trust decisions. For each
 proposal this collector validates the frozen pack, rebuilds it from current
-GitHub observations, then compares evidence components before handing a stable
-provenance core to the pure v0.3 adapter.
+GitHub observations, then compares evidence components before handing an
+immutable source core to the pure v0.3 adapter.
 """
 
 from __future__ import annotations
@@ -37,8 +37,16 @@ SOURCE_MERGE_RE = re.compile(r"^- source merge: `([0-9a-f]{40})`$", re.MULTILINE
 SOURCE_HEAD_RE = re.compile(r"^- source head: `([0-9a-f]{40})`$", re.MULTILINE)
 MEMORY_PATH_RE = re.compile(r"^- memory path: `([^`]+)`$", re.MULTILINE)
 PACK_ID_RE = re.compile(r"^- pack ID: `([0-9a-f]{64})`$", re.MULTILINE)
-CORE_EVIDENCE = ("source-pr", "source-files", "source-merge")
+REQUIRED_EVIDENCE = (
+    "source-pr",
+    "source-files",
+    "source-reviews",
+    "source-checks",
+    "source-merge",
+)
+DESCRIPTIVE_EVIDENCE = ("source-pr",)
 OPERATIONAL_EVIDENCE = ("source-reviews", "source-checks")
+MUTABLE_EVIDENCE = (*DESCRIPTIVE_EVIDENCE, *OPERATIONAL_EVIDENCE)
 SELF_CHECK_NAME = "Propose merged-cycle memory"
 
 
@@ -190,16 +198,31 @@ def _evidence_digests(pack: Mapping[str, Any]) -> dict[str, str]:
         if evidence_id in result:
             raise CollectionError(f"duplicate Memory Pack evidence id: {evidence_id}")
         result[evidence_id] = digest
-    required = set((*CORE_EVIDENCE, *OPERATIONAL_EVIDENCE))
+    required = set(REQUIRED_EVIDENCE)
     if not required.issubset(result):
         missing = ",".join(sorted(required - set(result)))
         raise CollectionError(f"Memory Pack missing required evidence: {missing}")
     return result
 
 
-def _source_core_digest(evidence_digests: Mapping[str, str]) -> str:
+def _source_core_digest(
+    *,
+    repository: str,
+    source_pr: int,
+    source_head: str,
+    source_merge: str,
+    source_files_digest: str,
+) -> str:
+    """Hash immutable source bindings, excluding mutable PR narrative/check data."""
+
     return learning.sha256_json(
-        {key: evidence_digests[key] for key in CORE_EVIDENCE}
+        {
+            "repository": repository,
+            "source_pr": source_pr,
+            "source_head": source_head,
+            "source_merge": source_merge,
+            "source_files_digest": source_files_digest,
+        }
     )
 
 
@@ -207,7 +230,7 @@ def _self_completion_explains_checks(
     checks: list[dict[str, Any]],
     original_checks_digest: str,
 ) -> bool:
-    """Test the expected self-observation TOCTOU shape without mutating evidence."""
+    """Test one narrow self-observation TOCTOU hypothesis without asserting it."""
 
     normalized = learning.normalize_checks(checks)
     found = False
@@ -279,6 +302,8 @@ def collect(repository: str, token: str) -> dict[str, Any]:
     stable_core_matches = 0
     ancestry_matches = 0
     operational_drift_count = 0
+    descriptive_drift_count = 0
+    mutable_drift_count = 0
     self_completion_drift_count = 0
     generator_contract_drift_count = 0
     component_mismatches: Counter[str] = Counter()
@@ -315,7 +340,8 @@ def collect(repository: str, token: str) -> dict[str, Any]:
             raise CollectionError(
                 f"source PR #{item['source_pr']} is no longer recorded as merged"
             )
-        if source_pull.get("merge_commit_sha") != item["source_merge"]:
+        current_merge = source_pull.get("merge_commit_sha")
+        if current_merge != item["source_merge"]:
             raise CollectionError(
                 f"source PR #{item['source_pr']} merge SHA contradicts proposal"
             )
@@ -324,6 +350,7 @@ def collect(repository: str, token: str) -> dict[str, Any]:
             raise CollectionError(
                 f"source PR #{item['source_pr']} head SHA contradicts proposal"
             )
+        current_head = head["sha"]
 
         files = reader.paginate_list(
             f"/repos/{repository}/pulls/{item['source_pr']}/files"
@@ -351,8 +378,20 @@ def collect(repository: str, token: str) -> dict[str, Any]:
         )
         component_mismatches.update(changed_components)
 
-        expected_source_core = _source_core_digest(original_evidence)
-        observed_source_core = _source_core_digest(replayed_evidence)
+        expected_source_core = _source_core_digest(
+            repository=repository,
+            source_pr=item["source_pr"],
+            source_head=item["source_head"],
+            source_merge=item["source_merge"],
+            source_files_digest=original_evidence["source-files"],
+        )
+        observed_source_core = _source_core_digest(
+            repository=repository,
+            source_pr=item["source_pr"],
+            source_head=current_head,
+            source_merge=current_merge,
+            source_files_digest=replayed_evidence["source-files"],
+        )
         stable_core_match = expected_source_core == observed_source_core
         stable_core_matches += int(stable_core_match)
 
@@ -361,7 +400,19 @@ def collect(repository: str, token: str) -> dict[str, Any]:
             for component in changed_components
             if component in OPERATIONAL_EVIDENCE
         ]
+        descriptive_changed = [
+            component
+            for component in changed_components
+            if component in DESCRIPTIVE_EVIDENCE
+        ]
+        mutable_changed = [
+            component
+            for component in changed_components
+            if component in MUTABLE_EVIDENCE
+        ]
         operational_drift_count += int(bool(operational_changed))
+        descriptive_drift_count += int(bool(descriptive_changed))
+        mutable_drift_count += int(bool(mutable_changed))
 
         self_completion_drift = (
             "source-checks" in changed_components
@@ -451,6 +502,8 @@ def collect(repository: str, token: str) -> dict[str, Any]:
         "full_pack_replay_drift_count": len(proposals) - full_replay_matches,
         "stable_source_core_match_count": stable_core_matches,
         "stable_source_core_drift_count": len(proposals) - stable_core_matches,
+        "mutable_evidence_drift_count": mutable_drift_count,
+        "descriptive_pr_metadata_drift_count": descriptive_drift_count,
         "operational_evidence_drift_count": operational_drift_count,
         "self_observation_completion_drift_count": self_completion_drift_count,
         "generator_contract_drift_count": generator_contract_drift_count,
