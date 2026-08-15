@@ -11,6 +11,7 @@ on:
       - "tests/test_memory_proposal_queue.py"
       - "tests/test_memory_proposal_queue_planner.py"
       - "tests/test_memory_proposal_queue_revalidation.py"
+      - "docs/integrations/MEMORY_PROPOSAL_QUEUE_REVALIDATION_V0_3.md"
       - ".github/workflows/memory-queue-revalidation.yml"
   workflow_dispatch:
 
@@ -89,9 +90,23 @@ jobs:
           plan = json.loads((root / "planner-result.json").read_text(encoding="utf-8"))
           queue = json.loads((root / "queue-audit.json").read_text(encoding="utf-8"))
 
-          assert summary["proposal_count"] == summary["planner_record_count"]
-          assert summary["proposal_count"] == queue["queue"]["proposal_count"]
-          assert plan["record_count"] == summary["proposal_count"]
+          proposal_count = summary["proposal_count"]
+          assert proposal_count == summary["planner_record_count"]
+          assert proposal_count == queue["queue"]["proposal_count"]
+          assert plan["record_count"] == proposal_count
+
+          stable_matches = summary["stable_source_core_match_count"]
+          stable_drifts = summary["stable_source_core_drift_count"]
+          assert stable_matches + stable_drifts == proposal_count
+
+          ancestry_matches = summary["source_ancestor_of_main_count"]
+          ancestry_misses = summary["source_not_ancestor_of_main_count"]
+          assert ancestry_matches + ancestry_misses == proposal_count
+
+          assert sum(summary["applicability_counts"].values()) == proposal_count
+          assert sum(summary["quality_readiness_counts"].values()) == proposal_count
+          assert sum(summary["fitness_counts"].values()) == proposal_count
+
           assert summary["authority_granted"] is False
           assert plan["authority_granted"] is False
           assert plan["merge_authority"] is False
