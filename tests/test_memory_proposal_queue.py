@@ -5,7 +5,11 @@ import json
 import unittest
 from pathlib import Path
 
-from cml.experimental.memory_proposal_queue import QueueAuditError, audit
+from cml.experimental.memory_proposal_queue import (
+    QueueAuditError,
+    _reject_duplicate_json_object_pairs,
+    audit,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +71,20 @@ class MemoryProposalQueueAuditTests(unittest.TestCase):
         payload["proposals"][1]["pack_id"] = payload["proposals"][0]["pack_id"]
         with self.assertRaisesRegex(QueueAuditError, "duplicate pack_id"):
             audit(payload)
+
+    def test_cross_record_pack_swap_changes_snapshot_digest(self):
+        payload = self.payload()
+        baseline = audit(payload)["snapshot_digest"]
+        swapped = copy.deepcopy(payload)
+        first = swapped["proposals"][0]["pack_id"]
+        swapped["proposals"][0]["pack_id"] = swapped["proposals"][1]["pack_id"]
+        swapped["proposals"][1]["pack_id"] = first
+        self.assertNotEqual(baseline, audit(swapped)["snapshot_digest"])
+
+    def test_duplicate_json_object_keys_fail_closed(self):
+        raw = '{"merge_authority":true,"merge_authority":false}'
+        with self.assertRaisesRegex(QueueAuditError, "duplicate JSON key"):
+            json.loads(raw, object_pairs_hook=_reject_duplicate_json_object_pairs)
 
     def test_authority_escalation_fails_closed(self):
         payload = self.payload()
