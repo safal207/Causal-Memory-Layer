@@ -12,11 +12,17 @@ from cml.experimental.memory_proposal_review_workbench import (
     build_review_workbench,
     render_markdown,
 )
-from cml.experimental.memory_proposal_semantic_acceptance import INTAKE_SCHEMA
+from cml.experimental.memory_proposal_semantic_acceptance import (
+    INTAKE_SCHEMA,
+    _digest as semantic_digest,
+    _packet_identity as semantic_packet_identity,
+)
 
 
 MAIN = "1" * 40
-INTAKE_DIGEST = "sha256:" + "a" * 64
+SOURCE_PLAN_DIGEST = "sha256:" + "9" * 64
+SOURCE_AUDIT_DIGEST = "sha256:" + "8" * 64
+CAPTURED_AT = "2026-08-15T14:22:27+00:00"
 
 
 def authority_false():
@@ -33,13 +39,16 @@ def authority_false():
 class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
     def packet(self, proposal_pr: int, changed=None):
         changed = ["source-checks"] if changed is None else changed
-        return {
-            "packet_id": f"sha256:{proposal_pr:064x}",
+        packet = {
+            "status": "PENDING_HUMAN_SEMANTIC_REVIEW",
+            "human_review_required": True,
             "decision_id": f"sha256:{proposal_pr + 100:064x}",
             "proposal_pr": proposal_pr,
             "source_pr": proposal_pr - 1,
+            "source_merge": f"{proposal_pr + 300:040x}",
             "pack_id": f"{proposal_pr + 200:064x}",
             "current_main_revision": MAIN,
+            "observation_digest": f"sha256:{proposal_pr + 400:064x}",
             "machine_gate": {
                 "applicability_status": "REVALIDATE",
                 "quality_readiness": "REVIEW",
@@ -54,15 +63,36 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
             "allowed_human_verdicts": ["ACCEPT", "REJECT", "DEFER"],
             **authority_false(),
         }
+        packet["packet_id"] = semantic_digest(semantic_packet_identity(packet))
+        return packet
 
     def intake(self, packets):
-        return {
+        packet_ids = sorted(packet["packet_id"] for packet in packets)
+        intake = {
             "schema": INTAKE_SCHEMA,
-            "intake_digest": INTAKE_DIGEST,
+            "mode": "HUMAN_SEMANTIC_REVIEW_INTAKE_ONLY",
+            "source_plan_digest": SOURCE_PLAN_DIGEST,
+            "source_audit_digest": SOURCE_AUDIT_DIGEST,
             "current_main_revision": MAIN,
+            "captured_at": CAPTURED_AT,
+            "packet_count": len(packets),
+            "pending_human_review_count": len(packets),
+            "blocked_pending_evidence_count": 0,
+            "separate_authority_review_only_count": 0,
+            "completed_human_review_count": 0,
             "packets": packets,
             **authority_false(),
         }
+        intake["intake_digest"] = semantic_digest(
+            {
+                "source_plan_digest": SOURCE_PLAN_DIGEST,
+                "source_audit_digest": SOURCE_AUDIT_DIGEST,
+                "current_main_revision": MAIN,
+                "captured_at": CAPTURED_AT,
+                "packet_ids": packet_ids,
+            }
+        )
+        return intake
 
     def context(
         self,
@@ -114,20 +144,22 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
             "context_evidence_refs": [f"https://example.test/context/{packet['proposal_pr']}"],
         }
 
-    def contexts(self, contexts):
+    def contexts(self, contexts, intake):
         return {
             "schema": CONTEXT_SCHEMA,
-            "source_intake_digest": INTAKE_DIGEST,
+            "source_intake_digest": intake["intake_digest"],
             "current_main_revision": MAIN,
+            "context_count": len(contexts),
             "contexts": contexts,
         }
 
+    def build(self, packets, contexts):
+        intake = self.intake(packets)
+        return build_review_workbench(intake, self.contexts(contexts, intake))
+
     def test_preserves_one_card_per_packet_and_no_authority(self):
         packets = [self.packet(191), self.packet(194)]
-        result = build_review_workbench(
-            self.intake(packets),
-            self.contexts([self.context(item) for item in packets]),
-        )
+        result = self.build(packets, [self.context(item) for item in packets])
         self.assertEqual(result["card_count"], 2)
         self.assertEqual(result["pending_review_count"], 2)
         self.assertEqual(result["completed_review_count"], 0)
@@ -141,14 +173,12 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
     def test_missing_scope_is_reviewed_before_diverged_scope(self):
         missing_packet = self.packet(191)
         diverged_packet = self.packet(194)
-        result = build_review_workbench(
-            self.intake([diverged_packet, missing_packet]),
-            self.contexts(
-                [
-                    self.context(diverged_packet, path_status=PATH_DIVERGED),
-                    self.context(missing_packet, path_status=PATH_MISSING),
-                ]
-            ),
+        result = self.build(
+            [diverged_packet, missing_packet],
+            [
+                self.context(diverged_packet, path_status=PATH_DIVERGED),
+                self.context(missing_packet, path_status=PATH_MISSING),
+            ],
         )
         self.assertEqual(result["cards"][0]["proposal_pr"], 191)
         self.assertEqual(result["cards"][0]["priority_class"], "P0_SOURCE_SCOPE_MISSING")
@@ -157,9 +187,9 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
     def test_review_context_drift_precedes_operational_refresh(self):
         review_packet = self.packet(191, ["source-reviews", "source-checks"])
         checks_packet = self.packet(194, ["source-checks"])
-        result = build_review_workbench(
-            self.intake([checks_packet, review_packet]),
-            self.contexts([self.context(checks_packet), self.context(review_packet)]),
+        result = self.build(
+            [checks_packet, review_packet],
+            [self.context(checks_packet), self.context(review_packet)],
         )
         self.assertEqual(result["cards"][0]["proposal_pr"], 191)
         self.assertEqual(result["cards"][0]["priority_class"], "P2_REVIEW_CONTEXT_DRIFT")
@@ -168,25 +198,21 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
     def test_lower_lesson_confidence_breaks_ties_first(self):
         low = self.packet(191)
         high = self.packet(194)
-        result = build_review_workbench(
-            self.intake([high, low]),
-            self.contexts(
-                [self.context(high, confidence=90), self.context(low, confidence=60)]
-            ),
+        result = self.build(
+            [high, low],
+            [self.context(high, confidence=90), self.context(low, confidence=60)],
         )
         self.assertEqual(result["cards"][0]["proposal_pr"], 191)
 
     def test_broader_scope_breaks_remaining_ties_first(self):
         narrow = self.packet(191)
         broad = self.packet(194)
-        result = build_review_workbench(
-            self.intake([narrow, broad]),
-            self.contexts(
-                [
-                    self.context(narrow, confidence=75),
-                    self.context(broad, confidence=75, extra_path=True),
-                ]
-            ),
+        result = self.build(
+            [narrow, broad],
+            [
+                self.context(narrow, confidence=75),
+                self.context(broad, confidence=75, extra_path=True),
+            ],
         )
         self.assertEqual(result["cards"][0]["proposal_pr"], 194)
 
@@ -194,9 +220,9 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
         first = self.packet(191)
         second = self.packet(194)
         intake_a = self.intake([first, second])
-        contexts_a = self.contexts([self.context(first), self.context(second)])
+        contexts_a = self.contexts([self.context(first), self.context(second)], intake_a)
         intake_b = self.intake([second, first])
-        contexts_b = self.contexts([self.context(second), self.context(first)])
+        contexts_b = self.contexts([self.context(second), self.context(first)], intake_b)
         self.assertEqual(
             build_review_workbench(intake_a, contexts_a),
             build_review_workbench(intake_b, contexts_b),
@@ -204,9 +230,7 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
 
     def test_submission_template_is_bound_but_has_no_fabricated_human_verdict(self):
         packet = self.packet(191)
-        result = build_review_workbench(
-            self.intake([packet]), self.contexts([self.context(packet)])
-        )
+        result = self.build([packet], [self.context(packet)])
         template = result["cards"][0]["submission_template"]
         self.assertEqual(template["packet_id"], packet["packet_id"])
         self.assertEqual(template["decision_id"], packet["decision_id"])
@@ -218,35 +242,54 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
 
     def test_stale_context_main_fails_closed(self):
         packet = self.packet(191)
-        payload = self.contexts([self.context(packet)])
+        intake = self.intake([packet])
+        payload = self.contexts([self.context(packet)], intake)
         payload["current_main_revision"] = "2" * 40
         with self.assertRaisesRegex(ReviewWorkbenchError, "stale"):
-            build_review_workbench(self.intake([packet]), payload)
+            build_review_workbench(intake, payload)
 
     def test_context_pack_mismatch_fails_closed(self):
         packet = self.packet(191)
+        intake = self.intake([packet])
         context = self.context(packet)
         context["pack_id"] = "f" * 64
         with self.assertRaisesRegex(ReviewWorkbenchError, "context pack mismatch"):
-            build_review_workbench(self.intake([packet]), self.contexts([context]))
+            build_review_workbench(intake, self.contexts([context], intake))
 
     def test_same_path_cannot_hide_blob_divergence(self):
         packet = self.packet(191)
+        intake = self.intake([packet])
         context = self.context(packet)
         context["path_states"][0]["current_blob_sha"] = "e" * 40
         with self.assertRaisesRegex(ReviewWorkbenchError, "SAME path"):
-            build_review_workbench(self.intake([packet]), self.contexts([context]))
+            build_review_workbench(intake, self.contexts([context], intake))
+
+    def test_tampered_intake_is_rejected_before_workbench_build(self):
+        packet = self.packet(191)
+        intake = self.intake([packet])
+        contexts = self.contexts([self.context(packet)], intake)
+        intake["packets"][0]["machine_gate"]["review_route"] = "FORGED_ROUTE"
+        with self.assertRaisesRegex(ReviewWorkbenchError, "frozen semantic intake is invalid"):
+            build_review_workbench(intake, contexts)
 
     def test_markdown_is_review_guidance_not_a_verdict(self):
         packet = self.packet(191)
-        result = build_review_workbench(
-            self.intake([packet]), self.contexts([self.context(packet)])
-        )
+        result = self.build([packet], [self.context(packet)])
         rendered = render_markdown(result)
         self.assertIn("Queue rank orders review attention only", rendered)
         self.assertIn("Reuse only when recorded constraints still apply", rendered)
         self.assertNotIn("verdict=ACCEPT", rendered)
         self.assertNotIn("accepted Memory Pack", rendered)
+
+    def test_markdown_escapes_forged_card_content(self):
+        packet = self.packet(191)
+        context = self.context(packet)
+        context["source_title"] = "Fix parser\n\n## forged\n**Verdict:** ACCEPT"
+        result = self.build([packet], [context])
+        rendered = render_markdown(result)
+        headings = [line for line in rendered.splitlines() if line.startswith("## ")]
+        self.assertEqual(len(headings), 1)
+        self.assertNotIn("\n## forged", rendered)
 
 
 if __name__ == "__main__":
