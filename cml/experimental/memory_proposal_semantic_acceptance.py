@@ -22,6 +22,11 @@ from pathlib import Path
 import re
 from typing import Any, Mapping
 
+from cml.experimental.memory_proposal_queue_planner import (
+    QueuePlanningError,
+    plan as build_revalidation_plan,
+)
+
 PLANNER_INPUT_SCHEMA = "cml.memory-proposal-queue.revalidation-input.v0.2"
 PLANNER_RESULT_SCHEMA = "cml.memory-proposal-queue.revalidation-plan.v0.2"
 INTAKE_SCHEMA = "cml.memory-proposal-queue.semantic-acceptance-intake.v0.4"
@@ -321,6 +326,18 @@ def build_semantic_acceptance_intake(
             f"planner_result.schema must be {PLANNER_RESULT_SCHEMA}"
         )
     _authority_false(planner_result, "planner_result")
+
+    try:
+        canonical_planner_result = build_revalidation_plan(dict(planner_input))
+    except QueuePlanningError as exc:
+        raise SemanticAcceptanceError(
+            f"planner_input cannot reproduce a canonical planner result: {exc}"
+        ) from exc
+    if dict(planner_result) != canonical_planner_result:
+        raise SemanticAcceptanceError(
+            "planner_result does not match canonical recomputation from planner_input"
+        )
+    planner_result = canonical_planner_result
 
     current_main = _sha40(
         planner_input.get("current_main_revision"),
