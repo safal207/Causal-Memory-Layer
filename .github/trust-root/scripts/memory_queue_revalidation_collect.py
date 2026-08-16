@@ -19,7 +19,7 @@ from pathlib import Path
 import re
 import sys
 from typing import Any, Mapping
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
@@ -37,6 +37,7 @@ SOURCE_MERGE_RE = re.compile(r"^- source merge: `([0-9a-f]{40})`$", re.MULTILINE
 SOURCE_HEAD_RE = re.compile(r"^- source head: `([0-9a-f]{40})`$", re.MULTILINE)
 MEMORY_PATH_RE = re.compile(r"^- memory path: `([^`]+)`$", re.MULTILINE)
 PACK_ID_RE = re.compile(r"^- pack ID: `([0-9a-f]{64})`$", re.MULTILINE)
+REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 REQUIRED_EVIDENCE = (
     "source-pr",
     "source-files",
@@ -60,6 +61,12 @@ def _utc_now() -> str:
     )
 
 
+def _repository(value: Any) -> str:
+    if not isinstance(value, str) or not REPOSITORY_RE.fullmatch(value.strip()):
+        raise CollectionError("repository must be owner/name")
+    return value.strip()
+
+
 class GitHubReader:
     def __init__(self, token: str) -> None:
         if not token:
@@ -72,6 +79,8 @@ class GitHubReader:
         }
 
     def get(self, path: str) -> Any:
+        if path.startswith("https://") and not path.startswith(API + "/"):
+            raise CollectionError("GitHub API URL must remain on api.github.com")
         url = path if path.startswith("https://") else API + path
         request = Request(url, headers=self._headers)
         try:
@@ -80,6 +89,8 @@ class GitHubReader:
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:1000]
             raise CollectionError(f"GitHub API {exc.code} for {url}: {detail}") from exc
+        except (URLError, TimeoutError, OSError) as exc:
+            raise CollectionError(f"GitHub API transport failure for {url}: {exc}") from exc
 
     def paginate_list(self, path: str) -> list[dict[str, Any]]:
         result: list[dict[str, Any]] = []
@@ -246,6 +257,7 @@ def _self_completion_explains_checks(
 
 
 def collect(repository: str, token: str) -> dict[str, Any]:
+    repository = _repository(repository)
     reader = GitHubReader(token)
     captured_at = _utc_now()
 
@@ -539,13 +551,15 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not args.repository or "/" not in args.repository:
-        print("repository must be owner/name", file=sys.stderr)
+    try:
+        repository = _repository(args.repository)
+    except CollectionError as exc:
+        print(str(exc), file=sys.stderr)
         return 2
     token = os.environ.get(args.token_env, "")
 
     try:
-        result = collect(args.repository, token)
+        result = collect(repository, token)
     except (
         CollectionError,
         retrieval.RetrievalError,
