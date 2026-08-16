@@ -119,15 +119,21 @@ jobs:
           assert summary["semantic_acceptance_evidence"] == "NOT_COLLECTED"
           PY
 
-      - name: Build evidence manifest
+      - name: Build exact-head evidence manifest
         if: always()
         run: |
-          mkdir -p artifacts/memory-queue-revalidation
-          cd artifacts/memory-queue-revalidation
-          LC_ALL=C find . -type f -name '*.json' -print0 \
-            | LC_ALL=C sort -z \
-            | xargs -0 -r sha256sum > SHA256SUMS.tmp
-          mv SHA256SUMS.tmp SHA256SUMS
+          python -m scripts.ci.build_evidence_manifest \
+            --artifacts-root artifacts/memory-queue-revalidation \
+            --repository "${{ github.repository }}" \
+            --source-repository "$SOURCE_REPOSITORY" \
+            --tested-sha "$EXPECTED_SHA" \
+            --event-name "${{ github.event_name }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
+            --change-number "${{ github.event.pull_request.number || 0 }}" \
+            --workflow-ref "${{ github.workflow_ref }}" \
+            --require exact-head.json \
+            --output artifacts/memory-queue-revalidation/evidence-manifest.json
 
       - name: Upload live queue evidence
         if: always()
