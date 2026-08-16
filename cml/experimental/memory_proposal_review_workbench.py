@@ -25,7 +25,11 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from cml.experimental.memory_proposal_semantic_acceptance import INTAKE_SCHEMA
+from cml.experimental.memory_proposal_semantic_acceptance import (
+    INTAKE_SCHEMA,
+    SemanticAcceptanceError,
+    verify_semantic_acceptance_intake,
+)
 
 CONTEXT_SCHEMA = "cml.memory-proposal-queue.review-contexts.v0.5"
 WORKBENCH_SCHEMA = "cml.memory-proposal-queue.human-review-workbench.v0.5"
@@ -179,11 +183,14 @@ def build_review_workbench(
     if contexts_payload.get("schema") != CONTEXT_SCHEMA:
         raise ReviewWorkbenchError(f"contexts_payload.schema must be {CONTEXT_SCHEMA}")
     _authority_false(intake, "intake")
+    try:
+        intake_digest = verify_semantic_acceptance_intake(intake)
+    except SemanticAcceptanceError as exc:
+        raise ReviewWorkbenchError(f"frozen semantic intake is invalid: {exc}") from exc
 
     current_main = _text(intake.get("current_main_revision"), "intake.current_main_revision")
     if contexts_payload.get("current_main_revision") != current_main:
         raise ReviewWorkbenchError("review contexts are stale or bound to a different main")
-    intake_digest = _text(intake.get("intake_digest"), "intake.intake_digest")
     if contexts_payload.get("source_intake_digest") != intake_digest:
         raise ReviewWorkbenchError("review contexts do not bind the frozen intake")
 
@@ -271,7 +278,6 @@ def build_review_workbench(
             "packet.machine_gate.changed_evidence_components",
             allow_empty=True,
         )
-        # Normalize packet copy used by priority classification.
         priority_packet = {
             "machine_gate": {"changed_evidence_components": changed_components}
         }
@@ -403,6 +409,15 @@ def build_review_workbench(
     }
 
 
+def _inline(value: Any) -> str:
+    """Flatten untrusted text to a single Markdown-safe inline fragment."""
+
+    text = " ".join(str(value).split())
+    for char in ("\\", "`", "*", "_", "#", "[", "]", "<", ">", "|"):
+        text = text.replace(char, "\\" + char)
+    return text
+
+
 def render_markdown(workbench: Mapping[str, Any]) -> str:
     """Render a compact human-facing queue without inventing verdicts."""
 
@@ -430,14 +445,19 @@ def render_markdown(workbench: Mapping[str, Any]) -> str:
                 f"## {card['queue_rank']}. PR #{card['proposal_pr']} ← source #{card['source_pr']}",
                 "",
                 f"**Priority:** `{card['priority_class']}`",
-                f"**Lesson:** {context['lesson']}",
-                f"**Situation:** {context['situation']}",
-                f"**Source title:** {context['source_title']}",
+                f"**Lesson:** {_inline(context['lesson'])}",
+                f"**Situation:** {_inline(context['situation'])}",
+                f"**Action:** {_inline(context['action'])}",
+                f"**Source title:** {_inline(context['source_title'])}",
                 f"**Generated lesson confidence:** {context['lesson_confidence']}/100",
                 f"**Path state:** {len(reason['missing_or_renamed_paths'])} missing/renamed, "
                 f"{len(reason['diverged_paths'])} diverged, "
                 f"{len(reason['same_as_source_paths'])} same",
-                f"**Evidence drift:** {', '.join(reason['changed_evidence_components']) or 'none observed'}",
+                "**Evidence drift:** "
+                + (
+                    ", ".join(_inline(item) for item in reason["changed_evidence_components"])
+                    or "none observed"
+                ),
                 f"**Packet:** `{card['packet_id']}`",
                 "",
                 "Human action: inspect the frozen evidence, then fill `reviewer_id`, "
