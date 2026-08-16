@@ -9,6 +9,7 @@ from cml.experimental.memory_proposal_semantic_acceptance import (
     SemanticAcceptanceError,
     build_semantic_acceptance_intake,
     validate_human_submission,
+    verify_semantic_acceptance_intake,
 )
 
 
@@ -45,24 +46,56 @@ class MemoryProposalSemanticAcceptanceTests(unittest.TestCase):
             ],
         }
 
+    def second_observation(self):
+        observation = self.observation()
+        observation.update(
+            {
+                "proposal_pr": 194,
+                "source_pr": 193,
+                "source_merge": "3" * 40,
+                "pack_id": "4" * 64,
+                "validated_pack_id": "4" * 64,
+                "replayed_pack_id": "5" * 64,
+                "expected_source_core_digest": "6" * 64,
+                "observed_source_core_digest": "6" * 64,
+                "evidence_refs": [
+                    "https://github.com/safal207/Causal-Memory-Layer/pull/194",
+                    "https://github.com/safal207/Causal-Memory-Layer/pull/193",
+                ],
+            }
+        )
+        return observation
+
     def planner_pair(self, observation=None):
-        record = build_planner_record(observation or self.observation())
+        observation = observation or self.observation()
+        record = build_planner_record(observation)
         planner_input = {
             "schema": "cml.memory-proposal-queue.revalidation-input.v0.2",
             "source_audit_schema": "cml.memory-proposal-queue.audit.v0.1",
             "source_audit_digest": AUDIT,
-            "current_main_revision": record["revalidation"].get(
-                "current_main_revision", MAIN
-            ),
+            "current_main_revision": observation["current_main_revision"],
             "captured_at": "2026-08-15T14:22:27Z",
             "synthetic": True,
             "expected_record_count": 1,
             "records": [record],
         }
-        # build_planner_record does not duplicate current_main_revision at top level.
-        planner_input["current_main_revision"] = (
-            observation or self.observation()
-        )["current_main_revision"]
+        return planner_input, plan(planner_input)
+
+    def two_record_planner_pair(self):
+        records = [
+            build_planner_record(self.observation()),
+            build_planner_record(self.second_observation()),
+        ]
+        planner_input = {
+            "schema": "cml.memory-proposal-queue.revalidation-input.v0.2",
+            "source_audit_schema": "cml.memory-proposal-queue.audit.v0.1",
+            "source_audit_digest": AUDIT,
+            "current_main_revision": MAIN,
+            "captured_at": "2026-08-15T14:22:27Z",
+            "synthetic": True,
+            "expected_record_count": 2,
+            "records": records,
+        }
         return planner_input, plan(planner_input)
 
     def intake(self):
@@ -97,6 +130,7 @@ class MemoryProposalSemanticAcceptanceTests(unittest.TestCase):
         self.assertEqual(packet["allowed_human_verdicts"], ["ACCEPT", "REJECT", "DEFER"])
         self.assertFalse(packet["authority_granted"])
         self.assertFalse(packet["acceptance_authority"])
+        self.assertEqual(verify_semantic_acceptance_intake(intake), intake["intake_digest"])
 
     def test_intake_is_deterministic_for_same_machine_evidence(self):
         planner_input, planner_result = self.planner_pair()
@@ -106,6 +140,21 @@ class MemoryProposalSemanticAcceptanceTests(unittest.TestCase):
         )
         self.assertEqual(first, second)
         self.assertTrue(first["intake_digest"].startswith("sha256:"))
+
+    def test_duplicate_planner_decision_proposal_fails_closed(self):
+        planner_input, planner_result = self.two_record_planner_pair()
+        planner_result["decisions"][1] = copy.deepcopy(planner_result["decisions"][0])
+        with self.assertRaisesRegex(SemanticAcceptanceError, "duplicate planner decision"):
+            build_semantic_acceptance_intake(planner_input, planner_result)
+
+    def test_tampered_frozen_packet_with_old_digests_fails_closed(self):
+        intake = self.intake()
+        submission = self.submission(intake)
+        intake["packets"][0]["machine_gate"]["review_route"] = "FORGED_ROUTE"
+        with self.assertRaisesRegex(SemanticAcceptanceError, "packet identity digest"):
+            verify_semantic_acceptance_intake(intake)
+        with self.assertRaisesRegex(SemanticAcceptanceError, "packet identity digest"):
+            validate_human_submission(intake, submission)
 
     def test_accept_records_support_but_grants_no_acceptance_authority(self):
         intake = self.intake()
