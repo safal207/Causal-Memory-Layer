@@ -354,6 +354,8 @@ def plan(payload: dict[str, Any]) -> dict[str, Any]:
         )
 
     plan_identity = {
+        "schema": RESULT_SCHEMA,
+        "synthetic": synthetic,
         "source_audit_digest": source_audit_digest,
         "current_main_revision": current_main_revision,
         "captured_at": captured_at.isoformat(),
