@@ -131,6 +131,12 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         ):
             build_planner_record(observation)
 
+    def test_unknown_evidence_component_fails_closed(self):
+        observation = self.observation()
+        observation["changed_evidence_components"] = ["source-unknown"]
+        with self.assertRaisesRegex(QueueRevalidationError, "unknown evidence components"):
+            build_planner_record(observation)
+
     def test_result_is_deterministic_for_same_observation(self):
         first = build_planner_record(self.observation())
         second = build_planner_record(copy.deepcopy(self.observation()))
