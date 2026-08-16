@@ -55,6 +55,12 @@ def _positive_int(value: Any, field: str) -> int:
     return value
 
 
+def _boolean(value: Any, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise SemanticAcceptanceError(f"{field} must be boolean")
+    return value
+
+
 def _sha256_ref(value: Any, field: str) -> str:
     text = _text(value, field)
     if not SHA256_REF.fullmatch(text):
@@ -134,6 +140,166 @@ def _review_requirement(fitness_status: str) -> tuple[str, bool]:
     raise SemanticAcceptanceError(f"unsupported canonical fitness: {fitness_status}")
 
 
+def _packet_identity(packet: Mapping[str, Any]) -> dict[str, Any]:
+    """Rebuild the trust-relevant identity of a frozen review packet."""
+
+    packet = _mapping(packet, "packet")
+    machine_gate = _mapping(packet.get("machine_gate"), "packet.machine_gate")
+    allowed_verdicts = _refs(
+        packet.get("allowed_human_verdicts"),
+        "packet.allowed_human_verdicts",
+    )
+    if allowed_verdicts != ALLOWED_VERDICTS:
+        raise SemanticAcceptanceError(
+            "packet.allowed_human_verdicts must match the canonical verdict set"
+        )
+    return {
+        "status": _text(packet.get("status"), "packet.status"),
+        "human_review_required": _boolean(
+            packet.get("human_review_required"), "packet.human_review_required"
+        ),
+        "decision_id": _sha256_ref(packet.get("decision_id"), "packet.decision_id"),
+        "proposal_pr": _positive_int(packet.get("proposal_pr"), "packet.proposal_pr"),
+        "source_pr": _positive_int(packet.get("source_pr"), "packet.source_pr"),
+        "source_merge": _sha40(packet.get("source_merge"), "packet.source_merge"),
+        "pack_id": _sha64(packet.get("pack_id"), "packet.pack_id"),
+        "current_main_revision": _sha40(
+            packet.get("current_main_revision"), "packet.current_main_revision"
+        ),
+        "observation_digest": _sha256_ref(
+            packet.get("observation_digest"), "packet.observation_digest"
+        ),
+        "machine_gate": {
+            "applicability_status": _text(
+                machine_gate.get("applicability_status"),
+                "packet.machine_gate.applicability_status",
+            ),
+            "quality_readiness": _text(
+                machine_gate.get("quality_readiness"),
+                "packet.machine_gate.quality_readiness",
+            ),
+            "canonical_fitness_status": _text(
+                machine_gate.get("canonical_fitness_status"),
+                "packet.machine_gate.canonical_fitness_status",
+            ),
+            "review_route": _text(
+                machine_gate.get("review_route"), "packet.machine_gate.review_route"
+            ),
+            "stable_source_core_match": _boolean(
+                machine_gate.get("stable_source_core_match"),
+                "packet.machine_gate.stable_source_core_match",
+            ),
+            "source_ancestor_of_main": _boolean(
+                machine_gate.get("source_ancestor_of_main"),
+                "packet.machine_gate.source_ancestor_of_main",
+            ),
+            "changed_evidence_components": sorted(
+                _refs(
+                    machine_gate.get("changed_evidence_components"),
+                    "packet.machine_gate.changed_evidence_components",
+                    allow_empty=True,
+                )
+            ),
+        },
+        "gate_evidence_refs": sorted(
+            _refs(packet.get("gate_evidence_refs"), "packet.gate_evidence_refs")
+        ),
+        "lineage_evidence_refs": sorted(
+            _refs(packet.get("lineage_evidence_refs"), "packet.lineage_evidence_refs")
+        ),
+        "allowed_human_verdicts": list(allowed_verdicts),
+    }
+
+
+def verify_semantic_acceptance_intake(intake: Mapping[str, Any]) -> str:
+    """Recompute every packet identity and the enclosing intake digest.
+
+    Returns the verified intake digest. Any edited packet, duplicated packet,
+    inconsistent coverage count, or stale digest fails closed.
+    """
+
+    intake = _mapping(intake, "intake")
+    if intake.get("schema") != INTAKE_SCHEMA:
+        raise SemanticAcceptanceError(f"intake.schema must be {INTAKE_SCHEMA}")
+    _authority_false(intake, "intake")
+
+    source_plan_digest = _sha256_ref(
+        intake.get("source_plan_digest"), "intake.source_plan_digest"
+    )
+    source_audit_digest = _sha256_ref(
+        intake.get("source_audit_digest"), "intake.source_audit_digest"
+    )
+    current_main = _sha40(
+        intake.get("current_main_revision"), "intake.current_main_revision"
+    )
+    captured_at = _parse_time(intake.get("captured_at"), "intake.captured_at")
+    claimed_digest = _sha256_ref(intake.get("intake_digest"), "intake.intake_digest")
+
+    packets_raw = intake.get("packets")
+    if not isinstance(packets_raw, list) or not packets_raw:
+        raise SemanticAcceptanceError("intake.packets must be a non-empty list")
+    if intake.get("packet_count") != len(packets_raw):
+        raise SemanticAcceptanceError("intake.packet_count is inconsistent")
+    if intake.get("completed_human_review_count") != 0:
+        raise SemanticAcceptanceError("intake.completed_human_review_count must be zero")
+
+    packet_ids: list[str] = []
+    proposal_ids: set[int] = set()
+    pending_count = 0
+    blocked_count = 0
+    authority_only_count = 0
+    for raw in packets_raw:
+        packet = _mapping(raw, "packet")
+        _authority_false(packet, "packet")
+        claimed_packet_id = _sha256_ref(packet.get("packet_id"), "packet.packet_id")
+        identity = _packet_identity(packet)
+        expected_packet_id = _digest(identity)
+        if claimed_packet_id != expected_packet_id:
+            raise SemanticAcceptanceError("packet identity digest does not match packet content")
+        if claimed_packet_id in packet_ids:
+            raise SemanticAcceptanceError("duplicate semantic review packet identity")
+        proposal_pr = identity["proposal_pr"]
+        if proposal_pr in proposal_ids:
+            raise SemanticAcceptanceError(f"duplicate semantic review proposal #{proposal_pr}")
+        proposal_ids.add(proposal_pr)
+        packet_ids.append(claimed_packet_id)
+        status = identity["status"]
+        if status == "PENDING_HUMAN_SEMANTIC_REVIEW":
+            if identity["human_review_required"] is not True:
+                raise SemanticAcceptanceError("pending packet must require human review")
+            pending_count += 1
+        elif status == "BLOCKED_PENDING_NEW_EVIDENCE_OR_CONTEXT":
+            if identity["human_review_required"] is not False:
+                raise SemanticAcceptanceError("blocked packet cannot require semantic review")
+            blocked_count += 1
+        elif status == "SEPARATE_AUTHORITY_REVIEW_ONLY":
+            if identity["human_review_required"] is not False:
+                raise SemanticAcceptanceError("authority-only packet cannot require semantic review")
+            authority_only_count += 1
+        else:
+            raise SemanticAcceptanceError(f"unsupported packet status: {status}")
+
+    if intake.get("pending_human_review_count") != pending_count:
+        raise SemanticAcceptanceError("intake pending review count is inconsistent")
+    if intake.get("blocked_pending_evidence_count") != blocked_count:
+        raise SemanticAcceptanceError("intake blocked count is inconsistent")
+    if intake.get("separate_authority_review_only_count") != authority_only_count:
+        raise SemanticAcceptanceError("intake authority-only count is inconsistent")
+
+    expected_digest = _digest(
+        {
+            "source_plan_digest": source_plan_digest,
+            "source_audit_digest": source_audit_digest,
+            "current_main_revision": current_main,
+            "captured_at": captured_at.isoformat(),
+            "packet_ids": sorted(packet_ids),
+        }
+    )
+    if claimed_digest != expected_digest:
+        raise SemanticAcceptanceError("intake digest does not match frozen packet set")
+    return claimed_digest
+
+
 def build_semantic_acceptance_intake(
     planner_input: Mapping[str, Any],
     planner_result: Mapping[str, Any],
@@ -192,6 +358,7 @@ def build_semantic_acceptance_intake(
 
     packets: list[dict[str, Any]] = []
     seen_packet_ids: set[str] = set()
+    seen_proposals: set[int] = set()
     pending_count = 0
     blocked_count = 0
     authority_only_count = 0
@@ -199,6 +366,9 @@ def build_semantic_acceptance_intake(
     for raw in decisions_raw:
         decision = _mapping(raw, "planner decision")
         proposal_pr = _positive_int(decision.get("proposal_pr"), "decision.proposal_pr")
+        if proposal_pr in seen_proposals:
+            raise SemanticAcceptanceError(f"duplicate planner decision #{proposal_pr}")
+        seen_proposals.add(proposal_pr)
         record = records.get(proposal_pr)
         if record is None:
             raise SemanticAcceptanceError(
@@ -247,24 +417,20 @@ def build_semantic_acceptance_intake(
         lineage_refs = _refs(
             decision.get("lineage_evidence_refs"), "decision.lineage_evidence_refs"
         )
-        packet_identity = {
-            "decision_id": decision_id,
-            "proposal_pr": proposal_pr,
-            "source_pr": source_pr,
-            "source_merge": source_merge,
-            "pack_id": pack_id,
-            "current_main_revision": current_main,
-            "observation_digest": observation_digest,
-            "gate_evidence_refs": sorted(gate_refs),
-            "lineage_evidence_refs": sorted(lineage_refs),
+        machine_gate = {
+            "applicability_status": _text(
+                applicability.get("status"), "decision.applicability.status"
+            ),
+            "quality_readiness": _text(
+                quality.get("readiness"), "decision.quality.readiness"
+            ),
+            "canonical_fitness_status": fitness_status,
+            "review_route": _text(decision.get("review_route"), "decision.review_route"),
+            "stable_source_core_match": stable_match,
+            "source_ancestor_of_main": ancestor,
+            "changed_evidence_components": sorted(changed_components),
         }
-        packet_id = _digest(packet_identity)
-        if packet_id in seen_packet_ids:
-            raise SemanticAcceptanceError("duplicate semantic review packet identity")
-        seen_packet_ids.add(packet_id)
-
-        packet = {
-            "packet_id": packet_id,
+        packet_core = {
             "status": packet_status,
             "human_review_required": human_review_required,
             "decision_id": decision_id,
@@ -274,22 +440,19 @@ def build_semantic_acceptance_intake(
             "pack_id": pack_id,
             "current_main_revision": current_main,
             "observation_digest": observation_digest,
-            "machine_gate": {
-                "applicability_status": _text(
-                    applicability.get("status"), "decision.applicability.status"
-                ),
-                "quality_readiness": _text(
-                    quality.get("readiness"), "decision.quality.readiness"
-                ),
-                "canonical_fitness_status": fitness_status,
-                "review_route": _text(decision.get("review_route"), "decision.review_route"),
-                "stable_source_core_match": stable_match,
-                "source_ancestor_of_main": ancestor,
-                "changed_evidence_components": sorted(changed_components),
-            },
+            "machine_gate": machine_gate,
             "gate_evidence_refs": list(gate_refs),
             "lineage_evidence_refs": list(lineage_refs),
             "allowed_human_verdicts": list(ALLOWED_VERDICTS),
+        }
+        packet_id = _digest(_packet_identity(packet_core))
+        if packet_id in seen_packet_ids:
+            raise SemanticAcceptanceError("duplicate semantic review packet identity")
+        seen_packet_ids.add(packet_id)
+
+        packet = {
+            "packet_id": packet_id,
+            **packet_core,
             "submission_contract": {
                 "reviewer_id_required": True,
                 "reviewed_at_required": True,
@@ -307,6 +470,11 @@ def build_semantic_acceptance_intake(
         }
         packets.append(packet)
 
+    if seen_proposals != set(records):
+        raise SemanticAcceptanceError(
+            "planner decision coverage does not exactly match input records"
+        )
+
     intake_identity = {
         "source_plan_digest": source_plan_digest,
         "source_audit_digest": source_audit_digest,
@@ -314,7 +482,7 @@ def build_semantic_acceptance_intake(
         "captured_at": captured_at.isoformat(),
         "packet_ids": sorted(packet["packet_id"] for packet in packets),
     }
-    return {
+    result = {
         "schema": INTAKE_SCHEMA,
         "mode": "HUMAN_SEMANTIC_REVIEW_INTAKE_ONLY",
         "source_plan_digest": source_plan_digest,
@@ -342,6 +510,8 @@ def build_semantic_acceptance_intake(
         ],
         "intake_digest": _digest(intake_identity),
     }
+    verify_semantic_acceptance_intake(result)
+    return result
 
 
 def validate_human_submission(
@@ -354,9 +524,7 @@ def validate_human_submission(
 
     intake = _mapping(intake, "intake")
     submission = _mapping(submission, "submission")
-    if intake.get("schema") != INTAKE_SCHEMA:
-        raise SemanticAcceptanceError(f"intake.schema must be {INTAKE_SCHEMA}")
-    _authority_false(intake, "intake")
+    verify_semantic_acceptance_intake(intake)
     if submission.get("schema") != SUBMISSION_SCHEMA:
         raise SemanticAcceptanceError(
             f"submission.schema must be {SUBMISSION_SCHEMA}"
@@ -364,8 +532,7 @@ def validate_human_submission(
 
     packet_id = _sha256_ref(submission.get("packet_id"), "submission.packet_id")
     packets_raw = intake.get("packets")
-    if not isinstance(packets_raw, list):
-        raise SemanticAcceptanceError("intake.packets must be a list")
+    assert isinstance(packets_raw, list)
     matches = [
         packet
         for packet in packets_raw
