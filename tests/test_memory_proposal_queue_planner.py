@@ -114,6 +114,20 @@ class MemoryProposalQueuePlannerTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertTrue(first.startswith("sha256:"))
 
+    def test_plan_digest_binds_synthetic_mode(self):
+        payload = self.payload()
+        baseline = plan(payload)["plan_digest"]
+        changed = copy.deepcopy(payload)
+        changed["synthetic"] = not changed["synthetic"]
+        self.assertNotEqual(baseline, plan(changed)["plan_digest"])
+
+    def test_plan_digest_binds_current_main_revision(self):
+        payload = self.payload()
+        baseline = plan(payload)["plan_digest"]
+        changed = copy.deepcopy(payload)
+        changed["current_main_revision"] = "f" * 40
+        self.assertNotEqual(baseline, plan(changed)["plan_digest"])
+
 
 if __name__ == "__main__":
     unittest.main()
