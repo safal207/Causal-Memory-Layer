@@ -127,6 +127,17 @@ def _digest(payload: dict[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _reject_duplicate_json_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Fail closed when JSON contains duplicate object keys."""
+
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise QueueAuditError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
 def audit(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise QueueAuditError("top-level payload must be an object")
@@ -177,9 +188,24 @@ def audit(payload: dict[str, Any]) -> dict[str, Any]:
         "captured_at": captured_at.isoformat(),
         "main_revision": main_revision,
         "reported_total_count": reported_total,
-        "proposal_prs": sorted(item["proposal_pr"] for item in proposals),
-        "source_merges": sorted(item["source_merge"] for item in proposals),
-        "pack_ids": sorted(item["pack_id"] for item in proposals),
+        "proposals": sorted(
+            (
+                {
+                    "proposal_pr": item["proposal_pr"],
+                    "source_pr": item["source_pr"],
+                    "source_merge": item["source_merge"],
+                    "pack_id": item["pack_id"],
+                    "created_at": (
+                        item["created_at"].isoformat()
+                        if item["created_at"] is not None
+                        else None
+                    ),
+                    "envelope": item["envelope"],
+                }
+                for item in proposals
+            ),
+            key=lambda item: item["proposal_pr"],
+        ),
     }
 
     if pressure in {"CRITICAL_REVIEW_PRESSURE", "HIGH_REVIEW_PRESSURE"}:
@@ -251,7 +277,10 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        payload = json.loads(args.input.read_text(encoding="utf-8"))
+        payload = json.loads(
+            args.input.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_pairs,
+        )
         result = audit(payload)
     except (OSError, json.JSONDecodeError, QueueAuditError) as exc:
         print(json.dumps({"error": str(exc)}, ensure_ascii=False))
