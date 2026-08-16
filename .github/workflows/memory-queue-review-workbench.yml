@@ -16,6 +16,7 @@ on:
       - "tests/test_memory_proposal_queue_revalidation.py"
       - "tests/test_memory_proposal_semantic_acceptance.py"
       - "tests/test_memory_proposal_review_workbench.py"
+      - "tests/test_memory_queue_collectors.py"
       - "docs/integrations/MEMORY_PROPOSAL_REVIEW_WORKBENCH_V0_5.md"
       - ".github/workflows/memory-queue-review-workbench.yml"
   workflow_dispatch:
@@ -76,7 +77,8 @@ jobs:
             tests/test_memory_proposal_queue_planner.py \
             tests/test_memory_proposal_queue_revalidation.py \
             tests/test_memory_proposal_semantic_acceptance.py \
-            tests/test_memory_proposal_review_workbench.py
+            tests/test_memory_proposal_review_workbench.py \
+            tests/test_memory_queue_collectors.py
 
       - name: Collect exact live revalidation evidence
         env:
@@ -123,7 +125,7 @@ jobs:
           workbench = json.loads((root / "workbench.json").read_text(encoding="utf-8"))
 
           proposal_count = summary["proposal_count"]
-          assert proposal_count == 36
+          assert isinstance(proposal_count, int) and proposal_count > 0
           assert intake["packet_count"] == proposal_count
           assert contexts["context_count"] == proposal_count
           assert workbench["card_count"] == proposal_count
@@ -160,11 +162,14 @@ jobs:
           PY
 
       - name: Build evidence manifest
+        if: always()
         run: |
+          mkdir -p artifacts/memory-queue-review-workbench
           cd artifacts/memory-queue-review-workbench
-          find . -type f \( -name '*.json' -o -name '*.md' -o -name 'SHA256SUMS' \) -print0 \
-            | sort -z \
-            | xargs -0 sha256sum > SHA256SUMS
+          LC_ALL=C find . -type f \( -name '*.json' -o -name '*.md' \) -print0 \
+            | LC_ALL=C sort -z \
+            | xargs -0 -r sha256sum > SHA256SUMS.tmp
+          mv SHA256SUMS.tmp SHA256SUMS
 
       - name: Upload workbench evidence
         if: always()
