@@ -141,10 +141,18 @@ class MemoryProposalSemanticAcceptanceTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertTrue(first["intake_digest"].startswith("sha256:"))
 
-    def test_duplicate_planner_decision_proposal_fails_closed(self):
+    def test_duplicate_planner_decision_is_rejected_as_detached_result(self):
         planner_input, planner_result = self.two_record_planner_pair()
         planner_result["decisions"][1] = copy.deepcopy(planner_result["decisions"][0])
-        with self.assertRaisesRegex(SemanticAcceptanceError, "duplicate planner decision"):
+        with self.assertRaisesRegex(SemanticAcceptanceError, "canonical recomputation"):
+            build_semantic_acceptance_intake(planner_input, planner_result)
+
+    def test_altered_planner_fitness_with_original_plan_digest_fails_closed(self):
+        planner_input, planner_result = self.planner_pair()
+        original_digest = planner_result["plan_digest"]
+        planner_result["decisions"][0]["canonical_fitness"]["status"] = "NOT_FIT"
+        self.assertEqual(planner_result["plan_digest"], original_digest)
+        with self.assertRaisesRegex(SemanticAcceptanceError, "canonical recomputation"):
             build_semantic_acceptance_intake(planner_input, planner_result)
 
     def test_tampered_frozen_packet_with_old_digests_fails_closed(self):
