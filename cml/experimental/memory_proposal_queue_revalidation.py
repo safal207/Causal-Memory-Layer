@@ -38,6 +38,7 @@ DESCRIPTIVE_COMPONENTS = frozenset({"source-pr"})
 OPERATIONAL_COMPONENTS = frozenset({"source-reviews", "source-checks"})
 MUTABLE_COMPONENTS = DESCRIPTIVE_COMPONENTS | OPERATIONAL_COMPONENTS
 IMMUTABLE_EVIDENCE_COMPONENTS = frozenset({"source-files", "source-merge"})
+KNOWN_EVIDENCE_COMPONENTS = MUTABLE_COMPONENTS | IMMUTABLE_EVIDENCE_COMPONENTS
 
 
 class QueueRevalidationError(ValueError):
@@ -91,6 +92,11 @@ def _components(value: Any, field: str) -> tuple[str, ...]:
     components = tuple(_text(item, f"{field} entry") for item in value)
     if len(components) != len(set(components)):
         raise QueueRevalidationError(f"{field} entries must be unique")
+    unknown = sorted(set(components) - KNOWN_EVIDENCE_COMPONENTS)
+    if unknown:
+        raise QueueRevalidationError(
+            f"{field} contains unknown evidence components: {', '.join(unknown)}"
+        )
     return components
 
 
