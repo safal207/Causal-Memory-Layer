@@ -20,7 +20,7 @@ from pathlib import Path
 import re
 import sys
 from typing import Any, Mapping
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
@@ -30,14 +30,33 @@ from cml.experimental.memory_proposal_review_workbench import (
     PATH_MISSING,
     PATH_SAME,
 )
-from cml.experimental.memory_proposal_semantic_acceptance import INTAKE_SCHEMA
+from cml.experimental.memory_proposal_semantic_acceptance import (
+    INTAKE_SCHEMA,
+    SemanticAcceptanceError,
+    verify_semantic_acceptance_intake,
+)
 
 API = "https://api.github.com"
 BLOB_REF_RE = re.compile(r"/blob/([0-9a-f]{40})/(.+)$")
+SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
+REPOSITORY_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 
 
 class WorkbenchCollectionError(RuntimeError):
     pass
+
+
+def _repository(value: Any) -> str:
+    if not isinstance(value, str) or not REPOSITORY_RE.fullmatch(value.strip()):
+        raise WorkbenchCollectionError("repository must be owner/name")
+    return value.strip()
+
+
+def _sha40(value: Any, field: str) -> str:
+    text = _text(value, field)
+    if not SHA40_RE.fullmatch(text):
+        raise WorkbenchCollectionError(f"{field} must be a 40-char lowercase hex SHA")
+    return text
 
 
 class GitHubReader:
@@ -52,6 +71,8 @@ class GitHubReader:
         }
 
     def get(self, path: str, *, allow_404: bool = False) -> Any:
+        if path.startswith("https://") and not path.startswith(API + "/"):
+            raise WorkbenchCollectionError("GitHub API URL must remain on api.github.com")
         url = path if path.startswith("https://") else API + path
         request = Request(url, headers=self._headers)
         try:
@@ -63,6 +84,10 @@ class GitHubReader:
             detail = exc.read().decode("utf-8", errors="replace")[:1000]
             raise WorkbenchCollectionError(
                 f"GitHub API {exc.code} for {url}: {detail}"
+            ) from exc
+        except (URLError, TimeoutError, OSError) as exc:
+            raise WorkbenchCollectionError(
+                f"GitHub API transport failure for {url}: {exc}"
             ) from exc
 
     def paginate_list(self, path: str) -> list[dict[str, Any]]:
@@ -250,14 +275,35 @@ def _path_states(
     return states, sorted(set(refs))
 
 
+def _validate_context_coverage(
+    contexts: list[dict[str, Any]], expected_count: int
+) -> None:
+    if len(contexts) != expected_count:
+        raise WorkbenchCollectionError("review context coverage is incomplete")
+    for key in ("packet_id", "decision_id", "pack_id", "proposal_pr", "source_pr"):
+        if len({item[key] for item in contexts}) != len(contexts):
+            raise WorkbenchCollectionError(
+                f"review context coverage has duplicate {key}"
+            )
+
+
 def collect(
     intake: Mapping[str, Any], repository: str, token: str
 ) -> dict[str, Any]:
+    repository = _repository(repository)
     intake = _mapping(intake, "intake")
     if intake.get("schema") != INTAKE_SCHEMA:
         raise WorkbenchCollectionError(f"intake.schema must be {INTAKE_SCHEMA}")
-    current_main = _text(intake.get("current_main_revision"), "intake.current_main_revision")
+    try:
+        verified_intake_digest = verify_semantic_acceptance_intake(intake)
+    except SemanticAcceptanceError as exc:
+        raise WorkbenchCollectionError(f"frozen semantic intake is invalid: {exc}") from exc
+    current_main = _sha40(
+        intake.get("current_main_revision"), "intake.current_main_revision"
+    )
     intake_digest = _text(intake.get("intake_digest"), "intake.intake_digest")
+    if intake_digest != verified_intake_digest:
+        raise WorkbenchCollectionError("verified intake digest mismatch")
     packets = intake.get("packets")
     if not isinstance(packets, list) or not packets:
         raise WorkbenchCollectionError("intake.packets must be a non-empty list")
@@ -271,7 +317,7 @@ def collect(
         pack_id = _text(packet.get("pack_id"), "packet.pack_id")
         proposal_pr = packet.get("proposal_pr")
         source_pr = packet.get("source_pr")
-        source_merge = _text(packet.get("source_merge"), "packet.source_merge")
+        source_merge = _sha40(packet.get("source_merge"), "packet.source_merge")
         if isinstance(proposal_pr, bool) or not isinstance(proposal_pr, int) or proposal_pr <= 0:
             raise WorkbenchCollectionError("packet.proposal_pr must be positive")
         if isinstance(source_pr, bool) or not isinstance(source_pr, int) or source_pr <= 0:
@@ -351,8 +397,7 @@ def collect(
             }
         )
 
-    if len({item["packet_id"] for item in contexts}) != len(packets):
-        raise WorkbenchCollectionError("review context packet coverage is not unique")
+    _validate_context_coverage(contexts, len(packets))
     return {
         "schema": CONTEXT_SCHEMA,
         "source_intake_digest": intake_digest,
@@ -374,12 +419,14 @@ def main() -> int:
     parser.add_argument("--token-env", default="GITHUB_TOKEN")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    if not args.repository or "/" not in args.repository:
-        print("repository must be owner/name", file=sys.stderr)
+    try:
+        repository = _repository(args.repository)
+    except WorkbenchCollectionError as exc:
+        print(str(exc), file=sys.stderr)
         return 2
     try:
         intake = json.loads(args.intake.read_text(encoding="utf-8"))
-        result = collect(intake, args.repository, os.environ.get(args.token_env, ""))
+        result = collect(intake, repository, os.environ.get(args.token_env, ""))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(
             json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
