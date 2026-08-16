@@ -1,0 +1,175 @@
+name: Memory Queue Human Review Workbench v0.5
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "cml/experimental/memory_proposal_queue.py"
+      - "cml/experimental/memory_proposal_queue_planner.py"
+      - "cml/experimental/memory_proposal_queue_revalidation.py"
+      - "cml/experimental/memory_proposal_semantic_acceptance.py"
+      - "cml/experimental/memory_proposal_review_workbench.py"
+      - ".github/trust-root/scripts/memory_queue_revalidation_collect.py"
+      - ".github/trust-root/scripts/memory_review_workbench_collect.py"
+      - "tests/test_memory_proposal_queue.py"
+      - "tests/test_memory_proposal_queue_planner.py"
+      - "tests/test_memory_proposal_queue_revalidation.py"
+      - "tests/test_memory_proposal_semantic_acceptance.py"
+      - "tests/test_memory_proposal_review_workbench.py"
+      - ".github/workflows/memory-queue-review-workbench.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cml-memory-queue-review-workbench-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  workbench:
+    name: Build live human review workbench
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+
+    steps:
+      - name: Checkout exact verifier head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/memory-queue-review-workbench/exact-head.json
+
+      - name: Install package and test tooling
+        run: |
+          python -m pip install --upgrade "pip==26.1.2"
+          python -m pip install -e ".[dev]"
+
+      - name: Run queue through workbench contract tests
+        run: |
+          python -m pytest \
+            tests/test_memory_proposal_queue.py \
+            tests/test_memory_proposal_queue_planner.py \
+            tests/test_memory_proposal_queue_revalidation.py \
+            tests/test_memory_proposal_semantic_acceptance.py \
+            tests/test_memory_proposal_review_workbench.py
+
+      - name: Collect exact live revalidation evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python .github/trust-root/scripts/memory_queue_revalidation_collect.py \
+            --out-dir artifacts/memory-queue-review-workbench/live
+
+      - name: Freeze semantic review intake
+        run: |
+          python -m cml.experimental.memory_proposal_semantic_acceptance build \
+            artifacts/memory-queue-review-workbench/live/planner-input.json \
+            artifacts/memory-queue-review-workbench/live/planner-result.json \
+            > artifacts/memory-queue-review-workbench/live/semantic-intake.json
+
+      - name: Collect exact workbench review context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python .github/trust-root/scripts/memory_review_workbench_collect.py \
+            artifacts/memory-queue-review-workbench/live/semantic-intake.json \
+            --output artifacts/memory-queue-review-workbench/live/review-contexts.json
+
+      - name: Build deterministic workbench and markdown queue
+        run: |
+          python -m cml.experimental.memory_proposal_review_workbench \
+            artifacts/memory-queue-review-workbench/live/semantic-intake.json \
+            artifacts/memory-queue-review-workbench/live/review-contexts.json \
+            --markdown artifacts/memory-queue-review-workbench/live/WORKBENCH.md \
+            > artifacts/memory-queue-review-workbench/live/workbench.json
+
+      - name: Verify workbench coverage, ranking, and authority boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("artifacts/memory-queue-review-workbench/live")
+          summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
+          intake = json.loads((root / "semantic-intake.json").read_text(encoding="utf-8"))
+          contexts = json.loads((root / "review-contexts.json").read_text(encoding="utf-8"))
+          workbench = json.loads((root / "workbench.json").read_text(encoding="utf-8"))
+
+          proposal_count = summary["proposal_count"]
+          assert proposal_count == 36
+          assert intake["packet_count"] == proposal_count
+          assert contexts["context_count"] == proposal_count
+          assert workbench["card_count"] == proposal_count
+          assert workbench["pending_review_count"] == proposal_count
+          assert workbench["completed_review_count"] == 0
+          assert workbench["current_main_revision"] == summary["main_revision"]
+          assert workbench["source_intake_digest"] == intake["intake_digest"]
+
+          ranks = [card["queue_rank"] for card in workbench["cards"]]
+          assert ranks == list(range(1, proposal_count + 1))
+          assert len({card["packet_id"] for card in workbench["cards"]}) == proposal_count
+          assert len({card["card_id"] for card in workbench["cards"]}) == proposal_count
+
+          for card in workbench["cards"]:
+              assert card["review_completed"] is False
+              assert card["authority_granted"] is False
+              assert card["merge_authority"] is False
+              assert card["close_authority"] is False
+              assert card["acceptance_authority"] is False
+              assert card["execution_authority"] is False
+              assert card["policy_mutation_authority"] is False
+              template = card["submission_template"]
+              assert template["reviewer_id"] is None
+              assert template["reviewed_at"] is None
+              assert template["verdict"] is None
+              assert template["rationale"] is None
+
+          assert workbench["authority_granted"] is False
+          assert workbench["merge_authority"] is False
+          assert workbench["close_authority"] is False
+          assert workbench["acceptance_authority"] is False
+          assert workbench["execution_authority"] is False
+          assert workbench["policy_mutation_authority"] is False
+          PY
+
+      - name: Build evidence manifest
+        run: |
+          cd artifacts/memory-queue-review-workbench
+          find . -type f \( -name '*.json' -o -name '*.md' -o -name 'SHA256SUMS' \) -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+
+      - name: Upload workbench evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-memory-queue-review-workbench-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/memory-queue-review-workbench/
+          if-no-files-found: error
+          retention-days: 30
