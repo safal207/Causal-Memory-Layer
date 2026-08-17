@@ -18,7 +18,7 @@
     ".github/trust-root/scripts/reviewer_fallback_entrypoint.py": "0cdf6a3f43724d8754361ad46fc996d98ef4b8b6",
     ".github/trust-root/scripts/reviewer_fallback_reconcile.py": "74b0bc06c899a9ee3462c203831215a9ac39af64",
     ".github/trust-root/scripts/reviewer_fallback_runtime.py": "041c602be70bf61f0f6c84b85c9e84e559986556",
-    ".github/trust-root/scripts/verify_memory_queue_dependency_contract.py": "47ead5cea556f2ba6278e10c88343e11b67665a8",
+    ".github/trust-root/scripts/verify_memory_queue_dependency_contract.py": "99c824d48ef5aa0b5923c0946fa9cf7277a61911",
     ".github/workflows/ci.yml": "ae103606ca5b4b99609ee48c2f867e6bde1d55ec",
     ".github/workflows/memory-learning-loop.yml": "8627fbeea2db9bbaeb0fb10c8095479cf2a04829",
     ".github/workflows/memory-queue-revalidation.yml": "8d830bd83cd061728761bc9c9c2b6935296a51f6",
