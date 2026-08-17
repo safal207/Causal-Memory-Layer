@@ -32,6 +32,9 @@ class MemoryQueueDependencyContractTests(unittest.TestCase):
                 root,
                 "\n".join(
                     [
+                        "python -m pytest \\",
+                        "  tests/test_memory_proposal_queue.py \\",
+                        "  tests/test_memory_proposal_queue_revalidation.py",
                         "python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_pip_bootstrap.txt",
                         "python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_ci_requirements.txt",
                     ]
