@@ -9,7 +9,7 @@ def _record(read_id: str | None = "linux-read:10:11:123") -> CausalRecord:
     return CausalRecord(
         id="record-1",
         timestamp=123456,
-        actor=Actor(pid=10, tid=None if False else None, uid=1000) if False else Actor(pid=10, uid=1000),
+        actor=Actor(pid=10, uid=1000),
         action=Action.READ,
         object={"fd": 3, "count": 8},
         permitted_by="parent_process_context",
