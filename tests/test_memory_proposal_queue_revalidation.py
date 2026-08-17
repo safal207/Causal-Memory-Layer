@@ -168,7 +168,7 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         self.assert_no_authority(record)
 
     def test_proposal_pack_identity_mismatch_fails_closed(self):
-        observation = self.observation()
+        observation = self.exact_current_observation()
         observation["validated_pack_id"] = REPLAY
         with self.assertRaisesRegex(
             QueueRevalidationError,
@@ -191,6 +191,15 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         with self.assertRaisesRegex(QueueRevalidationError, "unknown evidence components"):
             build_planner_record(observation)
 
+    def test_duplicate_evidence_component_fails_closed(self):
+        observation = self.observation()
+        observation["changed_evidence_components"] = [
+            "source-checks",
+            "source-checks",
+        ]
+        with self.assertRaisesRegex(QueueRevalidationError, "entries must be unique"):
+            build_planner_record(observation)
+
     def test_observation_digest_is_canonical_and_binds_captured_state(self):
         observation = self.observation()
         reordered = dict(reversed(list(observation.items())))
@@ -200,8 +209,9 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
             first["revalidation"]["observation_digest"],
             second["revalidation"]["observation_digest"],
         )
-        self.assertTrue(
-            first["revalidation"]["observation_digest"].startswith("sha256:")
+        self.assertRegex(
+            first["revalidation"]["observation_digest"],
+            r"^sha256:[0-9a-f]{64}$",
         )
 
         changed = copy.deepcopy(observation)
