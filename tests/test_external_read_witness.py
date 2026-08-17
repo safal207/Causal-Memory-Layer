@@ -76,3 +76,31 @@ def test_witness_from_foreign_scope_cannot_cover_current_ledger():
     assert result.applicable is True
     assert result.holds is False
     assert result.reasons == ("witness_scope_mismatch",)
+
+
+def test_an_available_witness_reporting_zero_reads_is_pinned():
+    """A PIN on the not-exercised case, not a behaviour change.
+
+    This records what the count-based layer answers today: an available witness reporting no reads
+    returns applicable=True and holds=True, because `external_reads > 0 => ledger_observations > 0` is
+    vacuously satisfied at zero.
+
+    It is worth pinning because the per-read reconciliation added in #293 answers the analogous
+    question the other way round -- an empty set of successful external read ids returns
+    applicable=False with reasons ("coverage_not_exercised",) -- so the two layers currently give
+    opposite answers to "was the channel exercised at all".
+
+    Nothing pinned this either way before: relaxing the guard to `witness.reads_count >= 0` leaves the
+    whole witness test set green. Whichever answer is intended, this is the place to state it -- if the
+    count-based layer should follow #293, change these assertions and the implementation together.
+    """
+    result = check_admissibility_preconditions(
+        witness=_witness(reads_count=0),
+        ledger_scope_id="session-1",
+        ledger_observations=0,
+    )
+
+    assert result.applicable is True
+    assert result.holds is True
+    assert result.allows_applicability is True
+    assert result.reasons == ()
