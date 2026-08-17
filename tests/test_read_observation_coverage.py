@@ -1,7 +1,12 @@
 import pytest
 
 from cml.external_read_witness import ExternalReadIdentityWitness
-from cml.read_observation_coverage import check_read_observation_coverage
+from cml.read_observation_coverage import (
+    check_causal_record_read_observation_coverage,
+    check_read_observation_coverage,
+    ledger_read_ids_from_causal_records,
+)
+from cml.record import Action, Actor, CausalRecord
 
 
 def _witness(*ids: str, scope_id: str = "session-1", available: bool = True):
@@ -10,6 +15,18 @@ def _witness(*ids: str, scope_id: str = "session-1", available: bool = True):
         scope_id=scope_id,
         completed_read_ids=tuple(ids) if available else (),
         available=available,
+    )
+
+
+def _record(*, action: str, read_id: str | None) -> CausalRecord:
+    return CausalRecord(
+        id=f"record-{action}-{read_id or 'legacy'}",
+        timestamp=1,
+        actor=Actor(pid=1, uid=1),
+        action=action,
+        object={"fd": 3},
+        permitted_by="test",
+        read_id=read_id,
     )
 
 
@@ -116,3 +133,45 @@ def test_identity_witness_rejects_duplicate_external_ids():
             scope_id="session-1",
             completed_read_ids=("read-a", "read-a"),
         )
+
+
+def test_causal_record_extraction_uses_only_read_entries():
+    records = [
+        _record(action=Action.READ, read_id="read-a"),
+        _record(action="read_exit", read_id="read-a"),
+        _record(action=Action.READ, read_id=None),
+        _record(action=Action.OPEN, read_id="not-a-read"),
+    ]
+
+    assert ledger_read_ids_from_causal_records(records) == ("read-a",)
+
+
+def test_read_exit_witness_cannot_prove_its_own_ledger_coverage():
+    result = check_causal_record_read_observation_coverage(
+        witness=_witness("read-a"),
+        ledger_scope_id="session-1",
+        records=[_record(action="read_exit", read_id="read-a")],
+    )
+
+    assert result.holds is False
+    assert result.missing_read_ids == ("read-a",)
+    assert result.reasons == ("missing_read_observation",)
+
+
+def test_persisted_read_entries_close_exact_coverage_loop():
+    result = check_causal_record_read_observation_coverage(
+        witness=_witness("read-a", "read-b"),
+        ledger_scope_id="session-1",
+        records=[
+            _record(action=Action.READ, read_id="read-a"),
+            _record(action=Action.READ, read_id="read-b"),
+        ],
+    )
+
+    assert result.holds is True
+    assert result.observed_read_ids == ("read-a", "read-b")
+
+
+def test_causal_record_extraction_rejects_non_records():
+    with pytest.raises(TypeError, match="record 1 must be a CausalRecord"):
+        ledger_read_ids_from_causal_records([{"read_id": "read-a"}])  # type: ignore[list-item]
