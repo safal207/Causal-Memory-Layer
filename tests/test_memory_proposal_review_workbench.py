@@ -282,6 +282,14 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
         with self.assertRaisesRegex(ReviewWorkbenchError, "stale"):
             build_review_workbench(intake, payload)
 
+    def test_context_source_pr_mismatch_fails_closed(self):
+        packet = self.packet(191)
+        intake = self.intake([packet])
+        context = self.context(packet)
+        context["source_pr"] = packet["source_pr"] + 100
+        with self.assertRaisesRegex(ReviewWorkbenchError, "context source PR mismatch"):
+            build_review_workbench(intake, self.contexts([context], intake))
+
     def test_context_pack_mismatch_fails_closed(self):
         packet = self.packet(191)
         intake = self.intake([packet])
@@ -297,6 +305,16 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
         context["path_states"][0]["current_blob_sha"] = "e" * 40
         with self.assertRaisesRegex(ReviewWorkbenchError, "SAME path"):
             build_review_workbench(intake, self.contexts([context], intake))
+
+    def test_workbench_digest_binds_rendered_context_and_evidence(self):
+        packet = self.packet(191)
+        baseline_context = self.context(packet)
+        changed_context = copy.deepcopy(baseline_context)
+        changed_context["source_title"] = "Different source title"
+        changed_context["context_evidence_refs"] = ["https://example.test/context/rebound"]
+        baseline = self.build([packet], [baseline_context])
+        changed = self.build([packet], [changed_context])
+        self.assertNotEqual(baseline["workbench_digest"], changed["workbench_digest"])
 
     def test_tampered_intake_is_rejected_before_workbench_build(self):
         packet = self.packet(191)
