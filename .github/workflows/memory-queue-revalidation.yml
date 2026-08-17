@@ -8,6 +8,7 @@ on:
       - "cml/experimental/memory_proposal_queue_planner.py"
       - "cml/experimental/memory_proposal_queue_revalidation.py"
       - ".github/trust-root/scripts/memory_queue_revalidation_collect.py"
+      - ".github/trust-root/memory_queue_ci_requirements.txt"
       - "tests/test_memory_proposal_queue.py"
       - "tests/test_memory_proposal_queue_planner.py"
       - "tests/test_memory_proposal_queue_revalidation.py"
@@ -27,6 +28,7 @@ env:
   SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   revalidate:
@@ -52,7 +54,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: .github/trust-root/memory_queue_ci_requirements.txt
 
       - name: Prove exact-head checkout
         run: |
@@ -60,10 +62,10 @@ jobs:
             --expected "$EXPECTED_SHA" \
             --output artifacts/memory-queue-revalidation/exact-head.json
 
-      - name: Install package and test tooling
+      - name: Install pinned test tooling
         run: |
           python -m pip install --upgrade "pip==26.1.2"
-          python -m pip install -e ".[dev]"
+          python -m pip install --requirement .github/trust-root/memory_queue_ci_requirements.txt
 
       - name: Run queue contract tests
         run: |
