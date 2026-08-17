@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-vCML File Monitor (v0.6 Reference Implementation)
+vCML File Monitor (v0.7 Reference Implementation)
 
 Monitors filesystem boundary crossings (open/read syscalls) via eBPF
 and generates vCML-compliant causal records.
@@ -12,6 +12,11 @@ Tracepoints: syscalls:sys_enter_openat, syscalls:sys_enter_read,
 The read-entry event proves that a read syscall was attempted. The read-exit
 event adds the kernel return value so consumers can distinguish successful
 completion (ret >= 0, including EOF at ret == 0) from failure (ret < 0).
+
+v0.7 also carries one stable boundary correlation token from sys_enter_read to
+sys_exit_read. The token is derived from PID, TID, and a kernel monotonic
+``bpf_ktime_get_ns()`` timestamp captured at entry. It is a local correlation
+identity, not a cryptographic or globally unique identifier.
 
 Usage:
     sudo ./file_monitor.py [--secret-prefix /secrets/] [--ext .key .pem]
@@ -56,6 +61,7 @@ struct open_event_t {
 struct read_start_t {
     int fd;
     u64 count;
+    u64 started_ns;
 };
 
 struct read_event_t {
@@ -66,6 +72,7 @@ struct read_event_t {
     char comm[16];
     int  fd;
     u64  count;
+    u64  started_ns;
 };
 
 struct read_exit_event_t {
@@ -76,6 +83,7 @@ struct read_exit_event_t {
     char comm[16];
     int  fd;
     u64  count;
+    u64  started_ns;
     s64  ret;
 };
 
@@ -106,6 +114,7 @@ TRACEPOINT_PROBE(syscalls, sys_enter_read) {
     struct read_start_t start = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tid = (u32)pid_tgid;
+    u64 started_ns = bpf_ktime_get_ns();
 
     data.pid = pid_tgid >> 32;
     data.tid = tid;
@@ -115,11 +124,13 @@ TRACEPOINT_PROBE(syscalls, sys_enter_read) {
     data.ppid = task->real_parent->pid;
 
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
-    data.fd    = args->fd;
+    data.fd = args->fd;
     data.count = args->count;
+    data.started_ns = started_ns;
 
     start.fd = args->fd;
     start.count = args->count;
+    start.started_ns = started_ns;
     read_starts.update(&tid, &start);
 
     read_events.perf_submit(args, &data, sizeof(data));
@@ -146,6 +157,7 @@ TRACEPOINT_PROBE(syscalls, sys_exit_read) {
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
     data.fd = start->fd;
     data.count = start->count;
+    data.started_ns = start->started_ns;
     data.ret = args->ret;
 
     read_exit_events.perf_submit(args, &data, sizeof(data));
@@ -175,6 +187,11 @@ def _remember_read_attempt(tid_read_attempts: dict[int, str], tid: int, record_i
     tid_read_attempts[tid] = record_id
 
 
+def _format_read_id(pid: int, tid: int, started_ns: int) -> str:
+    """Format the kernel-originated local correlation identity for one read."""
+    return f"linux-read:{pid}:{tid}:{started_ns}"
+
+
 def classify_path(path: str, secret_prefixes: list, secret_exts: list) -> str:
     """Return 'SECRET' if path matches secret heuristics, else 'NORMAL'."""
     if any(path.startswith(p) for p in secret_prefixes):
@@ -185,7 +202,7 @@ def classify_path(path: str, secret_prefixes: list, secret_exts: list) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="vCML File Monitor (v0.6)")
+    parser = argparse.ArgumentParser(description="vCML File Monitor (v0.7)")
     parser.add_argument(
         "--secret-prefix", nargs="*", default=["/secrets/", "/etc/ssl/", "/var/secrets/"],
         help="Path prefixes to classify as SECRET"
@@ -197,7 +214,7 @@ def main():
     args = parser.parse_args()
 
     secret_prefixes = args.secret_prefix
-    secret_exts     = args.ext
+    secret_exts = args.ext
 
     print("Initializing vCML File Monitor...", file=sys.stderr)
     try:
@@ -232,13 +249,13 @@ def main():
         permitted_by = "parent_process_context" if parent_cause else "unobserved_parent"
 
         record = {
-            "id":        record_id,
+            "id": record_id,
             "timestamp": time.time_ns(),
-            "actor":     {"pid": event.pid, "ppid": event.ppid,
-                          "uid": event.uid, "comm": comm},
-            "action":    "open",
-            "object":    {"path": filename, "classification": classification,
-                          "flags": event.flags},
+            "actor": {"pid": event.pid, "ppid": event.ppid,
+                      "uid": event.uid, "comm": comm},
+            "action": "open",
+            "object": {"path": filename, "classification": classification,
+                       "flags": event.flags},
             "permitted_by": permitted_by,
             "parent_cause": parent_cause,
         }
@@ -251,28 +268,31 @@ def main():
 
     def on_read(cpu, data, size):
         event = b["read_events"].event(data)
-        comm  = event.comm.decode("utf-8", "replace").split("\x00", 1)[0]
+        comm = event.comm.decode("utf-8", "replace").split("\x00", 1)[0]
         record_id = str(uuid.uuid4())
+        read_id = _format_read_id(int(event.pid), int(event.tid), int(event.started_ns))
 
-        open_ctx    = pid_open_path.get(event.pid, {})
+        open_ctx = pid_open_path.get(event.pid, {})
         parent_cause = pid_causes.get(event.pid)
         permitted_by = parent_cause if parent_cause else "unobserved_parent"
 
         obj = {
-            "fd":    event.fd,
+            "fd": event.fd,
             "count": event.count,
+            "boundary_started_ns": int(event.started_ns),
         }
         if open_ctx:
-            obj["path"]           = open_ctx.get("path", "")
+            obj["path"] = open_ctx.get("path", "")
             obj["classification"] = open_ctx.get("classification", "NORMAL")
 
         record = {
-            "id":        record_id,
+            "id": record_id,
+            "read_id": read_id,
             "timestamp": time.time_ns(),
-            "actor":     {"pid": event.pid, "tid": event.tid, "ppid": event.ppid,
-                          "uid": event.uid, "comm": comm},
-            "action":    "read",
-            "object":    obj,
+            "actor": {"pid": event.pid, "tid": event.tid, "ppid": event.ppid,
+                      "uid": event.uid, "comm": comm},
+            "action": "read",
+            "object": obj,
             "permitted_by": permitted_by,
             "parent_cause": parent_cause,
         }
@@ -286,6 +306,7 @@ def main():
         event = b["read_exit_events"].event(data)
         comm = event.comm.decode("utf-8", "replace").split("\x00", 1)[0]
         record_id = str(uuid.uuid4())
+        read_id = _format_read_id(int(event.pid), int(event.tid), int(event.started_ns))
         return_value = int(event.ret)
         parent_cause = tid_read_attempts.pop(event.tid, None) or pid_causes.get(event.pid)
         status = "success" if return_value >= 0 else "failure"
@@ -296,6 +317,7 @@ def main():
             "return_value": return_value,
             "bytes_returned": return_value if return_value > 0 else 0,
             "status": status,
+            "boundary_started_ns": int(event.started_ns),
         }
 
         open_ctx = pid_open_path.get(event.pid, {})
@@ -305,6 +327,7 @@ def main():
 
         record = {
             "id": record_id,
+            "read_id": read_id,
             "timestamp": time.time_ns(),
             "actor": {"pid": event.pid, "tid": event.tid, "ppid": event.ppid,
                       "uid": event.uid, "comm": comm},
