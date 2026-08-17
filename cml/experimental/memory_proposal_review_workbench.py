@@ -293,11 +293,28 @@ def build_review_workbench(
         same_paths = [
             item["path"] for item in context["path_states"] if item["status"] == PATH_SAME
         ]
+        human_review_required = packet.get("human_review_required") is True
+        submission_template = None
+        if human_review_required:
+            submission_template = {
+                "schema": SUBMISSION_SCHEMA,
+                "packet_id": packet_id,
+                "decision_id": packet.get("decision_id"),
+                "pack_id": packet.get("pack_id"),
+                "observed_main_revision": current_main,
+                "reviewer_id": None,
+                "reviewed_at": None,
+                "verdict": None,
+                "rationale": None,
+                "reviewed_gate_evidence_refs": list(packet.get("gate_evidence_refs", [])),
+                "additional_evidence_refs": [],
+            }
 
         queue_identity = {
             "packet_id": packet_id,
             "current_main_revision": current_main,
             "priority_class": priority_class,
+            "human_review_required": human_review_required,
             "lesson_label": context["lesson_label"],
             "path_states": context["path_states"],
             "changed_evidence_components": sorted(changed_components),
@@ -311,6 +328,7 @@ def build_review_workbench(
             "pack_id": packet.get("pack_id"),
             "current_main_revision": current_main,
             "priority_class": priority_class,
+            "human_review_required": human_review_required,
             "review_reason": {
                 "missing_or_renamed_paths": sorted(missing_paths),
                 "diverged_paths": sorted(diverged_paths),
@@ -332,19 +350,7 @@ def build_review_workbench(
             "lineage_evidence_refs": list(packet.get("lineage_evidence_refs", [])),
             "context_evidence_refs": list(context["context_evidence_refs"]),
             "allowed_human_verdicts": list(packet.get("allowed_human_verdicts", [])),
-            "submission_template": {
-                "schema": SUBMISSION_SCHEMA,
-                "packet_id": packet_id,
-                "decision_id": packet.get("decision_id"),
-                "pack_id": packet.get("pack_id"),
-                "observed_main_revision": current_main,
-                "reviewer_id": None,
-                "reviewed_at": None,
-                "verdict": None,
-                "rationale": None,
-                "reviewed_gate_evidence_refs": list(packet.get("gate_evidence_refs", [])),
-                "additional_evidence_refs": [],
-            },
+            "submission_template": submission_template,
             "review_completed": False,
             "authority_granted": False,
             "merge_authority": False,
@@ -382,7 +388,9 @@ def build_review_workbench(
         "source_intake_digest": intake_digest,
         "current_main_revision": current_main,
         "card_count": len(cards),
-        "pending_review_count": len(cards),
+        "pending_review_count": sum(
+            1 for card in cards if card["human_review_required"]
+        ),
         "completed_review_count": 0,
         "priority_class_counts": dict(sorted(priority_counts.items())),
         "cards": cards,
@@ -394,9 +402,10 @@ def build_review_workbench(
         "policy_mutation_authority": False,
         "invariants": [
             "one review card is preserved per frozen semantic packet",
+            "only packets explicitly marked human_review_required receive a bound submission template",
             "queue priority orders human attention and does not score truth",
             "current path state is a net current-main comparison, not proof of historical touches",
-            "submission templates are intentionally incomplete until a human supplies identity, time, verdict, and rationale",
+            "review-eligible submission templates are intentionally incomplete until a human supplies identity, time, verdict, and rationale",
             "workbench output grants no acceptance, merge, close, execution, or policy authority",
         ],
         "non_claims": [
@@ -440,11 +449,13 @@ def render_markdown(workbench: Mapping[str, Any]) -> str:
     for card in cards:
         context = card["review_context"]
         reason = card["review_reason"]
+        human_review_required = card.get("human_review_required") is True
         lines.extend(
             [
                 f"## {card['queue_rank']}. PR #{card['proposal_pr']} ← source #{card['source_pr']}",
                 "",
                 f"**Priority:** `{card['priority_class']}`",
+                f"**Human semantic review required:** {'yes' if human_review_required else 'no'}",
                 f"**Lesson:** {_inline(context['lesson'])}",
                 f"**Situation:** {_inline(context['situation'])}",
                 f"**Action:** {_inline(context['action'])}",
@@ -460,11 +471,24 @@ def render_markdown(workbench: Mapping[str, Any]) -> str:
                 ),
                 f"**Packet:** `{card['packet_id']}`",
                 "",
-                "Human action: inspect the frozen evidence, then fill `reviewer_id`, "
-                "`reviewed_at`, `verdict`, and `rationale` in the bound submission template.",
-                "",
             ]
         )
+        if human_review_required:
+            lines.extend(
+                [
+                    "Human action: inspect the frozen evidence, then fill `reviewer_id`, "
+                    "`reviewed_at`, `verdict`, and `rationale` in the bound submission template.",
+                    "",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "Human action: no semantic-review submission is permitted for this packet; "
+                    "follow its machine route until new evidence/context or a separate authority review is available.",
+                    "",
+                ]
+            )
     return "\n".join(lines).rstrip() + "\n"
 
 
