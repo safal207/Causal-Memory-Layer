@@ -25,6 +25,7 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
             "source_pr": 190,
             "source_merge": SOURCE,
             "current_main_revision": MAIN,
+            "evidence_captured_main_revision": MAIN,
             "pack_id": PACK,
             "validated_pack_id": PACK,
             "replayed_pack_id": REPLAY,
@@ -58,6 +59,8 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         self.assertEqual(record["claimed_fitness_status"], "REVIEW_REQUIRED")
         self.assertFalse(record["revalidation"]["full_pack_replay_match"])
         self.assertTrue(record["revalidation"]["stable_source_core_match"])
+        self.assertEqual(record["revalidation"]["current_main_revision"], MAIN)
+        self.assertEqual(record["revalidation"]["evidence_captured_main_revision"], MAIN)
         self.assertEqual(
             record["revalidation"]["descriptive_metadata_changed_components"],
             ["source-pr"],
@@ -76,6 +79,23 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         )
         self.assertFalse(record["authority_granted"])
         self.assertFalse(record["acceptance_authority"])
+
+    def test_stale_evidence_state_token_requires_review(self):
+        observation = self.observation()
+        observation["evidence_captured_main_revision"] = SOURCE
+        record = build_planner_record(observation)
+        self.assertEqual(record["quality"]["readiness"], "REVIEW")
+        self.assertTrue(
+            any(
+                reason.startswith("evidence_binding_state_token_mismatch:")
+                for reason in record["quality"]["reasons"]
+            )
+        )
+        self.assertEqual(record["claimed_fitness_status"], "REVIEW_REQUIRED")
+        self.assertEqual(
+            record["revalidation"]["evidence_captured_main_revision"], SOURCE
+        )
+        self.assertEqual(record["revalidation"]["current_main_revision"], MAIN)
 
     def test_stable_source_core_drift_is_canonical_drift_and_not_fit(self):
         observation = self.observation()
@@ -105,6 +125,7 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
     def test_even_exact_current_source_cannot_skip_semantic_acceptance_review(self):
         observation = self.observation()
         observation["current_main_revision"] = SOURCE
+        observation["evidence_captured_main_revision"] = SOURCE
         observation["replayed_pack_id"] = PACK
         observation["full_pack_replay_match"] = True
         observation["changed_evidence_components"] = []
@@ -112,6 +133,12 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         self.assertEqual(record["applicability"]["status"], "MATCH")
         self.assertEqual(record["quality"]["readiness"], "REVIEW")
         self.assertEqual(record["claimed_fitness_status"], "REVIEW_REQUIRED")
+        self.assertFalse(
+            any(
+                reason.startswith("evidence_binding_state_token_mismatch:")
+                for reason in record["quality"]["reasons"]
+            )
+        )
 
     def test_proposal_pack_identity_mismatch_fails_closed(self):
         observation = self.observation()
