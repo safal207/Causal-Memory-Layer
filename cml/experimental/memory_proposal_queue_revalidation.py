@@ -118,6 +118,12 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
     compares an immutable source core supplied by the collector. PR body/title,
     reviews and checks are mutable evidence: changes there require human review
     but do not by themselves establish source-code DRIFT.
+
+    ``evidence_captured_main_revision`` records the immutable main revision the
+    evidence bundle was collected against. It defaults to the evaluated main for
+    backward-compatible callers, while trusted collectors provide it explicitly.
+    Reusing the same evidence against a later main therefore becomes a detectable
+    evidence-binding state-token mismatch instead of a self-referential check.
     """
 
     if not isinstance(observation, Mapping):
@@ -132,6 +138,10 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
     source_merge = _sha40(observation.get("source_merge"), "source_merge")
     current_main_revision = _sha40(
         observation.get("current_main_revision"), "current_main_revision"
+    )
+    evidence_captured_main_revision = _sha40(
+        observation.get("evidence_captured_main_revision", current_main_revision),
+        "evidence_captured_main_revision",
     )
     pack_id = _sha64(observation.get("pack_id"), "pack_id")
     validated_pack_id = _sha64(
@@ -257,7 +267,7 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
             evidence_id=evidence_id,
             evaluated_item_id=item_id,
             source_record_id=source_record_id,
-            accepted_state_token=current_main_revision,
+            accepted_state_token=evidence_captured_main_revision,
         )
         for evidence_id in evidence_ids
     )
@@ -299,6 +309,7 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
         "source_merge": source_merge,
         "pack_id": pack_id,
         "current_main_revision": current_main_revision,
+        "evidence_captured_main_revision": evidence_captured_main_revision,
         "replayed_pack_id": replayed_pack_id,
         "stable_source_core_match": stable_source_core_match,
         "changed_evidence_components": sorted(changed_components),
@@ -336,6 +347,8 @@ def build_planner_record(observation: Mapping[str, Any]) -> dict[str, Any]:
             "expected_source_core_digest": expected_source_core_digest,
             "observed_source_core_digest": observed_source_core_digest,
             "stable_source_core_match": stable_source_core_match,
+            "current_main_revision": current_main_revision,
+            "evidence_captured_main_revision": evidence_captured_main_revision,
             "changed_evidence_components": list(changed_components),
             "descriptive_metadata_changed_components": list(descriptive_changed),
             "operational_evidence_changed_components": list(operational_changed),
