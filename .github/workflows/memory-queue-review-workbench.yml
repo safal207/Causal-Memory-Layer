@@ -11,6 +11,7 @@ on:
       - "cml/experimental/memory_proposal_review_workbench.py"
       - ".github/trust-root/scripts/memory_queue_revalidation_collect.py"
       - ".github/trust-root/scripts/memory_review_workbench_collect.py"
+      - ".github/trust-root/memory_queue_ci_requirements.txt"
       - "tests/test_memory_proposal_queue.py"
       - "tests/test_memory_proposal_queue_planner.py"
       - "tests/test_memory_proposal_queue_revalidation.py"
@@ -32,6 +33,7 @@ env:
   SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   workbench:
@@ -57,7 +59,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: .github/trust-root/memory_queue_ci_requirements.txt
 
       - name: Prove exact-head checkout
         run: |
@@ -65,10 +67,10 @@ jobs:
             --expected "$EXPECTED_SHA" \
             --output artifacts/memory-queue-review-workbench/exact-head.json
 
-      - name: Install package and test tooling
+      - name: Install pinned test tooling
         run: |
           python -m pip install --upgrade "pip==26.1.2"
-          python -m pip install -e ".[dev]"
+          python -m pip install --requirement .github/trust-root/memory_queue_ci_requirements.txt
 
       - name: Run queue through workbench contract tests
         run: |
@@ -129,7 +131,7 @@ jobs:
           assert intake["packet_count"] == proposal_count
           assert contexts["context_count"] == proposal_count
           assert workbench["card_count"] == proposal_count
-          assert workbench["pending_review_count"] == proposal_count
+          assert workbench["pending_review_count"] == intake["pending_human_review_count"]
           assert workbench["completed_review_count"] == 0
           assert workbench["current_main_revision"] == summary["main_revision"]
           assert workbench["source_intake_digest"] == intake["intake_digest"]
@@ -147,11 +149,15 @@ jobs:
               assert card["acceptance_authority"] is False
               assert card["execution_authority"] is False
               assert card["policy_mutation_authority"] is False
-              template = card["submission_template"]
-              assert template["reviewer_id"] is None
-              assert template["reviewed_at"] is None
-              assert template["verdict"] is None
-              assert template["rationale"] is None
+              if card["human_review_required"]:
+                  template = card["submission_template"]
+                  assert isinstance(template, dict)
+                  assert template["reviewer_id"] is None
+                  assert template["reviewed_at"] is None
+                  assert template["verdict"] is None
+                  assert template["rationale"] is None
+              else:
+                  assert card["submission_template"] is None
 
           assert workbench["authority_granted"] is False
           assert workbench["merge_authority"] is False
