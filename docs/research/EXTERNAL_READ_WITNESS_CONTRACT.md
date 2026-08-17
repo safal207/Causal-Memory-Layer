@@ -71,6 +71,20 @@ The identifier is a correlation token, not a claim of cryptographic authenticity
 
 Successful completion means `sys_exit_read` returned `ret >= 0`, including EOF at `ret == 0`. Failed reads (`ret < 0`) do not require a successful-content observation.
 
+## Persistence boundary
+
+`CausalRecord` preserves an optional top-level `read_id` through dictionary, JSONL, and loader round-trips. The record's ordinary `id` remains distinct: entry and completion records may have different causal-record identities while sharing one boundary `read_id`.
+
+Exact ledger reconciliation uses persisted records with:
+
+```text
+action == "read" and read_id != null
+```
+
+A persisted `read_exit` record is deliberately **not** accepted as proof of ledger observation coverage. Otherwise the external completion witness could prove its own completeness simply by being stored beside the records it is supposed to check.
+
+Legacy records without `read_id` remain valid CML records, but they cannot contribute to exact identity coverage.
+
 ## Failure modes
 
 ### Collector unavailable
@@ -156,10 +170,12 @@ A valid identity implementation should also pass:
 
 1. `sys_enter_read` creates a boundary correlation token.
 2. `sys_exit_read` carries the same token from kernel state.
-3. Two externally completed reads `{A, B}` and ledger observations `{A, B}` pass.
-4. `{A, B}` vs `{A}` fails with `B` reported missing.
-5. `{A, B}` vs `{A, A}` still fails despite equal raw counts.
-6. A duplicate external completion identifier fails closed.
-7. An unavailable identity witness never produces PASS.
+3. `CausalRecord` preserves the token through persistence round-trips.
+4. Two externally completed reads `{A, B}` and persisted read observations `{A, B}` pass.
+5. `{A, B}` vs `{A}` fails with `B` reported missing.
+6. `{A, B}` vs `{A, A}` still fails despite equal raw counts.
+7. A `read_exit` record alone cannot prove its own ledger coverage.
+8. A duplicate external completion identifier fails closed.
+9. An unavailable identity witness never produces PASS.
 
 This proves the system can detect both total collector silence and selective loss instead of silently converting either into a valid applicability verdict.
