@@ -1,0 +1,12 @@
+# Frozen dependency surface for protected Memory Queue evidence workflows.
+#
+# The workflows execute repository source directly via PYTHONPATH rather than
+# installing the full mutable .[dev] extra. Every third-party package required
+# by the focused Python 3.12 test/evidence path is pinned here, including pytest
+# transitive dependencies. This file is itself protected by the CML trust root.
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.20.0
+pytest==9.1.1
+PyYAML==6.0.3
