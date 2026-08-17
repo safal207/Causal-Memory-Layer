@@ -69,14 +69,18 @@ def _require_hash_enforced_workflow(path: Path) -> None:
         line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
+        if "pip" not in line or "install" not in line:
+            continue
         try:
             tokens = shlex.split(line, comments=True, posix=True)
         except ValueError as exc:
             raise DependencyContractError(
-                f"{path} contains an unparsable shell command: {line}"
+                f"{path} contains an unparsable pip install command: {line}"
             ) from exc
         if not tokens or not _is_pip_install(tokens):
-            continue
+            raise DependencyContractError(
+                f"{path} contains a noncanonical pip install command: {line}"
+            )
         if tuple(tokens[:4]) != CANONICAL_PIP_PREFIX:
             raise DependencyContractError(
                 f"{path} uses a noncanonical pip installer command: {line}"
