@@ -66,8 +66,28 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
         packet["packet_id"] = semantic_digest(semantic_packet_identity(packet))
         return packet
 
+    def blocked_packet(self, proposal_pr: int):
+        packet = self.packet(proposal_pr)
+        packet["status"] = "BLOCKED_PENDING_NEW_EVIDENCE_OR_CONTEXT"
+        packet["human_review_required"] = False
+        packet["machine_gate"]["canonical_fitness_status"] = "NOT_FIT"
+        packet["machine_gate"]["review_route"] = (
+            "BLOCK_ACCEPTANCE_PENDING_NEW_EVIDENCE_OR_CONTEXT"
+        )
+        packet["packet_id"] = semantic_digest(semantic_packet_identity(packet))
+        return packet
+
     def intake(self, packets):
         packet_ids = sorted(packet["packet_id"] for packet in packets)
+        pending_count = sum(packet.get("human_review_required") is True for packet in packets)
+        blocked_count = sum(
+            packet.get("status") == "BLOCKED_PENDING_NEW_EVIDENCE_OR_CONTEXT"
+            for packet in packets
+        )
+        authority_only_count = sum(
+            packet.get("status") == "SEPARATE_AUTHORITY_REVIEW_ONLY"
+            for packet in packets
+        )
         intake = {
             "schema": INTAKE_SCHEMA,
             "mode": "HUMAN_SEMANTIC_REVIEW_INTAKE_ONLY",
@@ -76,9 +96,9 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
             "current_main_revision": MAIN,
             "captured_at": CAPTURED_AT,
             "packet_count": len(packets),
-            "pending_human_review_count": len(packets),
-            "blocked_pending_evidence_count": 0,
-            "separate_authority_review_only_count": 0,
+            "pending_human_review_count": pending_count,
+            "blocked_pending_evidence_count": blocked_count,
+            "separate_authority_review_only_count": authority_only_count,
             "completed_human_review_count": 0,
             "packets": packets,
             **authority_false(),
@@ -231,7 +251,9 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
     def test_submission_template_is_bound_but_has_no_fabricated_human_verdict(self):
         packet = self.packet(191)
         result = self.build([packet], [self.context(packet)])
-        template = result["cards"][0]["submission_template"]
+        card = result["cards"][0]
+        self.assertTrue(card["human_review_required"])
+        template = card["submission_template"]
         self.assertEqual(template["packet_id"], packet["packet_id"])
         self.assertEqual(template["decision_id"], packet["decision_id"])
         self.assertEqual(template["observed_main_revision"], MAIN)
@@ -239,6 +261,18 @@ class MemoryProposalReviewWorkbenchTests(unittest.TestCase):
         self.assertIsNone(template["reviewed_at"])
         self.assertIsNone(template["verdict"])
         self.assertIsNone(template["rationale"])
+
+    def test_blocked_packet_has_no_submission_template_or_pending_review(self):
+        packet = self.blocked_packet(191)
+        result = self.build([packet], [self.context(packet)])
+        card = result["cards"][0]
+        self.assertEqual(result["card_count"], 1)
+        self.assertEqual(result["pending_review_count"], 0)
+        self.assertFalse(card["human_review_required"])
+        self.assertIsNone(card["submission_template"])
+        rendered = render_markdown(result)
+        self.assertIn("Human semantic review required:** no", rendered)
+        self.assertIn("no semantic-review submission is permitted", rendered)
 
     def test_stale_context_main_fails_closed(self):
         packet = self.packet(191)
