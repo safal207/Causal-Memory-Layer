@@ -224,6 +224,9 @@ def build_review_workbench(
         proposal_pr = _positive_int(context.get("proposal_pr"), "context.proposal_pr")
         if proposal_pr != packet.get("proposal_pr"):
             raise ReviewWorkbenchError(f"proposal #{proposal_pr} context/packet mismatch")
+        source_pr = _positive_int(context.get("source_pr"), "context.source_pr")
+        if source_pr != packet.get("source_pr"):
+            raise ReviewWorkbenchError(f"proposal #{proposal_pr} context source PR mismatch")
         if context.get("pack_id") != packet.get("pack_id"):
             raise ReviewWorkbenchError(f"proposal #{proposal_pr} context pack mismatch")
         if context.get("decision_id") != packet.get("decision_id"):
@@ -249,7 +252,7 @@ def build_review_workbench(
         normalized = {
             "packet_id": packet_id,
             "proposal_pr": proposal_pr,
-            "source_pr": _positive_int(context.get("source_pr"), "context.source_pr"),
+            "source_pr": source_pr,
             "pack_id": _text(context.get("pack_id"), "context.pack_id"),
             "decision_id": _text(context.get("decision_id"), "context.decision_id"),
             "current_main_revision": current_main,
@@ -380,7 +383,7 @@ def build_review_workbench(
     workbench_identity = {
         "source_intake_digest": intake_digest,
         "current_main_revision": current_main,
-        "card_ids": [card["card_id"] for card in cards],
+        "cards": cards,
     }
     return {
         "schema": WORKBENCH_SCHEMA,
@@ -406,6 +409,7 @@ def build_review_workbench(
             "queue priority orders human attention and does not score truth",
             "current path state is a net current-main comparison, not proof of historical touches",
             "review-eligible submission templates are intentionally incomplete until a human supplies identity, time, verdict, and rationale",
+            "workbench digest binds the complete deterministic card payload, including rendered context and evidence references",
             "workbench output grants no acceptance, merge, close, execution, or policy authority",
         ],
         "non_claims": [
