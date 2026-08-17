@@ -19,7 +19,7 @@
     ".github/workflows/memory-retrieval.yml": "4a226ab2caacfc1fc840659572dde66df622058e",
     ".github/workflows/python-package-validation.yml": "13bd15e4010a1cc04f64b972a69c8da07f0e58a7",
     ".github/workflows/reviewer-fallback.yml": "0646491db9729279a36f89d3a14f3203c94e029c",
-    ".github/workflows/security.yml": "cfcc265ec2d8b9a64a2e7c9f0318642430f81830",
+    ".github/workflows/security.yml": "e53938eac6cc9d07023320edd629329eb85a9e1d",
     "scripts/__init__.py": "d56731c22992899563e9b2de8181d91a0521d1f1",
     "scripts/ci/__init__.py": "17a59c5b36ff247772104003737ad1a5b619ad77",
     "scripts/ci/assert_exact_head.py": "f57687734a4c39a5c0299ad8d7a1465bb7e67111",
