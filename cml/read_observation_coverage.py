@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from cml.external_read_witness import ExternalReadIdentityWitness
+from cml.record import Action, CausalRecord
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,31 @@ def _normalize_read_ids(values: Iterable[str], *, label: str) -> tuple[str, ...]
             normalized.append(value)
             seen.add(value)
     return tuple(normalized)
+
+
+def ledger_read_ids_from_causal_records(
+    records: Iterable[CausalRecord],
+) -> tuple[str, ...]:
+    """Extract persisted read-entry identities from canonical CML records.
+
+    Only ``action == Action.READ`` is eligible. A ``read_exit`` record is the
+    external completion witness in the reference integration and must not be
+    able to prove its own ledger coverage merely because it was persisted next
+    to the read-entry records.
+
+    Legacy read records without ``read_id`` remain valid CML records but do not
+    contribute to exact identity coverage.
+    """
+
+    read_ids: list[str] = []
+    for index, record in enumerate(records, start=1):
+        if not isinstance(record, CausalRecord):
+            raise TypeError(f"record {index} must be a CausalRecord")
+        if record.action != Action.READ or record.read_id is None:
+            continue
+        read_ids.append(record.read_id)
+
+    return _normalize_read_ids(read_ids, label="causal_record.read_id")
 
 
 def check_read_observation_coverage(
@@ -94,4 +120,19 @@ def check_read_observation_coverage(
         observed_read_ids=observed,
         missing_read_ids=missing,
         reasons=tuple(sorted(reasons)),
+    )
+
+
+def check_causal_record_read_observation_coverage(
+    *,
+    witness: ExternalReadIdentityWitness | None,
+    ledger_scope_id: str,
+    records: Iterable[CausalRecord],
+) -> ReadObservationCoverageResult:
+    """Reconcile external completion IDs against persisted CML read records."""
+
+    return check_read_observation_coverage(
+        witness=witness,
+        ledger_scope_id=ledger_scope_id,
+        ledger_observation_read_ids=ledger_read_ids_from_causal_records(records),
     )
