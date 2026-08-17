@@ -42,6 +42,30 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
             ],
         }
 
+    def exact_current_observation(self):
+        observation = self.observation()
+        observation.update(
+            {
+                "current_main_revision": SOURCE,
+                "evidence_captured_main_revision": SOURCE,
+                "replayed_pack_id": PACK,
+                "full_pack_replay_match": True,
+                "changed_evidence_components": [],
+            }
+        )
+        return observation
+
+    def assert_no_authority(self, record):
+        for field in (
+            "authority_granted",
+            "merge_authority",
+            "close_authority",
+            "acceptance_authority",
+            "execution_authority",
+            "policy_mutation_authority",
+        ):
+            self.assertFalse(record[field], field)
+
     def test_mutable_pr_and_check_drift_do_not_become_source_identity_drift(self):
         record = build_planner_record(self.observation())
         self.assertEqual(record["applicability"]["status"], "REVALIDATE")
@@ -77,25 +101,33 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
             record["revalidation"]["immutable_evidence_changed_components"],
             [],
         )
-        self.assertFalse(record["authority_granted"])
-        self.assertFalse(record["acceptance_authority"])
+        self.assert_no_authority(record)
 
     def test_stale_evidence_state_token_requires_review(self):
-        observation = self.observation()
-        observation["evidence_captured_main_revision"] = SOURCE
-        record = build_planner_record(observation)
-        self.assertEqual(record["quality"]["readiness"], "REVIEW")
+        fresh_observation = self.exact_current_observation()
+        fresh = build_planner_record(fresh_observation)
+        self.assertFalse(
+            any(
+                reason.startswith("evidence_binding_state_token_mismatch:")
+                for reason in fresh["quality"]["reasons"]
+            )
+        )
+        self.assert_no_authority(fresh)
+
+        stale_observation = copy.deepcopy(fresh_observation)
+        stale_observation["evidence_captured_main_revision"] = MAIN
+        stale = build_planner_record(stale_observation)
+        self.assertEqual(stale["quality"]["readiness"], "REVIEW")
         self.assertTrue(
             any(
                 reason.startswith("evidence_binding_state_token_mismatch:")
-                for reason in record["quality"]["reasons"]
+                for reason in stale["quality"]["reasons"]
             )
         )
-        self.assertEqual(record["claimed_fitness_status"], "REVIEW_REQUIRED")
-        self.assertEqual(
-            record["revalidation"]["evidence_captured_main_revision"], SOURCE
-        )
-        self.assertEqual(record["revalidation"]["current_main_revision"], MAIN)
+        self.assertEqual(stale["claimed_fitness_status"], "REVIEW_REQUIRED")
+        self.assertEqual(stale["revalidation"]["evidence_captured_main_revision"], MAIN)
+        self.assertEqual(stale["revalidation"]["current_main_revision"], SOURCE)
+        self.assert_no_authority(stale)
 
     def test_stable_source_core_drift_is_canonical_drift_and_not_fit(self):
         observation = self.observation()
@@ -106,6 +138,7 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         self.assertIn("source_digest_mismatch", record["applicability"]["reasons"])
         self.assertEqual(record["claimed_fitness_status"], "NOT_FIT")
         self.assertFalse(record["revalidation"]["stable_source_core_match"])
+        self.assert_no_authority(record)
 
     def test_non_ancestor_source_requires_revalidation_not_delete_authority(self):
         observation = self.observation()
@@ -119,17 +152,10 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
             )
         )
         self.assertEqual(record["claimed_fitness_status"], "REVIEW_REQUIRED")
-        self.assertFalse(record["close_authority"])
-        self.assertFalse(record["policy_mutation_authority"])
+        self.assert_no_authority(record)
 
     def test_even_exact_current_source_cannot_skip_semantic_acceptance_review(self):
-        observation = self.observation()
-        observation["current_main_revision"] = SOURCE
-        observation["evidence_captured_main_revision"] = SOURCE
-        observation["replayed_pack_id"] = PACK
-        observation["full_pack_replay_match"] = True
-        observation["changed_evidence_components"] = []
-        record = build_planner_record(observation)
+        record = build_planner_record(self.exact_current_observation())
         self.assertEqual(record["applicability"]["status"], "MATCH")
         self.assertEqual(record["quality"]["readiness"], "REVIEW")
         self.assertEqual(record["claimed_fitness_status"], "REVIEW_REQUIRED")
@@ -139,6 +165,7 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
                 for reason in record["quality"]["reasons"]
             )
         )
+        self.assert_no_authority(record)
 
     def test_proposal_pack_identity_mismatch_fails_closed(self):
         observation = self.observation()
@@ -164,12 +191,25 @@ class MemoryProposalQueueRevalidationTests(unittest.TestCase):
         with self.assertRaisesRegex(QueueRevalidationError, "unknown evidence components"):
             build_planner_record(observation)
 
-    def test_result_is_deterministic_for_same_observation(self):
-        first = build_planner_record(self.observation())
-        second = build_planner_record(copy.deepcopy(self.observation()))
-        self.assertEqual(first, second)
+    def test_observation_digest_is_canonical_and_binds_captured_state(self):
+        observation = self.observation()
+        reordered = dict(reversed(list(observation.items())))
+        first = build_planner_record(observation)
+        second = build_planner_record(reordered)
+        self.assertEqual(
+            first["revalidation"]["observation_digest"],
+            second["revalidation"]["observation_digest"],
+        )
         self.assertTrue(
             first["revalidation"]["observation_digest"].startswith("sha256:")
+        )
+
+        changed = copy.deepcopy(observation)
+        changed["evidence_captured_main_revision"] = SOURCE
+        third = build_planner_record(changed)
+        self.assertNotEqual(
+            first["revalidation"]["observation_digest"],
+            third["revalidation"]["observation_digest"],
         )
 
 
