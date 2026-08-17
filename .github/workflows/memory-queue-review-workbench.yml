@@ -11,6 +11,8 @@ on:
       - "cml/experimental/memory_proposal_review_workbench.py"
       - ".github/trust-root/scripts/memory_queue_revalidation_collect.py"
       - ".github/trust-root/scripts/memory_review_workbench_collect.py"
+      - ".github/trust-root/scripts/verify_memory_queue_dependency_contract.py"
+      - ".github/trust-root/memory_queue_pip_bootstrap.txt"
       - ".github/trust-root/memory_queue_ci_requirements.txt"
       - "tests/test_memory_proposal_queue.py"
       - "tests/test_memory_proposal_queue_planner.py"
@@ -59,7 +61,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: .github/trust-root/memory_queue_ci_requirements.txt
+          cache-dependency-path: |
+            .github/trust-root/memory_queue_pip_bootstrap.txt
+            .github/trust-root/memory_queue_ci_requirements.txt
 
       - name: Prove exact-head checkout
         run: |
@@ -67,10 +71,13 @@ jobs:
             --expected "$EXPECTED_SHA" \
             --output artifacts/memory-queue-review-workbench/exact-head.json
 
-      - name: Install pinned test tooling
+      - name: Verify dependency integrity contract
+        run: python .github/trust-root/scripts/verify_memory_queue_dependency_contract.py
+
+      - name: Install hash-bound test tooling
         run: |
-          python -m pip install --upgrade "pip==26.1.2"
-          python -m pip install --requirement .github/trust-root/memory_queue_ci_requirements.txt
+          python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_pip_bootstrap.txt
+          python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_ci_requirements.txt
 
       - name: Run queue through workbench contract tests
         run: |
