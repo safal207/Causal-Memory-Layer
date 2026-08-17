@@ -33,14 +33,16 @@ class AdmissibilityPreconditionResult:
 def check_admissibility_preconditions(
     *,
     witness: ExternalReadWitness | None,
+    ledger_scope_id: str,
     ledger_observations: int,
     identifier_written: str | None = None,
     identifier_queried: str | None = None,
 ) -> AdmissibilityPreconditionResult:
-    """Check independent liveness and key-agreement invariants.
+    """Check independent liveness, scope, and key-agreement invariants.
 
     Invariants:
 
+    * witness and ledger refer to the same scope/session
     * ``external_reads > 0 => ledger_observations > 0``
     * ``identifier_written == identifier_queried`` when both are supplied
 
@@ -48,6 +50,8 @@ def check_admissibility_preconditions(
     separate boundary from record-level applicability.
     """
 
+    if not isinstance(ledger_scope_id, str) or not ledger_scope_id.strip():
+        raise ValueError("ledger_scope_id must be a non-empty string")
     if not isinstance(ledger_observations, int) or isinstance(ledger_observations, bool):
         raise TypeError("ledger_observations must be an integer")
     if ledger_observations < 0:
@@ -61,6 +65,9 @@ def check_admissibility_preconditions(
         )
 
     reasons: list[str] = []
+
+    if witness.scope_id != ledger_scope_id:
+        reasons.append("witness_scope_mismatch")
 
     if witness.reads_count > 0 and ledger_observations == 0:
         reasons.append("observation_channel_missing")
