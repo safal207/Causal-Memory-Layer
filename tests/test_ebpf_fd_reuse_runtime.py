@@ -4,7 +4,16 @@ from cml.integrations.ebpf_fd_reuse_runtime import (
     FAIL,
     PASS,
     evaluate_fd_reuse_runtime_proof,
+    kernel_dev_major_minor,
 )
+
+
+def _kernel_device(major: int, minor: int) -> int:
+    return (major << 20) | minor
+
+
+def _expected(major: int, minor: int, inode: int):
+    return {"device_major": major, "device_minor": minor, "inode": inode}
 
 
 def _event(fd: int, device: int, inode: int, started_ns: int, ret: int = 1):
@@ -18,14 +27,39 @@ def _event(fd: int, device: int, inode: int, started_ns: int, ret: int = 1):
     }
 
 
-def test_runtime_proof_passes_only_for_same_fd_and_distinct_expected_objects():
+def test_kernel_dev_t_is_compared_by_canonical_major_minor():
+    # Real failure caught by the live runner: kernel s_dev for 8:1 is 8388609,
+    # while userspace stat().st_dev may encode the same device as 2049.
+    raw_kernel_dev = 8_388_609
+    assert kernel_dev_major_minor(raw_kernel_dev) == (8, 1)
+
     result = evaluate_fd_reuse_runtime_proof(
-        expected_a={"device": 10, "inode": 101},
-        expected_b={"device": 10, "inode": 202},
+        expected_a={**_expected(8, 1, 101), "userspace_st_dev": 2049},
+        expected_b={**_expected(8, 1, 202), "userspace_st_dev": 2049},
         workload={"fd_a": 3, "fd_b": 3},
         events=[
-            _event(3, 10, 101, 100),
-            _event(3, 10, 202, 200),
+            _event(3, raw_kernel_dev, 101, 100),
+            _event(3, raw_kernel_dev, 202, 200),
+        ],
+    )
+
+    assert result["status"] == PASS
+    assert result["device_comparison"] == "canonical_major_minor"
+    assert result["events"][0]["device"] == raw_kernel_dev
+    assert result["events"][0]["device_major"] == 8
+    assert result["events"][0]["device_minor"] == 1
+    assert result["expected"]["a"]["userspace_st_dev"] == 2049
+
+
+def test_runtime_proof_passes_only_for_same_fd_and_distinct_expected_objects():
+    device = _kernel_device(8, 1)
+    result = evaluate_fd_reuse_runtime_proof(
+        expected_a=_expected(8, 1, 101),
+        expected_b=_expected(8, 1, 202),
+        workload={"fd_a": 3, "fd_b": 3},
+        events=[
+            _event(3, device, 101, 100),
+            _event(3, device, 202, 200),
         ],
     )
 
@@ -34,13 +68,14 @@ def test_runtime_proof_passes_only_for_same_fd_and_distinct_expected_objects():
 
 
 def test_same_fd_with_same_object_fails_reuse_identity_proof():
+    device = _kernel_device(8, 1)
     result = evaluate_fd_reuse_runtime_proof(
-        expected_a={"device": 10, "inode": 101},
-        expected_b={"device": 10, "inode": 101},
+        expected_a=_expected(8, 1, 101),
+        expected_b=_expected(8, 1, 101),
         workload={"fd_a": 3, "fd_b": 3},
         events=[
-            _event(3, 10, 101, 100),
-            _event(3, 10, 101, 200),
+            _event(3, device, 101, 100),
+            _event(3, device, 101, 200),
         ],
     )
 
@@ -50,13 +85,14 @@ def test_same_fd_with_same_object_fails_reuse_identity_proof():
 
 
 def test_different_numeric_fds_do_not_prove_fd_reuse():
+    device = _kernel_device(8, 1)
     result = evaluate_fd_reuse_runtime_proof(
-        expected_a={"device": 10, "inode": 101},
-        expected_b={"device": 10, "inode": 202},
+        expected_a=_expected(8, 1, 101),
+        expected_b=_expected(8, 1, 202),
         workload={"fd_a": 3, "fd_b": 4},
         events=[
-            _event(3, 10, 101, 100),
-            _event(4, 10, 202, 200),
+            _event(3, device, 101, 100),
+            _event(4, device, 202, 200),
         ],
     )
 
@@ -66,13 +102,14 @@ def test_different_numeric_fds_do_not_prove_fd_reuse():
 
 
 def test_stale_object_binding_on_second_read_fails():
+    device = _kernel_device(8, 1)
     result = evaluate_fd_reuse_runtime_proof(
-        expected_a={"device": 10, "inode": 101},
-        expected_b={"device": 10, "inode": 202},
+        expected_a=_expected(8, 1, 101),
+        expected_b=_expected(8, 1, 202),
         workload={"fd_a": 3, "fd_b": 3},
         events=[
-            _event(3, 10, 101, 100),
-            _event(3, 10, 101, 200),
+            _event(3, device, 101, 100),
+            _event(3, device, 101, 200),
         ],
     )
 
@@ -82,14 +119,15 @@ def test_stale_object_binding_on_second_read_fails():
 
 
 def test_unresolved_kernel_object_fails():
-    event_b = _event(3, 10, 202, 200)
+    device = _kernel_device(8, 1)
+    event_b = _event(3, device, 202, 200)
     event_b["object_resolved"] = 0
 
     result = evaluate_fd_reuse_runtime_proof(
-        expected_a={"device": 10, "inode": 101},
-        expected_b={"device": 10, "inode": 202},
+        expected_a=_expected(8, 1, 101),
+        expected_b=_expected(8, 1, 202),
         workload={"fd_a": 3, "fd_b": 3},
-        events=[_event(3, 10, 101, 100), event_b],
+        events=[_event(3, device, 101, 100), event_b],
     )
 
     assert result["status"] == FAIL
@@ -97,13 +135,14 @@ def test_unresolved_kernel_object_fails():
 
 
 def test_failed_read_does_not_count_as_runtime_success():
+    device = _kernel_device(8, 1)
     result = evaluate_fd_reuse_runtime_proof(
-        expected_a={"device": 10, "inode": 101},
-        expected_b={"device": 10, "inode": 202},
+        expected_a=_expected(8, 1, 101),
+        expected_b=_expected(8, 1, 202),
         workload={"fd_a": 3, "fd_b": 3},
         events=[
-            _event(3, 10, 101, 100),
-            _event(3, 10, 202, 200, ret=-5),
+            _event(3, device, 101, 100),
+            _event(3, device, 202, 200, ret=-5),
         ],
     )
 
@@ -112,14 +151,15 @@ def test_failed_read_does_not_count_as_runtime_success():
 
 
 def test_extra_target_read_fails_instead_of_selecting_convenient_pair():
+    device = _kernel_device(8, 1)
     result = evaluate_fd_reuse_runtime_proof(
-        expected_a={"device": 10, "inode": 101},
-        expected_b={"device": 10, "inode": 202},
+        expected_a=_expected(8, 1, 101),
+        expected_b=_expected(8, 1, 202),
         workload={"fd_a": 3, "fd_b": 3},
         events=[
-            _event(3, 10, 101, 50),
-            _event(3, 10, 101, 100),
-            _event(3, 10, 202, 200),
+            _event(3, device, 101, 50),
+            _event(3, device, 101, 100),
+            _event(3, device, 202, 200),
         ],
     )
 
@@ -130,13 +170,13 @@ def test_extra_target_read_fails_instead_of_selecting_convenient_pair():
 def test_invalid_event_shape_fails_closed():
     with pytest.raises(ValueError, match="event 1.inode"):
         evaluate_fd_reuse_runtime_proof(
-            expected_a={"device": 10, "inode": 101},
-            expected_b={"device": 10, "inode": 202},
+            expected_a=_expected(8, 1, 101),
+            expected_b=_expected(8, 1, 202),
             workload={"fd_a": 3, "fd_b": 3},
             events=[
                 {
                     "fd": 3,
-                    "device": 10,
+                    "device": _kernel_device(8, 1),
                     "inode": "101",
                     "return_value": 1,
                     "started_ns": 100,
