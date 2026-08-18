@@ -15,7 +15,7 @@
     ".github/trust-root/scripts/reviewer_fallback_reconcile.py": "74b0bc06c899a9ee3462c203831215a9ac39af64",
     ".github/trust-root/scripts/reviewer_fallback_runtime.py": "041c602be70bf61f0f6c84b85c9e84e559986556",
     ".github/workflows/ci.yml": "ae103606ca5b4b99609ee48c2f867e6bde1d55ec",
-    ".github/workflows/ebpf-runtime-proof.yml": "182230f68aefe149351653e4a411ef4228cf749f",
+    ".github/workflows/ebpf-runtime-proof.yml": "9a44a5383688891b6863558583664be5d34986a8",
     ".github/workflows/memory-learning-loop.yml": "8627fbeea2db9bbaeb0fb10c8095479cf2a04829",
     ".github/workflows/memory-retrieval.yml": "4a226ab2caacfc1fc840659572dde66df622058e",
     ".github/workflows/python-package-validation.yml": "13bd15e4010a1cc04f64b972a69c8da07f0e58a7",
