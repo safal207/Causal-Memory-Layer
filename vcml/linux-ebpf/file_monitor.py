@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-vCML File Monitor (v0.7 Reference Implementation)
+vCML File Monitor (v0.8 Reference Implementation)
 
 Monitors filesystem boundary crossings (open/read syscalls) via eBPF
 and generates vCML-compliant causal records.
@@ -13,10 +13,17 @@ The read-entry event proves that a read syscall was attempted. The read-exit
 event adds the kernel return value so consumers can distinguish successful
 completion (ret >= 0, including EOF at ret == 0) from failure (ret < 0).
 
-v0.7 also carries one stable boundary correlation token from sys_enter_read to
+v0.7 introduced one stable boundary correlation token from sys_enter_read to
 sys_exit_read. The token is derived from PID, TID, and a kernel monotonic
 ``bpf_ktime_get_ns()`` timestamp captured at entry. It is a local correlation
 identity, not a cryptographic or globally unique identifier.
+
+v0.8 resolves the file descriptor to the kernel file object at sys_enter_read
+and captures the backing ``(superblock device, inode)`` pair. That object
+identity is copied into the kernel read-start state and therefore remains bound
+to the same read even if the numeric fd is later reused before userspace sees
+the exit event. Path fields remain descriptive evidence from the userspace
+last-open cache; ``object_id`` is the stronger read-boundary object binding.
 
 Usage:
     sudo ./file_monitor.py [--secret-prefix /secrets/] [--ext .key .pem]
@@ -46,6 +53,7 @@ BPF_TEXT = r"""
 #include <uapi/linux/ptrace.h>
 #include <linux/sched.h>
 #include <linux/fs.h>
+#include <linux/fdtable.h>
 
 #define FNAME_LEN 256
 
@@ -62,6 +70,9 @@ struct read_start_t {
     int fd;
     u64 count;
     u64 started_ns;
+    u32 dev;
+    u64 inode;
+    u8  object_resolved;
 };
 
 struct read_event_t {
@@ -73,6 +84,9 @@ struct read_event_t {
     int  fd;
     u64  count;
     u64  started_ns;
+    u32  dev;
+    u64  inode;
+    u8   object_resolved;
 };
 
 struct read_exit_event_t {
@@ -84,6 +98,9 @@ struct read_exit_event_t {
     int  fd;
     u64  count;
     u64  started_ns;
+    u32  dev;
+    u64  inode;
+    u8   object_resolved;
     s64  ret;
 };
 
@@ -91,6 +108,64 @@ BPF_HASH(read_starts, u32, struct read_start_t);
 BPF_PERF_OUTPUT(open_events);
 BPF_PERF_OUTPUT(read_events);
 BPF_PERF_OUTPUT(read_exit_events);
+
+static __always_inline int resolve_fd_object(int fd, u32 *dev, u64 *inode) {
+    if (fd < 0) {
+        return 0;
+    }
+
+    struct task_struct *task = (struct task_struct *)bpf_get_current_task();
+    struct files_struct *files = NULL;
+    struct fdtable *fdt = NULL;
+    struct file **fd_array = NULL;
+    struct file *file = NULL;
+    struct inode *node = NULL;
+    struct super_block *sb = NULL;
+    unsigned int max_fds = 0;
+    dev_t device = 0;
+    unsigned long inode_number = 0;
+
+    bpf_probe_read_kernel(&files, sizeof(files), &task->files);
+    if (!files) {
+        return 0;
+    }
+
+    bpf_probe_read_kernel(&fdt, sizeof(fdt), &files->fdt);
+    if (!fdt) {
+        return 0;
+    }
+
+    bpf_probe_read_kernel(&max_fds, sizeof(max_fds), &fdt->max_fds);
+    if ((u32)fd >= max_fds) {
+        return 0;
+    }
+
+    bpf_probe_read_kernel(&fd_array, sizeof(fd_array), &fdt->fd);
+    if (!fd_array) {
+        return 0;
+    }
+
+    bpf_probe_read_kernel(&file, sizeof(file), &fd_array[fd]);
+    if (!file) {
+        return 0;
+    }
+
+    bpf_probe_read_kernel(&node, sizeof(node), &file->f_inode);
+    if (!node) {
+        return 0;
+    }
+
+    bpf_probe_read_kernel(&inode_number, sizeof(inode_number), &node->i_ino);
+    bpf_probe_read_kernel(&sb, sizeof(sb), &node->i_sb);
+    if (!sb) {
+        return 0;
+    }
+    bpf_probe_read_kernel(&device, sizeof(device), &sb->s_dev);
+
+    *dev = (u32)device;
+    *inode = (u64)inode_number;
+    return 1;
+}
 
 TRACEPOINT_PROBE(syscalls, sys_enter_openat) {
     struct open_event_t data = {};
@@ -127,10 +202,14 @@ TRACEPOINT_PROBE(syscalls, sys_enter_read) {
     data.fd = args->fd;
     data.count = args->count;
     data.started_ns = started_ns;
+    data.object_resolved = resolve_fd_object(args->fd, &data.dev, &data.inode);
 
     start.fd = args->fd;
     start.count = args->count;
     start.started_ns = started_ns;
+    start.dev = data.dev;
+    start.inode = data.inode;
+    start.object_resolved = data.object_resolved;
     read_starts.update(&tid, &start);
 
     read_events.perf_submit(args, &data, sizeof(data));
@@ -158,6 +237,9 @@ TRACEPOINT_PROBE(syscalls, sys_exit_read) {
     data.fd = start->fd;
     data.count = start->count;
     data.started_ns = start->started_ns;
+    data.dev = start->dev;
+    data.inode = start->inode;
+    data.object_resolved = start->object_resolved;
     data.ret = args->ret;
 
     read_exit_events.perf_submit(args, &data, sizeof(data));
@@ -192,6 +274,23 @@ def _format_read_id(pid: int, tid: int, started_ns: int) -> str:
     return f"linux-read:{pid}:{tid}:{started_ns}"
 
 
+def _format_object_id(dev: int, inode: int) -> str:
+    """Format the local kernel object identity captured at read entry."""
+    return f"linux-inode:{dev}:{inode}"
+
+
+def _append_kernel_object_identity(obj: dict, event) -> None:
+    """Attach read-boundary kernel object identity when fd resolution succeeded."""
+    if not int(event.object_resolved):
+        return
+    dev = int(event.dev)
+    inode = int(event.inode)
+    obj["object_id"] = _format_object_id(dev, inode)
+    obj["device"] = dev
+    obj["inode"] = inode
+    obj["object_identity_source"] = "kernel_fd_at_sys_enter_read"
+
+
 def classify_path(path: str, secret_prefixes: list, secret_exts: list) -> str:
     """Return 'SECRET' if path matches secret heuristics, else 'NORMAL'."""
     if any(path.startswith(p) for p in secret_prefixes):
@@ -202,7 +301,7 @@ def classify_path(path: str, secret_prefixes: list, secret_exts: list) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="vCML File Monitor (v0.7)")
+    parser = argparse.ArgumentParser(description="vCML File Monitor (v0.8)")
     parser.add_argument(
         "--secret-prefix", nargs="*", default=["/secrets/", "/etc/ssl/", "/var/secrets/"],
         help="Path prefixes to classify as SECRET"
@@ -231,7 +330,7 @@ def main():
 
     # Causal state: pid -> (last_causal_id, last_open_path)
     pid_causes: dict[int, str] = {}
-    pid_open_path: dict[int, dict] = {}  # pid -> {path, classification}
+    pid_open_path: dict[int, dict] = {}  # pid -> descriptive {path, classification}
     tid_read_attempts: dict[int, str] = {}  # tid -> read-entry record id
 
     def on_open(cpu, data, size):
@@ -281,9 +380,11 @@ def main():
             "count": event.count,
             "boundary_started_ns": int(event.started_ns),
         }
+        _append_kernel_object_identity(obj, event)
         if open_ctx:
             obj["path"] = open_ctx.get("path", "")
             obj["classification"] = open_ctx.get("classification", "NORMAL")
+            obj["path_evidence"] = "last_open_path_by_pid"
 
         record = {
             "id": record_id,
@@ -319,11 +420,13 @@ def main():
             "status": status,
             "boundary_started_ns": int(event.started_ns),
         }
+        _append_kernel_object_identity(obj, event)
 
         open_ctx = pid_open_path.get(event.pid, {})
         if open_ctx:
             obj["path"] = open_ctx.get("path", "")
             obj["classification"] = open_ctx.get("classification", "NORMAL")
+            obj["path_evidence"] = "last_open_path_by_pid"
 
         record = {
             "id": record_id,
