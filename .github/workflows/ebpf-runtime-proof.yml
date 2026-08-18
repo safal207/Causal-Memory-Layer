@@ -57,9 +57,33 @@ jobs:
           PY
 
       - name: Install BCC runtime
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
         run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-bpfcc bpfcc-tools
+          record_unsupported() {
+            REASON="$1" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path = Path("artifacts/ebpf-runtime/fd-reuse-proof.json")
+          payload = {
+              "schema_version": "cml-ebpf-fd-reuse-runtime-proof-v1",
+              "status": "UNSUPPORTED_ENVIRONMENT",
+              "reason": os.environ["REASON"],
+          }
+          path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+          }
+
+          if ! timeout 120s sudo -E apt-get update; then
+            record_unsupported "apt-get update failed or timed out"
+            exit 1
+          fi
+          if ! timeout 120s sudo -E apt-get install -y --no-install-recommends python3-bpfcc bpfcc-tools; then
+            record_unsupported "BCC package installation failed or timed out"
+            exit 1
+          fi
 
       - name: Run live fd-reuse kernel proof
         run: |
