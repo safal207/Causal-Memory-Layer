@@ -15,19 +15,20 @@
     ".github/trust-root/scripts/reviewer_fallback_reconcile.py": "74b0bc06c899a9ee3462c203831215a9ac39af64",
     ".github/trust-root/scripts/reviewer_fallback_runtime.py": "041c602be70bf61f0f6c84b85c9e84e559986556",
     ".github/workflows/ci.yml": "ae103606ca5b4b99609ee48c2f867e6bde1d55ec",
-    ".github/workflows/ebpf-runtime-proof.yml": "9a44a5383688891b6863558583664be5d34986a8",
+    ".github/workflows/ebpf-runtime-proof.yml": "f36cb43aafd4eb5a72f9e51c74c614683479dbea",
     ".github/workflows/memory-learning-loop.yml": "8627fbeea2db9bbaeb0fb10c8095479cf2a04829",
     ".github/workflows/memory-retrieval.yml": "4a226ab2caacfc1fc840659572dde66df622058e",
     ".github/workflows/python-package-validation.yml": "13bd15e4010a1cc04f64b972a69c8da07f0e58a7",
     ".github/workflows/reviewer-fallback.yml": "0646491db9729279a36f89d3a14f3203c94e029c",
     ".github/workflows/security.yml": "e53938eac6cc9d07023320edd629329eb85a9e1d",
+    "cml/integrations/ebpf_fd_reuse_runtime.py": "3c3d3254a7f763be7dc779e5d0e3d4a3f12351a1",
     "scripts/__init__.py": "d56731c22992899563e9b2de8181d91a0521d1f1",
     "scripts/ci/__init__.py": "17a59c5b36ff247772104003737ad1a5b619ad77",
     "scripts/ci/assert_exact_head.py": "f57687734a4c39a5c0299ad8d7a1465bb7e67111",
     "scripts/ci/build_evidence_manifest.py": "bb4065d136e7dc796402d534ecda48145cc7a17f",
     "scripts/ci/verify_workflow_contract.py": "85ef8222b10cd1731372fd9e58a586046f214cc0",
     "tests/test_ci_evidence.py": "2d080fc4c728f1d8d98c01311839c8cd456b2f90",
-    "tests/test_ci_workflow_contract.py": "e0ea0eca5e8c1bcf73dabd157d9c2d9cf8678f91",
+    "tests/test_ci_workflow_contract.py": "10d91f00d7f7b23049667d94d966550ec5ec6452",
     "tests/test_memory_learning_fallback.py": "99fb47b10ce7664e030f10ccbcf2f02edbe9d804",
     "tests/test_memory_learning_fallback_schema.py": "65ffccd638ee562d201499275a460027a8a63c9b",
     "tests/test_memory_learning_loop.py": "5aea6b9571e721aaa9b5a1e502b0d49e82e9f37b",
@@ -42,7 +43,9 @@
     "tests/test_reviewer_fallback_reconcile.py": "47edec94e839798cb6c9a83a0da9ef432a7b998d",
     "tests/test_reviewer_fallback_untrusted_inputs.py": "a40e5645ec4c8bcc59be6ce4e307cf9fddbb13b4",
     "tests/test_reviewer_fallback_workflow_contract.py": "5736b6d667b6059debb6f685231592dad7a19ffe",
-    "tests/test_yaml_loader_security.py": "fca85e6a73b1daf04f19c704613b2e54afbaa55a"
+    "tests/test_yaml_loader_security.py": "fca85e6a73b1daf04f19c704613b2e54afbaa55a",
+    "vcml/linux-ebpf/runtime_fd_reuse_proof.py": "3a31a974ca29fa38a6e0fdeb4cfa4ee2493f8abe",
+    "vcml/linux-ebpf/runtime_read_binding_trust_entrypoint.py": "828cfca32a586970b7a602bf804ac158aadc9cfe"
   },
   "schema_version": "cml-trust-root-files-v1"
 }
