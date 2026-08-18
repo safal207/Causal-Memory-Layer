@@ -329,9 +329,18 @@ jobs:
       - name: Download exact-run security evidence
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
-          pattern: cml-security-lane-*-${{ github.run_id }}-${{ github.run_attempt }}
+          pattern: cml-security-lane-*-${{ github.run_id }}-*
           path: artifacts/collected
           merge-multiple: false
+
+      - name: Resolve selective-rerun security evidence
+        run: |
+          python -m scripts.ci.resolve_security_evidence \
+            --collected-root artifacts/collected \
+            --run-id "$GITHUB_RUN_ID" \
+            --tested-sha "$EXPECTED_SHA" \
+            --output-root artifacts/resolved \
+            --selection-output artifacts/final/security-evidence-selection.json
 
       - name: Build security evidence manifest
         run: |
@@ -347,9 +356,10 @@ jobs:
             --workflow-ref "$GITHUB_WORKFLOW_REF" \
             --require "final/exact-head.json" \
             --require "final/security-gate-results.json" \
-            --require "collected/cml-security-lane-dependency-${{ github.run_id }}-${{ github.run_attempt }}/scanner-results.json" \
-            --require "collected/cml-security-lane-secret-${{ github.run_id }}-${{ github.run_attempt }}/gitleaks.json" \
-            --require "collected/cml-security-lane-codeql-${{ github.run_id }}-${{ github.run_attempt }}/codeql.json" \
+            --require "final/security-evidence-selection.json" \
+            --require "resolved/dependency/scanner-results.json" \
+            --require "resolved/secret/gitleaks.json" \
+            --require "resolved/codeql/codeql.json" \
             --output artifacts/final/security-evidence-manifest.json
 
       - name: Upload final security evidence
