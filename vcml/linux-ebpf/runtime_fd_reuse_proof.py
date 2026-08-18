@@ -12,6 +12,10 @@ available numeric fd. The eBPF program captures the backing (device, inode) at
 sys_enter_read and carries it through sys_exit_read. A PASS therefore proves
 that one reused numeric fd remained bound to two different kernel objects at
 the two read boundaries.
+
+Kernel ``s_dev`` and userspace ``stat().st_dev`` use different integer
+encodings. The evaluator compares their canonical major/minor identities while
+retaining the raw kernel device integer in evidence.
 """
 
 from __future__ import annotations
@@ -207,6 +211,15 @@ def _load_bcc():
     return BPF
 
 
+def _expected_stat_identity(stat_result: os.stat_result) -> dict[str, int]:
+    return {
+        "device_major": int(os.major(stat_result.st_dev)),
+        "device_minor": int(os.minor(stat_result.st_dev)),
+        "userspace_st_dev": int(stat_result.st_dev),
+        "inode": int(stat_result.st_ino),
+    }
+
+
 def run(output: Path, poll_timeout_seconds: float) -> int:
     tracepoint = Path("/sys/kernel/tracing/events/syscalls/sys_enter_read/id")
     legacy_tracepoint = Path("/sys/kernel/debug/tracing/events/syscalls/sys_enter_read/id")
@@ -307,8 +320,8 @@ def run(output: Path, poll_timeout_seconds: float) -> int:
             return 1
 
         verdict = evaluate_fd_reuse_runtime_proof(
-            expected_a={"device": int(stat_a.st_dev), "inode": int(stat_a.st_ino)},
-            expected_b={"device": int(stat_b.st_dev), "inode": int(stat_b.st_ino)},
+            expected_a=_expected_stat_identity(stat_a),
+            expected_b=_expected_stat_identity(stat_b),
             workload=workload,
             events=events,
         )
