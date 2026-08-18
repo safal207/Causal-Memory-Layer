@@ -1,0 +1,101 @@
+name: eBPF Runtime Proof
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cml-ebpf-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  fd-reuse-proof:
+    name: Live kernel fd-reuse object proof
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove exact-head checkout
+        run: |
+          /usr/bin/python3 -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/ebpf-runtime/exact-head.json
+
+      - name: Initialize fail-closed runtime evidence
+        run: |
+          mkdir -p artifacts/ebpf-runtime
+          /usr/bin/python3 - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("artifacts/ebpf-runtime/fd-reuse-proof.json")
+          payload = {
+              "schema_version": "cml-ebpf-fd-reuse-runtime-proof-v1",
+              "status": "UNSUPPORTED_ENVIRONMENT",
+              "reason": "runtime proof did not reach the BPF harness",
+          }
+          path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+
+      - name: Install BCC runtime
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          NEEDRESTART_MODE: a
+        run: |
+          record_unsupported() {
+            REASON="$1" /usr/bin/python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          path = Path("artifacts/ebpf-runtime/fd-reuse-proof.json")
+          payload = {
+              "schema_version": "cml-ebpf-fd-reuse-runtime-proof-v1",
+              "status": "UNSUPPORTED_ENVIRONMENT",
+              "reason": os.environ["REASON"],
+          }
+          path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+          }
+
+          if ! timeout 120s sudo -E apt-get update; then
+            record_unsupported "apt-get update failed or timed out"
+            exit 1
+          fi
+          if ! timeout 120s sudo -E apt-get install -y --no-install-recommends python3-bpfcc bpfcc-tools; then
+            record_unsupported "BCC package installation failed or timed out"
+            exit 1
+          fi
+
+      - name: Run live fd-reuse kernel proof
+        run: |
+          sudo -E env PYTHONPATH="$GITHUB_WORKSPACE" \
+            /usr/bin/python3 vcml/linux-ebpf/runtime_fd_reuse_proof.py \
+            --output artifacts/ebpf-runtime/fd-reuse-proof.json
+
+      - name: Upload runtime evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-ebpf-runtime-proof-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/ebpf-runtime/
+          if-no-files-found: error
+          retention-days: 30

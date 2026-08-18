@@ -9,6 +9,7 @@ WORKFLOWS = [
     ROOT / ".github/workflows/ci.yml",
     ROOT / ".github/workflows/python-package-validation.yml",
     ROOT / ".github/workflows/security.yml",
+    ROOT / ".github/workflows/ebpf-runtime-proof.yml",
 ]
 
 
