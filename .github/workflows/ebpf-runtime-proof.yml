@@ -20,7 +20,7 @@ env:
 
 jobs:
   fd-reuse-proof:
-    name: Live kernel fd-reuse object proof
+    name: Live kernel read trust proofs
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     permissions:
@@ -47,13 +47,22 @@ jobs:
           /usr/bin/python3 - <<'PY'
           import json
           from pathlib import Path
-          path = Path("artifacts/ebpf-runtime/fd-reuse-proof.json")
-          payload = {
-              "schema_version": "cml-ebpf-fd-reuse-runtime-proof-v1",
-              "status": "UNSUPPORTED_ENVIRONMENT",
-              "reason": "runtime proof did not reach the BPF harness",
+
+          proofs = {
+              "fd-reuse-proof.json": "cml-ebpf-fd-reuse-runtime-proof-v1",
+              "witness-issued-read-token-proof.json": "cml-witness-issued-read-token-runtime-proof-v1",
           }
-          path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          for filename, schema_version in proofs.items():
+              path = Path("artifacts/ebpf-runtime") / filename
+              payload = {
+                  "schema_version": schema_version,
+                  "status": "UNSUPPORTED_ENVIRONMENT",
+                  "reason": "runtime proof did not reach the BPF harness",
+              }
+              path.write_text(
+                  json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
           PY
 
       - name: Install BCC runtime
@@ -66,13 +75,22 @@ jobs:
           import json
           import os
           from pathlib import Path
-          path = Path("artifacts/ebpf-runtime/fd-reuse-proof.json")
-          payload = {
-              "schema_version": "cml-ebpf-fd-reuse-runtime-proof-v1",
-              "status": "UNSUPPORTED_ENVIRONMENT",
-              "reason": os.environ["REASON"],
+
+          proofs = {
+              "fd-reuse-proof.json": "cml-ebpf-fd-reuse-runtime-proof-v1",
+              "witness-issued-read-token-proof.json": "cml-witness-issued-read-token-runtime-proof-v1",
           }
-          path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          for filename, schema_version in proofs.items():
+              path = Path("artifacts/ebpf-runtime") / filename
+              payload = {
+                  "schema_version": schema_version,
+                  "status": "UNSUPPORTED_ENVIRONMENT",
+                  "reason": os.environ["REASON"],
+              }
+              path.write_text(
+                  json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
           PY
           }
 
@@ -90,6 +108,12 @@ jobs:
           sudo -E env PYTHONPATH="$GITHUB_WORKSPACE" \
             /usr/bin/python3 vcml/linux-ebpf/runtime_fd_reuse_proof.py \
             --output artifacts/ebpf-runtime/fd-reuse-proof.json
+
+      - name: Run live witness-issued token ledger proof
+        run: |
+          sudo -E env PYTHONPATH="$GITHUB_WORKSPACE" \
+            /usr/bin/python3 vcml/linux-ebpf/runtime_read_binding_trust_entrypoint.py \
+            --output artifacts/ebpf-runtime/witness-issued-read-token-proof.json
 
       - name: Upload runtime evidence
         if: always()

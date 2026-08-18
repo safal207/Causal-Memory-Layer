@@ -1,4 +1,4 @@
-# External Read Witness Contract v0.2
+# External Read Witness Contract v0.3
 
 ## Purpose
 
@@ -59,7 +59,7 @@ ExternalCompletedReadIds(scope) ⊆ LedgerObservationReadIds(scope)
 
 This is stronger than count equality. Two external reads `{A, B}` and two ledger rows `{A, A}` have equal counts but fail exact coverage because `B` is missing.
 
-The reference Linux eBPF monitor derives a local correlation identity from:
+The v0.8 Linux eBPF monitor derives a local correlation identity from:
 
 ```text
 (pid, tid, bpf_ktime_get_ns() captured at sys_enter_read)
@@ -70,6 +70,21 @@ The kernel-side read-start map carries that entry timestamp to `sys_exit_read`, 
 The identifier is a correlation token, not a claim of cryptographic authenticity or global uniqueness. Scope binding and independent witness provenance remain required.
 
 Successful completion means `sys_exit_read` returned `ret >= 0`, including EOF at `ret == 0`. Failed reads (`ret < 0`) do not require a successful-content observation.
+
+## Derived identity vs witness-issued identity
+
+A kernel-derived `read_id` gives strong boundary correlation, but provenance still matters. If one collector emits both the external completion record and the ledger observation, that collector must not be treated as an independent proof of its own completeness.
+
+The stronger reference shape is a witness-issued token:
+
+```text
+external issuer -> one-shot read_id -> kernel use boundary
+                                  \-> application ledger
+```
+
+The token exists before the consequential read and is consumed at `sys_enter_read`. The ledger receives the token independently instead of learning it from `sys_exit_read` after the fact.
+
+See `WITNESS_ISSUED_READ_TOKEN_CONTRACT.md` for the one-shot runtime contract and negative-control proof.
 
 ## Persistence boundary
 
@@ -84,6 +99,14 @@ action == "read" and read_id != null
 A persisted `read_exit` record is deliberately **not** accepted as proof of ledger observation coverage. Otherwise the external completion witness could prove its own completeness simply by being stored beside the records it is supposed to check.
 
 Legacy records without `read_id` remain valid CML records, but they cannot contribute to exact identity coverage.
+
+## Kernel object identity
+
+v0.8 resolves the numeric fd at `sys_enter_read` through the task fd table and binds the read to the backing kernel `(device, inode)` object. That identity is carried through the per-read kernel start state to `sys_exit_read`.
+
+This closes the old fd-reuse ambiguity for exact object reconciliation. The path string remains descriptive evidence from the userspace last-open-by-PID cache; object coverage therefore uses kernel `object_id`, not path equality.
+
+The live fd-reuse proof in `runtime_fd_reuse_proof.py` additionally verifies on a real kernel that the same numeric fd can be reused for two distinct inodes while the object witness remains correct.
 
 ## Failure modes
 
@@ -132,6 +155,20 @@ The system must not convert lookup failure into missing evidence.
 
 A witness produced for one session or scope must not establish liveness or exact coverage for another scope, even if its read identifiers happen to match.
 
+### Self-attested completeness
+
+```text
+same failure domain produces external witness and ledger observation
+```
+
+Expected result:
+
+```text
+do not claim independent completeness
+```
+
+Correlation can still be useful, but independence must be supplied by architecture rather than inferred from field equality.
+
 ## Design rule
 
 Do not add new applicability statuses for store failures.
@@ -141,7 +178,9 @@ Store-level failures belong before applicability.
 Keep aggregate liveness and exact per-read coverage distinct:
 
 - aggregate evidence answers whether the channel was alive at all;
-- identity evidence answers whether specific successful reads are covered.
+- identity evidence answers whether specific successful reads are covered;
+- object evidence answers whether both sides mean the same kernel object;
+- witness-issued identity strengthens provenance by preventing post-hoc ledger token invention.
 
 ## Reference implementation direction
 
@@ -151,10 +190,9 @@ Potential witnesses:
 - kernel audit stream
 - independent runtime hook
 - signed external receipt stream
+- witness-issued one-shot read-token service
 
 The witness must fail independently from the store it validates.
-
-The current vCML Linux eBPF reference monitor still associates paths using the last opened path for a PID. Therefore `read_id` strengthens syscall correlation, but it does **not** yet prove exact fd-to-path attribution. A future fd-aware kernel mapping is a separate contract.
 
 ## Verification tests
 
@@ -168,7 +206,7 @@ A valid aggregate implementation should pass:
 
 A valid identity implementation should also pass:
 
-1. `sys_enter_read` creates a boundary correlation token.
+1. `sys_enter_read` creates or consumes a boundary correlation token.
 2. `sys_exit_read` carries the same token from kernel state.
 3. `CausalRecord` preserves the token through persistence round-trips.
 4. Two externally completed reads `{A, B}` and persisted read observations `{A, B}` pass.
@@ -177,5 +215,6 @@ A valid identity implementation should also pass:
 7. A `read_exit` record alone cannot prove its own ledger coverage.
 8. A duplicate external completion identifier fails closed.
 9. An unavailable identity witness never produces PASS.
+10. For witness-issued mode, a second read without a new token cannot reuse the first token.
 
-This proves the system can detect both total collector silence and selective loss instead of silently converting either into a valid applicability verdict.
+This proves the system can detect total silence, selective loss, object substitution, and token replay instead of silently converting them into a valid applicability verdict.
