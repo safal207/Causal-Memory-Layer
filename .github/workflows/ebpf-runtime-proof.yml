@@ -94,6 +94,15 @@ jobs:
           PY
           }
 
+          # Hosted Ubuntu runners can prefer a regional Azure mirror that may
+          # stall independently of our code. For this live-proof bootstrap,
+          # use one deterministic upstream mirror when the image exposes the
+          # mirror list consumed by apt.
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu' \
+              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+
           apt_with_deadline() {
             sudo -E timeout --kill-after=15s 180s \
               apt-get \
