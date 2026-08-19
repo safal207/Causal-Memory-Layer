@@ -22,7 +22,7 @@ jobs:
   fd-reuse-proof:
     name: Live kernel read trust proofs
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -94,11 +94,29 @@ jobs:
           PY
           }
 
-          if ! timeout 120s sudo -E apt-get update; then
+          # Hosted Ubuntu runners can prefer a regional Azure mirror that may
+          # stall independently of our code. For this live-proof bootstrap,
+          # use one deterministic upstream mirror when the image exposes the
+          # mirror list consumed by apt.
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu' \
+              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+
+          apt_with_deadline() {
+            sudo -E timeout --kill-after=15s 180s \
+              apt-get \
+              -o Acquire::Retries=2 \
+              -o Acquire::http::Timeout=20 \
+              -o Acquire::https::Timeout=20 \
+              "$@"
+          }
+
+          if ! apt_with_deadline update; then
             record_unsupported "apt-get update failed or timed out"
             exit 1
           fi
-          if ! timeout 120s sudo -E apt-get install -y --no-install-recommends python3-bpfcc bpfcc-tools; then
+          if ! apt_with_deadline install -y --no-install-recommends python3-bpfcc bpfcc-tools; then
             record_unsupported "BCC package installation failed or timed out"
             exit 1
           fi
