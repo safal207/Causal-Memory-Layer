@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 
 from cml.integrations.identifier_population_witness import (
+    IDENTIFIER_MEASUREMENT_PREDICATE,
+    POPULATION_COMMITMENT_FIELDS,
     FoldMeasurement,
     HistoricalCollisionRecord,
     HistoricalKeyLedger,
@@ -25,6 +27,7 @@ def _snapshot(payload: dict) -> IdentifierPopulationSnapshot:
         scope=payload["scope"],
         records=tuple(IdentifierKeyRecord(**item) for item in payload["records"]),
         complete=payload.get("complete", True),
+        population_basis=payload.get("population_basis", "lookup_keyspace"),
     )
 
 
@@ -79,6 +82,9 @@ def _run_scenario(scenario: dict):
         expected_scope=use["expected_scope"],
         current_policy_digest=use["policy_digest"],
         current_policy_epoch=use["policy_epoch"],
+        expected_population_basis=use.get(
+            "expected_population_basis", "lookup_keyspace"
+        ),
     )
     return witness, result
 
@@ -87,7 +93,7 @@ def test_identifier_population_witness_fixtures() -> None:
     payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
     contract = payload["benchmark_contract"]
     assert contract["negative_control_required"] is True
-    assert len(payload["cases"]) == contract["expected_cases"] == 5
+    assert len(payload["cases"]) == contract["expected_cases"] == 6
     assert contract["excluded_cases"] == 0
 
     for case in payload["cases"]:
@@ -124,6 +130,57 @@ def test_population_commitment_distinguishes_same_count_different_keys() -> None
 
     assert left.population_count == right.population_count == 3
     assert left.population_commitment != right.population_commitment
+
+
+def test_population_basis_is_bound_and_declares_commitment_scope() -> None:
+    policy = "policy-v1"
+    epoch = "1"
+    records = (IdentifierKeyRecord("scratchpad/httpfail.mjs", policy, epoch),)
+    surviving_sources = IdentifierPopulationSnapshot(
+        scope="tenant-a",
+        records=records,
+        population_basis="surviving_sources",
+    )
+    lookup_keyspace = IdentifierPopulationSnapshot(
+        scope="tenant-a",
+        records=records,
+        population_basis="lookup_keyspace",
+    )
+
+    assert surviving_sources.population_commitment != lookup_keyspace.population_commitment
+
+    witness = issue_identifier_population_witness(
+        surviving_sources,
+        (FoldMeasurement("prefix_122", "ZERO_AT_SCALE", 0, 149, 27, 634),),
+        measured_at=MEASURED_AT,
+        identifier_policy_digest=policy,
+        identifier_policy_epoch=epoch,
+    )
+
+    assert witness.population_commitment_fields == POPULATION_COMMITMENT_FIELDS
+    assert witness.measurement_predicate == IDENTIFIER_MEASUREMENT_PREDICATE
+
+    stale_by_basis = validate_identifier_population_witness(
+        witness,
+        surviving_sources,
+        expected_scope="tenant-a",
+        current_policy_digest=policy,
+        current_policy_epoch=epoch,
+        expected_population_basis="lookup_keyspace",
+    )
+    assert stale_by_basis.measurement_valid_for_use is False
+    assert stale_by_basis.reasons == ("population_basis_mismatch",)
+
+    control = validate_identifier_population_witness(
+        witness,
+        surviving_sources,
+        expected_scope="tenant-a",
+        current_policy_digest=policy,
+        current_policy_epoch=epoch,
+        expected_population_basis="surviving_sources",
+    )
+    assert control.measurement_valid_for_use is True
+    assert control.reasons == ()
 
 
 def test_deleted_collision_remains_visible_after_recompute() -> None:
