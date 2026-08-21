@@ -76,6 +76,19 @@ def test_frozen_shared_vector_reproduces_both_binding_layers() -> None:
     ]
 
 
+def test_peer_live_decision_ref_recomputes_without_peer_code() -> None:
+    peer = _payload()["peer_vectors"][0]
+    preimage = peer["preimage"]
+
+    reproduced = content_commitment(preimage)
+    reordered = dict(reversed(list(preimage.items())))
+
+    assert reproduced == peer["expected_sha256"]
+    assert content_commitment(reordered) == reproduced
+    assert f"sha256:{reproduced}" == peer["reported_decision_ref"]
+    assert peer["reported_execution_binding"] == "external"
+
+
 def test_healthy_external_consumption_envelope_states_where_proof_stops() -> None:
     healthy, envelope = _healthy()
 
