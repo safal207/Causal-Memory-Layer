@@ -183,6 +183,90 @@ def test_population_basis_is_bound_and_declares_commitment_scope() -> None:
     assert control.reasons == ()
 
 
+def test_complete_empty_population_has_vacuous_full_coverage() -> None:
+    policy = "policy-v1"
+    epoch = "1"
+    snapshot = IdentifierPopulationSnapshot(scope="tenant-a", records=())
+    history = HistoricalKeyLedger(scope="tenant-a", key_digests=(), complete=True)
+
+    witness = issue_identifier_population_witness(
+        snapshot,
+        (),
+        measured_at=MEASURED_AT,
+        identifier_policy_digest=policy,
+        identifier_policy_epoch=epoch,
+        history=history,
+    )
+    result = validate_identifier_population_witness(
+        witness,
+        snapshot,
+        expected_scope="tenant-a",
+        current_policy_digest=policy,
+        current_policy_epoch=epoch,
+    )
+
+    assert witness.writer_contract_coverage == 1.0
+    assert witness.historical_key_coverage == 1.0
+    assert result.historical_integrity_available is True
+    assert result.measurement_valid_for_use is True
+    assert result.reasons == ()
+
+
+def test_historical_collision_retains_full_binding_evidence() -> None:
+    policy = "policy-v1"
+    epoch = "1"
+    snapshot = IdentifierPopulationSnapshot(
+        scope="tenant-a",
+        records=(IdentifierKeyRecord("abc1", policy, epoch),),
+    )
+    first_collision = HistoricalCollisionRecord(
+        collision_id="collision-1",
+        scope="tenant-a",
+        fold="prefix_3",
+        observed_population_commitment=snapshot.population_commitment,
+    )
+    rebound_collision = HistoricalCollisionRecord(
+        collision_id="collision-1",
+        scope="tenant-a",
+        fold="prefix_4",
+        observed_population_commitment="other-population-commitment",
+    )
+
+    first = issue_identifier_population_witness(
+        snapshot,
+        (),
+        measured_at=MEASURED_AT,
+        identifier_policy_digest=policy,
+        identifier_policy_epoch=epoch,
+        historical_collisions=(first_collision,),
+    )
+    rebound = issue_identifier_population_witness(
+        snapshot,
+        (),
+        measured_at=MEASURED_AT,
+        identifier_policy_digest=policy,
+        identifier_policy_epoch=epoch,
+        historical_collisions=(rebound_collision,),
+    )
+
+    assert first.historical_collision_ids == rebound.historical_collision_ids == (
+        "collision-1",
+    )
+    assert first.historical_collision_records == (first_collision,)
+    assert rebound.historical_collision_records == (rebound_collision,)
+    assert first.historical_collision_records != rebound.historical_collision_records
+
+    validated = validate_identifier_population_witness(
+        first,
+        snapshot,
+        expected_scope="tenant-a",
+        current_policy_digest=policy,
+        current_policy_epoch=epoch,
+    )
+    assert validated.historical_collision_records == (first_collision,)
+    assert validated.historical_collision_ids == ("collision-1",)
+
+
 def test_deleted_collision_remains_visible_after_recompute() -> None:
     policy = "policy-v1"
     epoch = "1"
@@ -227,6 +311,7 @@ def test_deleted_collision_remains_visible_after_recompute() -> None:
     )
     assert stale.reasons == ("population_changed",)
     assert stale.historical_collision_ids == ("collision-abc-prefix-3",)
+    assert stale.historical_collision_records == (collision,)
 
     recomputed = issue_identifier_population_witness(
         after_delete,
@@ -248,6 +333,7 @@ def test_deleted_collision_remains_visible_after_recompute() -> None:
     assert current.measurement_valid_for_use is True
     assert current.historical_integrity_available is True
     assert current.historical_collision_ids == ("collision-abc-prefix-3",)
+    assert current.historical_collision_records == (collision,)
 
 
 def test_incomplete_population_cannot_issue_exact_witness() -> None:
