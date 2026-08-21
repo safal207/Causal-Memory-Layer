@@ -1,0 +1,43 @@
+{
+  "schema_version": "cml-verification-envelope-fixtures-v0.1",
+  "canonicalization_profile": "rfc8785-jcs-ascii-integer-subset-v0.1",
+  "healthy": {
+    "occurrence_id": "occ-venzx-0001",
+    "bound_content": {
+      "args": {
+        "amount_cents": 5000,
+        "currency": "USD",
+        "recipient": "merchant-42"
+      },
+      "tool": "charge_card"
+    },
+    "commitment_scope": ["args", "tool"],
+    "fresh_through": "consumption",
+    "execution_binding": "external",
+    "requires_use_time_revalidation": true,
+    "expected_canonical_utf8": "{\"args\":{\"amount_cents\":5000,\"currency\":\"USD\",\"recipient\":\"merchant-42\"},\"tool\":\"charge_card\"}",
+    "expected_sha256": "603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b"
+  },
+  "negative_controls": [
+    {
+      "id": "args-drift",
+      "mutation": "amount_cents:5000->5001",
+      "expected_reason": "content_commitment_mismatch"
+    },
+    {
+      "id": "occurrence-drift",
+      "expected_occurrence_id": "occ-venzx-0002",
+      "expected_reason": "occurrence_mismatch"
+    },
+    {
+      "id": "execution-required",
+      "require_execution_attestation": true,
+      "expected_reason": "execution_binding_insufficient"
+    },
+    {
+      "id": "execution-freshness-required",
+      "required_fresh_through": "execution",
+      "expected_reason": "freshness_insufficient"
+    }
+  ]
+}
