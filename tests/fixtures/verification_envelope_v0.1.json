@@ -20,6 +20,33 @@
     "expected_envelope_canonical_utf8": "{\"canonicalization_profile\":\"rfc8785-jcs-ascii-integer-subset-v0.1\",\"commitment_scope\":[\"args\",\"tool\"],\"content_commitment\":\"603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b\",\"execution_binding\":\"external\",\"fresh_through\":\"consumption\",\"occurrence_id\":\"occ-venzx-0001\",\"requires_use_time_revalidation\":true}",
     "expected_envelope_sha256": "49c0525b7271ffe27a24aea3e0df3d7635956b35cf8f8b835476e43cedb07c9d"
   },
+  "peer_vectors": [
+    {
+      "id": "babyblueviper1-ledger-246-decision-ref",
+      "source_system": "babyblueviper1 live verdict ledger",
+      "source_entry": 246,
+      "preimage": {
+        "artifact_hash": "d7f8744cfdbc955abc59a5f587028598cbe4e53613bfd9b3c0c186ad95ee5065",
+        "artifact_type": "agent_output",
+        "policy_version": "invinoveritas.review.v11",
+        "verdict": "approve_with_concerns",
+        "source_class": "independent_mediator",
+        "vantage_limitation": null,
+        "related_decision_ref": null,
+        "intended_audience": null,
+        "confidentiality_tier": null,
+        "disclosed_summary": null,
+        "intended_verifier": null,
+        "policy_commitment": "sha256:b0d29b374874515c8ffa392326fd05d80fcee28dc791fdbb5edbeb6fd50396dd",
+        "verified_at": 1787077030,
+        "registry_as_of": 1787077030,
+        "registry_snapshot_sha256": "ca7912e150d4e03f4c762f4d4b2a4718c1e56043c45756f6031578f84fcddbb5"
+      },
+      "expected_sha256": "a90a6f398e94129344549d36bd93cbefabd97f0f18a2fb7ca548ada24a089aaa",
+      "reported_decision_ref": "sha256:a90a6f398e94129344549d36bd93cbefabd97f0f18a2fb7ca548ada24a089aaa",
+      "reported_execution_binding": "external"
+    }
+  ],
   "negative_controls": [
     {
       "id": "args-drift",
