@@ -2,8 +2,9 @@
 
 The canonicalization profile is deliberately narrower than full RFC 8785 JCS.
 It accepts only the JSON subset for which Python's deterministic encoding is
-byte-compatible with JCS: ASCII strings/keys, safe integers, booleans, null,
-arrays, and objects. Full-JCS interoperability remains an external vector test.
+byte-compatible with JCS: printable ASCII strings/keys, safe integers, booleans,
+null, arrays, and objects. Full-JCS interoperability remains an external vector
+test.
 """
 
 from __future__ import annotations
@@ -29,8 +30,8 @@ def _validate_ascii(value: str, *, name: str) -> None:
     _non_empty(name, value)
     if not value.isascii():
         raise ValueError(f"{name} must be ASCII in {CANONICALIZATION_PROFILE}")
-    if any(ord(char) < 0x20 for char in value):
-        raise ValueError(f"{name} must not contain control characters")
+    if any(ord(char) < 0x20 or ord(char) > 0x7E for char in value):
+        raise ValueError(f"{name} must contain only printable ASCII characters")
 
 
 def _validate_sha256_hex(name: str, value: str) -> None:
@@ -51,8 +52,8 @@ def _validate_canonical_subset(value: Any, *, path: str = "$") -> None:
     if isinstance(value, str):
         if not value.isascii():
             raise ValueError(f"{path} string must be ASCII")
-        if any(ord(char) < 0x20 for char in value):
-            raise ValueError(f"{path} string must not contain control characters")
+        if any(ord(char) < 0x20 or ord(char) > 0x7E for char in value):
+            raise ValueError(f"{path} string must contain only printable ASCII characters")
         return
     if isinstance(value, list):
         for index, item in enumerate(value):
