@@ -185,7 +185,11 @@ class IdentifierPopulationWitness:
     writer_policy_mismatch_key_digests: tuple[str, ...]
     historical_key_coverage: float
     historical_history_complete: bool
-    historical_collision_ids: tuple[str, ...]
+    historical_collision_records: tuple[HistoricalCollisionRecord, ...]
+
+    @property
+    def historical_collision_ids(self) -> tuple[str, ...]:
+        return tuple(record.collision_id for record in self.historical_collision_records)
 
     @property
     def at_cliff_edge(self) -> tuple[str, ...]:
@@ -205,12 +209,18 @@ class IdentifierPopulationValidation:
     must_recompute: bool
     reasons: tuple[str, ...]
     historical_integrity_available: bool
-    historical_collision_ids: tuple[str, ...]
+    historical_collision_records: tuple[HistoricalCollisionRecord, ...]
     at_cliff_edge: tuple[str, ...]
+
+    @property
+    def historical_collision_ids(self) -> tuple[str, ...]:
+        return tuple(record.collision_id for record in self.historical_collision_records)
 
 
 def _ratio(count: int, total: int) -> float:
-    return 0.0 if total == 0 else count / total
+    """Return coverage, treating a complete empty population as vacuously covered."""
+
+    return 1.0 if total == 0 else count / total
 
 
 def issue_identifier_population_witness(
@@ -272,6 +282,16 @@ def issue_identifier_population_witness(
     collision_ids = [record.collision_id for record in historical_collisions]
     if len(set(collision_ids)) != len(collision_ids):
         raise ValueError("historical collision ids must be unique")
+    retained_collisions = tuple(
+        sorted(
+            historical_collisions,
+            key=lambda record: (
+                record.collision_id,
+                record.fold,
+                record.observed_population_commitment,
+            ),
+        )
+    )
 
     return IdentifierPopulationWitness(
         scope=snapshot.scope,
@@ -289,7 +309,7 @@ def issue_identifier_population_witness(
         writer_policy_mismatch_key_digests=mismatches,
         historical_key_coverage=historical_key_coverage,
         historical_history_complete=historical_history_complete,
-        historical_collision_ids=tuple(sorted(collision_ids)),
+        historical_collision_records=retained_collisions,
     )
 
 
@@ -361,6 +381,6 @@ def validate_identifier_population_witness(
         must_recompute=bool(reasons),
         reasons=tuple(reasons),
         historical_integrity_available=historical_integrity_available,
-        historical_collision_ids=witness.historical_collision_ids,
+        historical_collision_records=witness.historical_collision_records,
         at_cliff_edge=witness.at_cliff_edge,
     )
