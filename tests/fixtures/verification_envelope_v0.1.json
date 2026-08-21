@@ -11,7 +11,10 @@
       },
       "tool": "charge_card"
     },
-    "commitment_scope": ["args", "tool"],
+    "commitment_scope": [
+      "args",
+      "tool"
+    ],
     "fresh_through": "consumption",
     "execution_binding": "external",
     "requires_use_time_revalidation": true,
@@ -19,6 +22,14 @@
     "expected_sha256": "603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b",
     "expected_envelope_canonical_utf8": "{\"canonicalization_profile\":\"rfc8785-jcs-ascii-integer-subset-v0.1\",\"commitment_scope\":[\"args\",\"tool\"],\"content_commitment\":\"603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b\",\"execution_binding\":\"external\",\"fresh_through\":\"consumption\",\"occurrence_id\":\"occ-venzx-0001\",\"requires_use_time_revalidation\":true}",
     "expected_envelope_sha256": "49c0525b7271ffe27a24aea3e0df3d7635956b35cf8f8b835476e43cedb07c9d"
+  },
+  "occurrence_isolation": {
+    "content_occurrence_a": "occ-venzx-0001",
+    "content_occurrence_b": "occ-venzx-0002",
+    "expected_shared_content_sha256": "603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b",
+    "expected_envelope_sha256_a": "49c0525b7271ffe27a24aea3e0df3d7635956b35cf8f8b835476e43cedb07c9d",
+    "expected_envelope_sha256_b": "deafc040eed9f3240b4ff1818c59dca9657254399841950f07cefaa8cbccb208",
+    "invariant": "identical content may share content identity; distinct occurrences must not share occurrence-bound envelope identity"
   },
   "peer_vectors": [
     {
@@ -45,6 +56,26 @@
       "expected_sha256": "a90a6f398e94129344549d36bd93cbefabd97f0f18a2fb7ca548ada24a089aaa",
       "reported_decision_ref": "sha256:a90a6f398e94129344549d36bd93cbefabd97f0f18a2fb7ca548ada24a089aaa",
       "reported_execution_binding": "external"
+    }
+  ],
+  "peer_findings": [
+    {
+      "id": "babyblueviper1-occurrence-envelope-resolution",
+      "source_system": "babyblueviper1 live production admissions log",
+      "content_identity_field": "artifact_hash",
+      "occurrence_identity_field": "admission_index",
+      "envelope_identity_field": "decision_ref",
+      "content_binding": "SUPPORTED",
+      "occurrence_identity": "SUPPORTED",
+      "envelope_binding": "SUPPORTED_WITH_LIMITATION",
+      "limitation": "decision_ref can collide across distinct admissions when the wider JCS preimage is identical; verified_at has 1-second resolution and admission_index is not bound into decision_ref",
+      "reported_measurements": {
+        "recurring_probe_admissions": 289,
+        "distinct_admission_index": 289,
+        "issued_proof_rows_sampled": 101,
+        "distinct_decision_ref": 67
+      },
+      "requested_next_evidence": "one concrete redacted collision pair with distinct admission_index values and the same decision_ref"
     }
   ],
   "negative_controls": [
