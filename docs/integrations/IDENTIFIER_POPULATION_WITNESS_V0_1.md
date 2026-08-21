@@ -42,10 +42,34 @@ Identifier measurements need the same discipline.
 
 ## Population binding
 
+`current population` is not defined as "whatever objects still exist at the
+source." It is the population that the **actual lookup path keys on** for the
+measurement being governed.
+
+That distinction matters for append-only or audit-style stores. Deleting a source
+object may leave its key addressable in the store. A surviving-source scan can
+therefore be clean while the lookup keyspace still contains a colliding key.
+Time-binding cannot repair a witness that committed to the wrong set.
+
+`IdentifierPopulationSnapshot.population_basis` names that relation. The default
+is:
+
+```text
+lookup_keyspace
+```
+
+A different basis can be represented, but the verifier must state the basis it
+expects. A witness issued over `surviving_sources` cannot validate a claim that
+requires `lookup_keyspace`, even if both happen to contain the same visible keys.
+
 A complete identifier population is committed as a deterministic SHA-256 over:
 
 ```text
 scope
++
+population_basis
++
+commitment_fields = (scope, population_basis, key_digest)
 +
 sorted SHA-256(key) identities
 ```
@@ -54,7 +78,10 @@ The witness records:
 
 ```text
 scope
+population_basis
 population_commitment
+population_commitment_fields
+measurement_predicate = identifier_collision_headroom
 population_count
 writer_contract_commitment
 measured_at
@@ -66,19 +93,54 @@ historical_key_coverage
 historical collision ids
 ```
 
-The use-time invariant is:
+The use-time invariant is therefore:
 
 ```text
 measurement is valid for use
 ONLY IF
+witness.population_basis == expected_population_basis
+AND
+current_snapshot.population_basis == expected_population_basis
+AND
 measured_population_commitment == current_population_commitment
 ```
 
 A count match is deliberately insufficient. `{A,B,C}` and `{A,B,D}` have the
-same cardinality and different population commitments.
+same cardinality and different population commitments. Likewise, equal key sets
+under different population bases produce different commitments.
 
 An incomplete current population cannot establish equality and therefore cannot
 produce a use-time PASS.
+
+### Commitment scope and evidentiary sufficiency
+
+A valid hash is not automatically sufficient evidence for every question a
+consumer may ask.
+
+This witness explicitly declares:
+
+```text
+population_commitment_fields = (scope, population_basis, key_digest)
+measurement_predicate = identifier_collision_headroom
+```
+
+Those fields are sufficient for the identifier collision/headroom predicate this
+contract governs. They are **not** sufficient to prove, for example, that an
+observation's content is still current; that predicate would also depend on the
+observed content digest.
+
+The verifier must therefore keep two questions separate:
+
+```text
+Does the commitment verify?
+!=
+Is this commitment sufficient for the predicate being established?
+```
+
+In compact form:
+
+> Cryptographic validity is not evidentiary sufficiency. A commitment must cover
+> exactly the fields the claimed predicate depends on.
 
 ## CHECK -> INSERT -> USE
 
@@ -109,9 +171,11 @@ it does not prescribe a storage engine.
 
 ## Historical collision evidence
 
-A current scan sees only current keys. If two identifiers once collided under a
-fold and one is later deleted, a surviving-key scan can become clean while the
-historical loss event remains real.
+A source-side current scan sees only current source objects. If two identifiers
+once collided under a fold and one source is later deleted, a surviving-source
+scan can become clean while the historical loss event remains real. In an
+append-only store, the deleted source's key may additionally remain addressable,
+which means the collision can remain in force rather than merely historical.
 
 Therefore this contract keeps two claims separate:
 
@@ -120,6 +184,9 @@ current fold measurement
 !=
 historical fold integrity
 ```
+
+and requires the current fold measurement itself to be taken over the declared
+lookup population basis.
 
 `HistoricalKeyLedger` represents append-only identities for keys ever observed
 in the scope. `HistoricalCollisionRecord` is sticky evidence of an observed
@@ -133,8 +200,9 @@ historical_collision_seen = true
 
 back to false.
 
-This mirrors source-side reconciliation: disappearance from the current set is
-not proof that the missing object never existed.
+This mirrors source-side reconciliation: disappearance from the current source
+set is not proof that the missing object never existed, and it is not proof that
+the backing lookup store stopped addressing it.
 
 ## Writer policy binding
 
@@ -209,6 +277,12 @@ classes, each with a paired negative control:
 The benchmark contract requires all five cases and all five controls; there are
 no silently excluded cases in v0.1.
 
+A separate regression control freezes the population-basis boundary surfaced by
+an append-only path-keyed implementation: identical visible keys committed as
+`surviving_sources` and `lookup_keyspace` must not be interchangeable. The
+negative path fails as `population_basis_mismatch`; the same witness validates
+when the consumer explicitly asks for the basis it was issued over.
+
 ## Non-claims
 
 This witness does not claim that a fold with a fresh measurement is globally
@@ -216,7 +290,11 @@ safe forever. It does not predict future key distributions. It does not prove
 historical completeness when the historical ledger is incomplete. It does not
 make a statistical threshold authoritative over direct measured collisions.
 
+The library cannot infer a backend's true lookup relation from a list of keys;
+the caller must supply an honest `population_basis`, and the relying consumer
+must state the basis its predicate actually requires.
+
 It answers one narrower question precisely:
 
-> Does this identifier measurement still describe the exact state and policy it
-> is being asked to govern now?
+> Does this identifier measurement still describe the exact lookup population,
+> commitment scope and policy it is being asked to govern now?
