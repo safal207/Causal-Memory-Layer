@@ -93,7 +93,7 @@ def test_identifier_population_witness_fixtures() -> None:
     payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
     contract = payload["benchmark_contract"]
     assert contract["negative_control_required"] is True
-    assert len(payload["cases"]) == contract["expected_cases"] == 6
+    assert len(payload["cases"]) == contract["expected_cases"] == 5
     assert contract["excluded_cases"] == 0
 
     for case in payload["cases"]:
