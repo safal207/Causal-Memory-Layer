@@ -16,7 +16,9 @@
     "execution_binding": "external",
     "requires_use_time_revalidation": true,
     "expected_canonical_utf8": "{\"args\":{\"amount_cents\":5000,\"currency\":\"USD\",\"recipient\":\"merchant-42\"},\"tool\":\"charge_card\"}",
-    "expected_sha256": "603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b"
+    "expected_sha256": "603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b",
+    "expected_envelope_canonical_utf8": "{\"canonicalization_profile\":\"rfc8785-jcs-ascii-integer-subset-v0.1\",\"commitment_scope\":[\"args\",\"tool\"],\"content_commitment\":\"603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b\",\"execution_binding\":\"external\",\"fresh_through\":\"consumption\",\"occurrence_id\":\"occ-venzx-0001\",\"requires_use_time_revalidation\":true}",
+    "expected_envelope_sha256": "49c0525b7271ffe27a24aea3e0df3d7635956b35cf8f8b835476e43cedb07c9d"
   },
   "negative_controls": [
     {
@@ -30,6 +32,11 @@
       "expected_reason": "occurrence_mismatch"
     },
     {
+      "id": "occurrence-relabel-without-rebinding",
+      "mutation": "occurrence_id:occ-venzx-0001->occ-venzx-0002",
+      "expected_reason": "envelope_commitment_mismatch"
+    },
+    {
       "id": "execution-required",
       "require_execution_attestation": true,
       "expected_reason": "execution_binding_insufficient"
@@ -38,6 +45,12 @@
       "id": "execution-freshness-required",
       "required_fresh_through": "execution",
       "expected_reason": "freshness_insufficient"
+    },
+    {
+      "id": "execution-freshness-with-external-binding",
+      "fresh_through": "execution",
+      "execution_binding": "external",
+      "expected_error": "fresh_through=execution requires execution_binding=attested"
     }
   ]
 }
