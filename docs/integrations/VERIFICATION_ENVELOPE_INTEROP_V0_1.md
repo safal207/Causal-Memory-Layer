@@ -16,6 +16,7 @@ The envelope carries:
 ```text
 occurrence_id
 content_commitment
+envelope_commitment
 commitment_scope
 canonicalization_profile
 fresh_through
@@ -29,18 +30,47 @@ These fields deliberately separate concerns that are easy to collapse:
   content hash and does not deduplicate distinct intents that happen to have the
   same arguments.
 - `content_commitment` binds the exact canonical bytes of the effective content.
-- `commitment_scope` says which top-level fields those bytes cover.
+- `envelope_commitment` binds the occurrence identity to that content commitment
+  and to the capability-disclosure fields below.
+- `commitment_scope` says which top-level fields the content bytes cover.
 - `fresh_through` states the last boundary at which freshness is actually
   established: `issuance`, `consumption`, or `execution`.
 - `execution_binding` states whether execution is actually attested. `external`
   is an honest capability disclosure, not a degraded form of `attested`.
-- `requires_use_time_revalidation` is explicit so a valid signature/hash cannot
-  silently imply live freshness.
+- `requires_use_time_revalidation` is explicit so a valid hash cannot silently
+  imply live freshness.
 
 The compact invariant is:
 
 > A verifier must be able to reproduce what was bound, identify which occurrence
 > it belongs to, and know exactly where the proof stops.
+
+## Two binding layers
+
+The model deliberately keeps content identity and occurrence identity separate:
+
+```text
+content_commitment = H(canonical effective content)
+
+envelope_commitment = H(
+    occurrence_id
+    + content_commitment
+    + commitment_scope
+    + canonicalization_profile
+    + fresh_through
+    + execution_binding
+    + requires_use_time_revalidation
+)
+```
+
+This preserves useful content identity across two identical actions while still
+preventing an existing envelope from being relabeled as a different occurrence
+without breaking the outer commitment.
+
+The outer commitment is an integrity/linkage primitive, not authenticity by
+itself. v0.1 does not define signatures or a trusted distribution channel. A
+future signature can sign the frozen envelope commitment rather than inventing a
+second occurrence-to-content pairing rule.
 
 ## Canonicalization profile
 
@@ -56,15 +86,15 @@ rfc8785-jcs-ascii-integer-subset-v0.1
 It permits only values for which the dependency-free encoder used here is
 byte-compatible with RFC 8785 JCS:
 
-- ASCII object keys and strings;
+- printable ASCII object keys and ASCII strings;
 - integers within the interoperable safe range `[-(2^53-1), 2^53-1]`;
 - booleans;
 - null;
 - arrays;
 - objects.
 
-Floats and non-ASCII strings are rejected rather than encoded under a stronger
-compatibility claim than this implementation can prove.
+Floats, non-ASCII strings, and control characters are rejected rather than
+encoded under a stronger compatibility claim than this implementation can prove.
 
 This is intentional. The first cross-system test should be a shared byte vector,
 not the fact that two repositories happen to list the same canonicalization
@@ -86,7 +116,7 @@ Its bound content is:
 }
 ```
 
-The expected canonical UTF-8 bytes decode to:
+The expected canonical content UTF-8 bytes decode to:
 
 ```text
 {"args":{"amount_cents":5000,"currency":"USD","recipient":"merchant-42"},"tool":"charge_card"}
@@ -98,8 +128,14 @@ and their SHA-256 is:
 603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b
 ```
 
-An independent implementation passes the byte-level seam only if it reproduces
-those canonical bytes and that digest from the semantic JSON object, without
+The frozen outer envelope commitment is:
+
+```text
+49c0525b7271ffe27a24aea3e0df3d7635956b35cf8f8b835476e43cedb07c9d
+```
+
+The fixture also freezes the exact canonical bytes used to derive that outer
+commitment, so an independent implementation can reproduce both layers without
 using CML code.
 
 ## Capability disclosure
@@ -118,14 +154,28 @@ It proves neither execution nor execution-time freshness. A consumer requiring
 those properties must fail closed instead of reading a proof-shaped object as a
 stronger guarantee.
 
-The v0.1 negative controls freeze exactly that distinction:
+The schema also rejects this contradictory pair at issue time:
+
+```text
+fresh_through = execution
+execution_binding = external
+```
+
+Within this envelope, claiming freshness through execution requires the system
+to attest the execution boundary. Otherwise the freshness claim would extend
+past the component's disclosed authority.
+
+The v0.1 negative controls freeze these distinctions:
 
 1. argument drift changes the content commitment;
-2. occurrence drift fails even when content is identical;
-3. `execution_binding=external` cannot satisfy a requirement for execution
+2. expected occurrence drift fails even when content is identical;
+3. relabeling an existing envelope to another occurrence without rebinding
+   breaks `envelope_commitment`;
+4. `execution_binding=external` cannot satisfy a requirement for execution
    attestation;
-4. `fresh_through=consumption` cannot satisfy a requirement for execution-time
-   freshness.
+5. `fresh_through=consumption` cannot satisfy a requirement for execution-time
+   freshness;
+6. execution-time freshness cannot be issued with external execution binding.
 
 ## Why occurrence identity is separate
 
@@ -140,24 +190,26 @@ occurrence identity
 content identity
 ```
 
-A verifier can require both:
+but the outer commitment links them:
 
 ```text
-expected occurrence matches
-AND
-recomputed content commitment matches
+content identity
+    + occurrence identity
+    + capability disclosure
+        -> envelope commitment
 ```
 
-This prevents a correctly hashed action from silently standing in for a
-separate authorization occurrence.
+This is stronger than merely checking two adjacent fields. Adjacent checks are
+correlation; a shared commitment makes the relationship reproducible.
 
 ## Why ordering is not enough
 
 Ordering can establish that one event happened before another. It cannot prove
 that the later event is the action authorized by the earlier one.
 
-The content commitment is the binding. Timing/freshness is an additional
-constraint, not a substitute for that binding.
+The content commitment is the action binding. The envelope commitment binds that
+action identity to a particular occurrence and disclosure. Timing/freshness is
+an additional constraint, not a substitute for either binding.
 
 ## Interoperability bar
 
@@ -167,8 +219,10 @@ A useful cross-system run should publish at least:
 producer implementation + commit
 consumer implementation + commit
 fixture version
-canonical bytes reproduced: yes/no
+canonical content bytes reproduced: yes/no
 content digest reproduced: yes/no
+canonical envelope bytes reproduced: yes/no
+envelope digest reproduced: yes/no
 occurrence binding: pass/fail
 freshness requirement: pass/fail + disclosed boundary
 execution binding: pass/fail + disclosed boundary
@@ -181,8 +235,10 @@ certification.
 
 v0.1 does not claim full RFC 8785 support. It does not define a signature format,
 key distribution, clock authority, execution attestation mechanism, or transport.
+`envelope_commitment` provides deterministic linkage, not signer authenticity.
 It does not turn `execution_binding=external` into execution evidence.
 
 It establishes one small shared surface that can be independently recomputed.
 The next step is to run the frozen vector through a second implementation and
-compare bytes, digest, occurrence semantics, and capability disclosure.
+compare both canonical byte sequences, both digests, occurrence semantics, and
+capability disclosure.
