@@ -217,3 +217,6 @@ def test_subset_rejects_values_that_need_full_jcs_before_claiming_interop() -> N
 
     with pytest.raises(ValueError, match="string must be ASCII"):
         canonicalize_verification_content({"label": "café"})
+
+    with pytest.raises(ValueError, match="printable ASCII"):
+        canonicalize_verification_content({"label": "\x7f"})
