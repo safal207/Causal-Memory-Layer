@@ -14,6 +14,11 @@ import json
 from typing import Iterable
 
 
+POPULATION_COMMITMENT_FIELDS = ("scope", "population_basis", "key_digest")
+IDENTIFIER_MEASUREMENT_PREDICATE = "identifier_collision_headroom"
+DEFAULT_POPULATION_BASIS = "lookup_keyspace"
+
+
 def _non_empty(name: str, value: str) -> None:
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} must be a non-empty string")
@@ -56,14 +61,16 @@ class IdentifierKeyRecord:
 
 @dataclass(frozen=True)
 class IdentifierPopulationSnapshot:
-    """A complete point-in-time identifier population for one scope."""
+    """A complete point-in-time identifier population for one lookup basis/scope."""
 
     scope: str
     records: tuple[IdentifierKeyRecord, ...]
     complete: bool = True
+    population_basis: str = DEFAULT_POPULATION_BASIS
 
     def __post_init__(self) -> None:
         _non_empty("scope", self.scope)
+        _non_empty("population_basis", self.population_basis)
         if not isinstance(self.complete, bool):
             raise TypeError("complete must be boolean")
         keys = [record.key for record in self.records]
@@ -75,10 +82,18 @@ class IdentifierPopulationSnapshot:
         return len(self.records)
 
     @property
+    def population_commitment_fields(self) -> tuple[str, ...]:
+        """Declare exactly which fields the population commitment depends on."""
+
+        return POPULATION_COMMITMENT_FIELDS
+
+    @property
     def population_commitment(self) -> str:
         return _commit(
             {
                 "scope": self.scope,
+                "population_basis": self.population_basis,
+                "commitment_fields": self.population_commitment_fields,
                 "key_digests": sorted(record.key_digest for record in self.records),
             }
         )
@@ -88,6 +103,7 @@ class IdentifierPopulationSnapshot:
         return _commit(
             {
                 "scope": self.scope,
+                "population_basis": self.population_basis,
                 "records": sorted(
                     (
                         record.key_digest,
@@ -155,7 +171,10 @@ class HistoricalCollisionRecord:
 @dataclass(frozen=True)
 class IdentifierPopulationWitness:
     scope: str
+    population_basis: str
     population_commitment: str
+    population_commitment_fields: tuple[str, ...]
+    measurement_predicate: str
     population_count: int
     writer_contract_commitment: str
     measured_at: str
@@ -256,7 +275,10 @@ def issue_identifier_population_witness(
 
     return IdentifierPopulationWitness(
         scope=snapshot.scope,
+        population_basis=snapshot.population_basis,
         population_commitment=snapshot.population_commitment,
+        population_commitment_fields=snapshot.population_commitment_fields,
+        measurement_predicate=IDENTIFIER_MEASUREMENT_PREDICATE,
         population_count=snapshot.population_count,
         writer_contract_commitment=snapshot.writer_contract_commitment,
         measured_at=measured_at,
@@ -278,6 +300,7 @@ def validate_identifier_population_witness(
     expected_scope: str,
     current_policy_digest: str,
     current_policy_epoch: str,
+    expected_population_basis: str = DEFAULT_POPULATION_BASIS,
 ) -> IdentifierPopulationValidation:
     """Fail closed if a correct measurement no longer describes state at use time.
 
@@ -290,6 +313,7 @@ def validate_identifier_population_witness(
         ("expected_scope", expected_scope),
         ("current_policy_digest", current_policy_digest),
         ("current_policy_epoch", current_policy_epoch),
+        ("expected_population_basis", expected_population_basis),
     ):
         _non_empty(name, value)
 
@@ -298,12 +322,23 @@ def validate_identifier_population_witness(
     if foreign_scope:
         reasons.append("foreign_scope")
     else:
-        if not current_snapshot.complete:
+        population_basis_mismatch = (
+            witness.population_basis != expected_population_basis
+            or current_snapshot.population_basis != expected_population_basis
+        )
+        if population_basis_mismatch:
+            reasons.append("population_basis_mismatch")
+        elif not current_snapshot.complete:
             reasons.append("population_incomplete")
         elif current_snapshot.population_commitment != witness.population_commitment:
             reasons.append("population_changed")
         elif current_snapshot.writer_contract_commitment != witness.writer_contract_commitment:
             reasons.append("writer_contract_changed")
+
+    if witness.population_commitment_fields != POPULATION_COMMITMENT_FIELDS:
+        reasons.append("commitment_scope_mismatch")
+    if witness.measurement_predicate != IDENTIFIER_MEASUREMENT_PREDICATE:
+        reasons.append("measurement_predicate_mismatch")
 
     if (
         witness.identifier_policy_digest != current_policy_digest
