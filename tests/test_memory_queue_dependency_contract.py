@@ -25,21 +25,34 @@ class MemoryQueueDependencyContractTests(unittest.TestCase):
         target.write_text(content, encoding="utf-8")
         return path
 
+    def _workflow_with_install_commands(self, commands: list[str]) -> str:
+        return (
+            "\n".join(
+                [
+                    "jobs:",
+                    "  test:",
+                    "    steps:",
+                    "      - name: Run unrelated tests",
+                    "        run: |",
+                    "          python -m pytest \\",
+                    "            tests/test_memory_proposal_queue.py \\",
+                    "            tests/test_memory_proposal_queue_revalidation.py",
+                    f"      - name: {CONTRACT.INSTALL_STEP_NAME}",
+                    "        run: |",
+                    *[f"          {command}" for command in commands],
+                ]
+            )
+            + "\n"
+        )
+
     def test_exact_protected_requirement_commands_are_accepted(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             workflow = self._write_workflow(
                 root,
-                "\n".join(
-                    [
-                        "python -m pytest \\",
-                        "  tests/test_memory_proposal_queue.py \\",
-                        "  tests/test_memory_proposal_queue_revalidation.py",
-                        "python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_pip_bootstrap.txt",
-                        "python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_ci_requirements.txt",
-                    ]
-                )
-                + "\n",
+                self._workflow_with_install_commands(
+                    list(CONTRACT.CANONICAL_INSTALL_COMMANDS)
+                ),
             )
             with patch.object(CONTRACT, "ROOT", root):
                 CONTRACT._require_hash_enforced_workflow(workflow)
@@ -49,19 +62,39 @@ class MemoryQueueDependencyContractTests(unittest.TestCase):
             root = Path(directory)
             workflow = self._write_workflow(
                 root,
-                "\n".join(
+                self._workflow_with_install_commands(
                     [
-                        "# python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_pip_bootstrap.txt",
-                        "# python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_ci_requirements.txt",
+                        f"# {CONTRACT.CANONICAL_INSTALL_COMMANDS[0]}",
+                        f"# {CONTRACT.CANONICAL_INSTALL_COMMANDS[1]}",
                         "python3 -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_pip_bootstrap.txt.untrusted",
                     ]
-                )
-                + "\n",
+                ),
             )
             with patch.object(CONTRACT, "ROOT", root):
                 with self.assertRaisesRegex(
                     CONTRACT.DependencyContractError,
-                    "noncanonical pip installer command",
+                    "commands must exactly match the protected install contract",
+                ):
+                    CONTRACT._require_hash_enforced_workflow(workflow)
+
+    def test_dynamic_installer_after_canonical_commands_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workflow = self._write_workflow(
+                root,
+                self._workflow_with_install_commands(
+                    [
+                        *CONTRACT.CANONICAL_INSTALL_COMMANDS,
+                        "INSTALLER=python",
+                        "PIP_MODULE=pip",
+                        '"$INSTALLER" -m "$PIP_MODULE" install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_ci_requirements.txt',
+                    ]
+                ),
+            )
+            with patch.object(CONTRACT, "ROOT", root):
+                with self.assertRaisesRegex(
+                    CONTRACT.DependencyContractError,
+                    "commands must exactly match the protected install contract",
                 ):
                     CONTRACT._require_hash_enforced_workflow(workflow)
 
