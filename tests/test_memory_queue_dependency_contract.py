@@ -25,7 +25,9 @@ class MemoryQueueDependencyContractTests(unittest.TestCase):
         target.write_text(content, encoding="utf-8")
         return path
 
-    def _workflow_with_install_commands(self, commands: list[str]) -> str:
+    def _workflow_with_install_commands(
+        self, commands: list[str], *, extra_steps: list[str] | None = None
+    ) -> str:
         return (
             "\n".join(
                 [
@@ -40,6 +42,7 @@ class MemoryQueueDependencyContractTests(unittest.TestCase):
                     f"      - name: {CONTRACT.INSTALL_STEP_NAME}",
                     "        run: |",
                     *[f"          {command}" for command in commands],
+                    *(extra_steps or []),
                 ]
             )
             + "\n"
@@ -51,7 +54,15 @@ class MemoryQueueDependencyContractTests(unittest.TestCase):
             workflow = self._write_workflow(
                 root,
                 self._workflow_with_install_commands(
-                    list(CONTRACT.CANONICAL_INSTALL_COMMANDS)
+                    list(CONTRACT.CANONICAL_INSTALL_COMMANDS),
+                    extra_steps=[
+                        "      - name: Verify authority boundary",
+                        "        run: |",
+                        "          python - <<'PY'",
+                        "          import json",
+                        '          assert json.loads(\'{"authority_granted": false}\')["authority_granted"] is False',
+                        "          PY",
+                    ],
                 ),
             )
             with patch.object(CONTRACT, "ROOT", root):
@@ -95,6 +106,51 @@ class MemoryQueueDependencyContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     CONTRACT.DependencyContractError,
                     "commands must exactly match the protected install contract",
+                ):
+                    CONTRACT._require_hash_enforced_workflow(workflow)
+
+    def test_dynamic_installer_in_separate_step_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workflow = self._write_workflow(
+                root,
+                self._workflow_with_install_commands(
+                    list(CONTRACT.CANONICAL_INSTALL_COMMANDS),
+                    extra_steps=[
+                        "      - name: Hidden installer",
+                        "        run: |",
+                        "          PYTHON=python",
+                        "          PIP_MODULE=pip",
+                        "          SUBCOMMAND=install",
+                        '          "$PYTHON" -m "$PIP_MODULE" "$SUBCOMMAND" --no-require-hashes -r attacker.txt',
+                    ],
+                ),
+            )
+            with patch.object(CONTRACT, "ROOT", root):
+                with self.assertRaisesRegex(
+                    CONTRACT.DependencyContractError,
+                    "must not construct commands through shell assignments",
+                ):
+                    CONTRACT._require_hash_enforced_workflow(workflow)
+
+    def test_non_python_shell_command_outside_install_step_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workflow = self._write_workflow(
+                root,
+                self._workflow_with_install_commands(
+                    list(CONTRACT.CANONICAL_INSTALL_COMMANDS),
+                    extra_steps=[
+                        "      - name: Hidden shell",
+                        "        run: |",
+                        '          bash -c "$COMMAND"',
+                    ],
+                ),
+            )
+            with patch.object(CONTRACT, "ROOT", root):
+                with self.assertRaisesRegex(
+                    CONTRACT.DependencyContractError,
+                    "outside the restricted Python grammar",
                 ):
                     CONTRACT._require_hash_enforced_workflow(workflow)
 
