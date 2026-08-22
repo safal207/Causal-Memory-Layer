@@ -22,6 +22,12 @@ HASHED_PIN_RE = re.compile(
 PIP_COMMAND_RE = re.compile(r"^pip(?:\d+(?:\.\d+)*)?$")
 CANONICAL_PIP_PREFIX = ("python", "-m", "pip", "install")
 CANONICAL_PIP_FLAGS = {"--require-hashes", "--only-binary=:all:"}
+INSTALL_STEP_NAME = "Install hash-bound test tooling"
+CANONICAL_INSTALL_COMMANDS = tuple(
+    "python -m pip install --require-hashes --only-binary=:all: "
+    f"--requirement {requirement}"
+    for requirement in (BOOTSTRAP, REQUIREMENTS)
+)
 
 
 class DependencyContractError(ValueError):
@@ -60,8 +66,73 @@ def _is_pip_install(tokens: list[str]) -> bool:
     )
 
 
+def _leading_spaces(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _extract_install_step_commands(text: str, path: Path) -> tuple[str, ...]:
+    lines = text.splitlines()
+    marker = f"- name: {INSTALL_STEP_NAME}"
+    matches = [index for index, line in enumerate(lines) if line.strip() == marker]
+    if len(matches) != 1:
+        raise DependencyContractError(
+            f"{path} must contain exactly one {INSTALL_STEP_NAME!r} step"
+        )
+
+    start = matches[0]
+    step_indent = _leading_spaces(lines[start])
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        stripped = lines[index].strip()
+        if (
+            stripped
+            and _leading_spaces(lines[index]) <= step_indent
+            and stripped.startswith("- ")
+        ):
+            end = index
+            break
+
+    step_lines = lines[start + 1 : end]
+    run_indexes = [
+        index
+        for index, line in enumerate(step_lines)
+        if line.strip() == "run: |" and _leading_spaces(line) == step_indent + 2
+    ]
+    if len(run_indexes) != 1:
+        raise DependencyContractError(
+            f"{path} {INSTALL_STEP_NAME!r} step must contain exactly one literal run block"
+        )
+
+    run_index = run_indexes[0]
+    if any(line.strip() for line in step_lines[:run_index]):
+        raise DependencyContractError(
+            f"{path} {INSTALL_STEP_NAME!r} step must not contain extra configuration"
+        )
+
+    run_indent = _leading_spaces(step_lines[run_index])
+    commands: list[str] = []
+    for raw_line in step_lines[run_index + 1 :]:
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        if _leading_spaces(raw_line) <= run_indent:
+            raise DependencyContractError(
+                f"{path} {INSTALL_STEP_NAME!r} step must contain only its run block"
+            )
+        if stripped.startswith("#"):
+            continue
+        commands.append(stripped)
+    return tuple(commands)
+
+
 def _require_hash_enforced_workflow(path: Path) -> None:
     text = (ROOT / path).read_text(encoding="utf-8")
+    install_commands = _extract_install_step_commands(text, path)
+    if install_commands != CANONICAL_INSTALL_COMMANDS:
+        raise DependencyContractError(
+            f"{path} {INSTALL_STEP_NAME!r} commands must exactly match the protected install contract"
+        )
+
     expected_files = [str(BOOTSTRAP), str(REQUIREMENTS)]
     observed_files: list[str] = []
 
