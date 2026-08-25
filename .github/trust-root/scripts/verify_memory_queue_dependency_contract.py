@@ -166,6 +166,15 @@ def _extract_run_blocks(text: str, path: Path) -> tuple[tuple[str, tuple[str, ..
                 raise DependencyContractError(
                     f"{path} step {step_name!r} must use run: | or a single literal command"
                 )
+            for probe in range(index + 1, len(lines)):
+                probe_line = lines[probe]
+                if not probe_line.strip():
+                    continue
+                if _leading_spaces(probe_line) > indent:
+                    raise DependencyContractError(
+                        f"{path} step {step_name!r} must not use a multi-line plain run scalar"
+                    )
+                break
             blocks.append((step_name, (suffix,)))
 
         index += 1

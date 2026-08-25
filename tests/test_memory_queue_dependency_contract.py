@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+
+import yaml
 from unittest.mock import patch
 
 
@@ -51,20 +53,21 @@ class MemoryQueueDependencyContractTests(unittest.TestCase):
     def test_exact_protected_requirement_commands_are_accepted(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            workflow = self._write_workflow(
-                root,
-                self._workflow_with_install_commands(
-                    list(CONTRACT.CANONICAL_INSTALL_COMMANDS),
-                    extra_steps=[
-                        "      - name: Verify authority boundary",
-                        "        run: |",
-                        "          python - <<'PY'",
-                        "          import json",
-                        '          assert json.loads(\'{"authority_granted": false}\')["authority_granted"] is False',
-                        "          PY",
-                    ],
-                ),
+            content = self._workflow_with_install_commands(
+                list(CONTRACT.CANONICAL_INSTALL_COMMANDS),
+                extra_steps=[
+                    "      - name: Verify authority boundary",
+                    "        run: |",
+                    "          python - <<'PY'",
+                    "          import json",
+                    '          assert json.loads(\'{"authority_granted": false}\')["authority_granted"] is False',
+                    "          PY",
+                ],
             )
+            parsed = yaml.safe_load(content)
+            heredoc_script = parsed["jobs"]["test"]["steps"][-1]["run"]
+            self.assertEqual(heredoc_script.splitlines()[-1], "PY")
+            workflow = self._write_workflow(root, content)
             with patch.object(CONTRACT, "ROOT", root):
                 CONTRACT._require_hash_enforced_workflow(workflow)
 
@@ -130,6 +133,27 @@ class MemoryQueueDependencyContractTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     CONTRACT.DependencyContractError,
                     "must not construct commands through shell assignments",
+                ):
+                    CONTRACT._require_hash_enforced_workflow(workflow)
+
+    def test_multiline_plain_run_scalar_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workflow = self._write_workflow(
+                root,
+                self._workflow_with_install_commands(
+                    list(CONTRACT.CANONICAL_INSTALL_COMMANDS),
+                    extra_steps=[
+                        "      - name: Continued plain scalar",
+                        "        run: python .github/trust-root/scripts/memory_queue_revalidation_collect.py",
+                        "          ; python -m pip install --no-require-hashes -r attacker.txt",
+                    ],
+                ),
+            )
+            with patch.object(CONTRACT, "ROOT", root):
+                with self.assertRaisesRegex(
+                    CONTRACT.DependencyContractError,
+                    "must not use a multi-line plain run scalar",
                 ):
                     CONTRACT._require_hash_enforced_workflow(workflow)
 
