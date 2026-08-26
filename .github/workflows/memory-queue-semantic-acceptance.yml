@@ -1,0 +1,172 @@
+name: Memory Queue Semantic Acceptance v0.4
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "cml/experimental/memory_proposal_queue.py"
+      - "cml/experimental/memory_proposal_queue_planner.py"
+      - "cml/experimental/memory_proposal_queue_revalidation.py"
+      - "cml/experimental/memory_proposal_semantic_acceptance.py"
+      - ".github/trust-root/scripts/memory_queue_revalidation_collect.py"
+      - ".github/trust-root/scripts/verify_memory_queue_dependency_contract.py"
+      - ".github/trust-root/memory_queue_pip_bootstrap.txt"
+      - ".github/trust-root/memory_queue_ci_requirements.txt"
+      - "tests/test_memory_proposal_queue.py"
+      - "tests/test_memory_proposal_queue_planner.py"
+      - "tests/test_memory_proposal_queue_revalidation.py"
+      - "tests/test_memory_proposal_semantic_acceptance.py"
+      - "tests/test_memory_queue_collectors.py"
+      - "docs/integrations/MEMORY_PROPOSAL_QUEUE_REVALIDATION_V0_3.md"
+      - "docs/integrations/MEMORY_PROPOSAL_SEMANTIC_ACCEPTANCE_V0_4.md"
+      - ".github/workflows/memory-queue-semantic-acceptance.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cml-memory-queue-semantic-acceptance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  semantic-intake:
+    name: Freeze live semantic review packets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+
+    steps:
+      - name: Checkout exact verifier head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            .github/trust-root/memory_queue_pip_bootstrap.txt
+            .github/trust-root/memory_queue_ci_requirements.txt
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/memory-queue-semantic-acceptance/exact-head.json
+
+      - name: Verify dependency integrity contract
+        run: python .github/trust-root/scripts/verify_memory_queue_dependency_contract.py
+
+      - name: Install hash-bound test tooling
+        run: |
+          python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_pip_bootstrap.txt
+          python -m pip install --require-hashes --only-binary=:all: --requirement .github/trust-root/memory_queue_ci_requirements.txt
+
+      - name: Run queue and semantic-intake contract tests
+        run: |
+          python -m pytest \
+            tests/test_memory_proposal_queue.py \
+            tests/test_memory_proposal_queue_planner.py \
+            tests/test_memory_proposal_queue_revalidation.py \
+            tests/test_memory_proposal_semantic_acceptance.py \
+            tests/test_memory_queue_collectors.py
+
+      - name: Collect exact live revalidation evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python .github/trust-root/scripts/memory_queue_revalidation_collect.py \
+            --out-dir artifacts/memory-queue-semantic-acceptance/live
+
+      - name: Freeze semantic review intake
+        run: |
+          python -m cml.experimental.memory_proposal_semantic_acceptance build \
+            artifacts/memory-queue-semantic-acceptance/live/planner-input.json \
+            artifacts/memory-queue-semantic-acceptance/live/planner-result.json \
+            > artifacts/memory-queue-semantic-acceptance/live/semantic-intake.json
+
+      - name: Verify live packet coverage and authority boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("artifacts/memory-queue-semantic-acceptance/live")
+          summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
+          plan = json.loads((root / "planner-result.json").read_text(encoding="utf-8"))
+          intake = json.loads((root / "semantic-intake.json").read_text(encoding="utf-8"))
+
+          proposal_count = summary["proposal_count"]
+          fitness_counts = summary["fitness_counts"]
+          assert "REVIEW_REQUIRED" in fitness_counts, fitness_counts
+          review_required = fitness_counts["REVIEW_REQUIRED"]
+
+          assert plan["record_count"] == proposal_count
+          assert intake["packet_count"] == proposal_count
+          assert intake["pending_human_review_count"] == review_required
+          assert intake["completed_human_review_count"] == 0
+          assert intake["current_main_revision"] == summary["main_revision"]
+          assert intake["source_plan_digest"] == plan["plan_digest"]
+
+          assert intake["authority_granted"] is False
+          assert intake["merge_authority"] is False
+          assert intake["close_authority"] is False
+          assert intake["acceptance_authority"] is False
+          assert intake["execution_authority"] is False
+          assert intake["policy_mutation_authority"] is False
+
+          packet_ids = set()
+          for packet in intake["packets"]:
+              assert packet["packet_id"] not in packet_ids
+              packet_ids.add(packet["packet_id"])
+              assert packet["current_main_revision"] == summary["main_revision"]
+              assert packet["authority_granted"] is False
+              assert packet["merge_authority"] is False
+              assert packet["close_authority"] is False
+              assert packet["acceptance_authority"] is False
+              assert packet["execution_authority"] is False
+              assert packet["policy_mutation_authority"] is False
+
+          assert len(packet_ids) == proposal_count
+          PY
+
+      - name: Build exact-head evidence manifest
+        if: always()
+        run: |
+          python -m scripts.ci.build_evidence_manifest \
+            --artifacts-root artifacts/memory-queue-semantic-acceptance \
+            --repository "${{ github.repository }}" \
+            --source-repository "$SOURCE_REPOSITORY" \
+            --tested-sha "$EXPECTED_SHA" \
+            --event-name "${{ github.event_name }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-attempt "${{ github.run_attempt }}" \
+            --change-number "${{ github.event.pull_request.number || 0 }}" \
+            --workflow-ref "${{ github.workflow_ref }}" \
+            --require exact-head.json \
+            --output artifacts/memory-queue-semantic-acceptance/evidence-manifest.json
+
+      - name: Upload semantic intake evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-memory-queue-semantic-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/memory-queue-semantic-acceptance/
+          if-no-files-found: error
+          retention-days: 30
