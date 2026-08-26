@@ -1,0 +1,155 @@
+name: Refresh CML SEO and SMM layer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/seo-smm-refresh.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Improve discovery and share assets
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          readme = Path("README.md")
+          text = readme.read_text(encoding="utf-8")
+          text = text.replace(
+              "# Causal Memory Layer (CML)\n",
+              "# Causal Memory Layer (CML) — AI Agent Audit & Approval Lineage\n",
+              1,
+          )
+
+          marker = "<!-- seo-product-intro:start -->"
+          why_heading = "## Why CML?"
+          if marker not in text:
+              index = text.find(why_heading)
+              if index == -1:
+                  raise SystemExit(f"Missing heading: {why_heading}")
+              intro = dedent(r'''
+              <!-- seo-product-intro:start -->
+              **Open-source causal audit for AI-agent actions, tool calls, memory, delegation, policy ancestry, and human-approval lineage.**
+
+              CML is designed for a narrow but important question:
+
+              > The action happened — but can the trace prove why it was allowed?
+
+              Use CML when ordinary logs show operational success but reviewers still need to verify the exact task, evidence, delegation, policy, or approval chain behind a high-trust action.
+
+              | Search need | CML capability |
+              |---|---|
+              | AI-agent audit trail | Detect missing parents, ambiguous roots, and broken responsibility lineage |
+              | Approval-lineage verification | Check whether a sensitive action retains a valid policy or human-approval ancestor |
+              | Agent memory safety | Separate historical truth from current authority and applicability |
+              | Tool-call governance evidence | Preserve provider-neutral causal links across multi-step agent workflows |
+              | MCP audit tooling | Expose causal-audit checks to compatible AI-agent clients |
+
+              [Install from PyPI](https://pypi.org/project/causal-memory-layer/) · [Start here](docs/START_HERE.md) · [Open the dashboard](https://safal207.github.io/Causal-Memory-Layer/)
+              <!-- seo-product-intro:end -->
+              ''').strip()
+              text = text[:index] + intro + "\n\n" + text[index:]
+
+          readme.write_text(text, encoding="utf-8")
+
+          docs = Path("docs")
+          docs.mkdir(exist_ok=True)
+          social = dedent(r'''
+          # Causal Memory Layer Social & Distribution Kit
+
+          ## Canonical one-liner
+
+          > Causal Memory Layer is an open-source causal audit layer that checks why an AI-agent action was allowed by validating task, delegation, policy, memory, and approval lineage.
+
+          ## Search intent
+
+          Primary: AI agent audit, causal lineage, approval lineage, agent memory safety, causal audit trail.
+
+          Secondary: tool-call audit, human-in-the-loop evidence, responsibility lineage, missing parent cause, agent trace verification, MCP audit server.
+
+          ## Short share copy
+
+          ### LinkedIn
+
+          Logs usually tell you that an AI-agent action happened.
+
+          Causal Memory Layer asks a different question: why was it allowed?
+
+          CML checks whether the trace still contains the exact task, delegation, policy, evidence, memory applicability, or human-approval lineage behind a sensitive action. A workflow can be functionally successful and still be causally invalid.
+
+          Repository: https://github.com/safal207/Causal-Memory-Layer
+
+          ### X
+
+          Logs: the action completed.
+          CML: why was it allowed?
+
+          AI-agent audit • causal lineage • approval lineage • memory applicability • MCP
+
+          Functional success can still be causally invalid.
+
+          https://github.com/safal207/Causal-Memory-Layer
+
+          ### Telegram / Russian
+
+          Обычный лог говорит, что действие AI-агента произошло. Causal Memory Layer проверяет, почему оно было разрешено: существовала ли задача, делегирование, политика, актуальная память или human approval. Действие может быть функционально успешным, но причинно недействительным.
+
+          ## Reusable post formula
+
+          ```text
+          Successful action → expected parent cause → missing/stale/ambiguous lineage → audit finding → review decision
+          ```
+
+          ## Recommended GitHub metadata
+
+          Description:
+
+          > Causal audit and approval-lineage verification for AI-agent actions, tool calls, memory, and high-trust automation.
+
+          Topics:
+
+          `ai-agent-audit`, `causal-lineage`, `approval-lineage`, `agent-memory`, `ai-safety`, `audit-trail`, `mcp`, `tool-calling`, `human-in-the-loop`, `observability`, `python`, `open-source`
+          ''').strip() + "\n"
+          (docs / "SOCIAL_KIT.md").write_text(social, encoding="utf-8")
+
+          citation = dedent(r'''
+          cff-version: 1.2.0
+          message: "If you use Causal Memory Layer in research or engineering work, please cite this repository."
+          title: "Causal Memory Layer: AI Agent Audit and Approval-Lineage Verification"
+          type: software
+          authors:
+            - family-names: "Safonov"
+              given-names: "Aleksei"
+          repository-code: "https://github.com/safal207/Causal-Memory-Layer"
+          url: "https://github.com/safal207/Causal-Memory-Layer"
+          license: "MIT"
+          keywords:
+            - AI agent audit
+            - causal lineage
+            - approval lineage
+            - agent memory safety
+            - causal audit trail
+            - MCP
+          ''').strip() + "\n"
+          Path("CITATION.cff").write_text(citation, encoding="utf-8")
+          PY
+
+          rm -f .github/seo-smm-refresh.trigger
+          rm -f .github/workflows/seo-smm-refresh-once.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: improve CML SEO and social discovery"
+          git push
