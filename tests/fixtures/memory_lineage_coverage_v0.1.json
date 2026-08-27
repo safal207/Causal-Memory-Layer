@@ -1,0 +1,125 @@
+{
+  "schema_version": "cml-lineage-verification-coverage-v0.1",
+  "derived_population_enumerable": true,
+  "benchmark_contract": {
+    "denominator_includes_missing_lineage": true,
+    "state_precedes_digest": true,
+    "digest_mismatch_counts_as_verified": true,
+    "undefined_is_null_not_zero": true,
+    "expected_eligible_derived_records": 7,
+    "expected_verified_derived_records": 4,
+    "expected_uncovered_derived_records": 3,
+    "expected_coverage_numerator": 4,
+    "expected_coverage_denominator": 7
+  },
+  "records": [
+    {
+      "record_id": "direct-source-record",
+      "is_derived": false,
+      "dependencies": []
+    },
+    {
+      "record_id": "derived-active-match",
+      "is_derived": true,
+      "dependencies": [
+        {
+          "dependency_id": "dep-a",
+          "state": "active",
+          "expected_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "observed_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ],
+      "expected_verified": true,
+      "expected_gaps": []
+    },
+    {
+      "record_id": "derived-active-changed",
+      "is_derived": true,
+      "dependencies": [
+        {
+          "dependency_id": "dep-b",
+          "state": "active",
+          "expected_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "observed_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ],
+      "expected_verified": true,
+      "expected_gaps": []
+    },
+    {
+      "record_id": "derived-erased-null-digest",
+      "is_derived": true,
+      "dependencies": [
+        {
+          "dependency_id": "dep-c",
+          "state": "erased",
+          "expected_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "observed_digest": null
+        }
+      ],
+      "expected_verified": true,
+      "expected_gaps": []
+    },
+    {
+      "record_id": "derived-retired-null-digest",
+      "is_derived": true,
+      "dependencies": [
+        {
+          "dependency_id": "dep-d",
+          "state": "retired",
+          "expected_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "observed_digest": null
+        }
+      ],
+      "expected_verified": true,
+      "expected_gaps": []
+    },
+    {
+      "record_id": "derived-active-observed-missing",
+      "is_derived": true,
+      "dependencies": [
+        {
+          "dependency_id": "dep-e",
+          "state": "active",
+          "expected_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "observed_digest": null
+        }
+      ],
+      "expected_verified": false,
+      "expected_gaps": [
+        "lineage_observed_digest_unverifiable:dep-e"
+      ]
+    },
+    {
+      "record_id": "derived-lineage-undeclared",
+      "is_derived": true,
+      "dependencies": [],
+      "expected_verified": false,
+      "expected_gaps": [
+        "lineage_undeclared"
+      ]
+    },
+    {
+      "record_id": "derived-duplicate-dependency",
+      "is_derived": true,
+      "dependencies": [
+        {
+          "dependency_id": "dep-f",
+          "state": "active",
+          "expected_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "observed_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        },
+        {
+          "dependency_id": "dep-f",
+          "state": "active",
+          "expected_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "observed_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      ],
+      "expected_verified": false,
+      "expected_gaps": [
+        "lineage_duplicate:dep-f"
+      ]
+    }
+  ]
+}

@@ -201,7 +201,7 @@ The runner performs these checks automatically:
 8. Repeat `/decisions` and confirm the earlier outcome UUID is still cited.
 9. Save a bounded manifest containing both runtime IDs, the stable memory UUID, repository SHA, deployed SHA, and advisory-only markers.
 
-The changed runtime ID proves process replacement. The unchanged memory UUID proves CockroachDB durability. The unchanged, exact build SHA binds both observations to the reviewed artifact.
+The changed runtime ID is evidence of process replacement. The unchanged memory UUID is evidence of CockroachDB durability. The unchanged `build_sha` shows that both responses reported the reviewed source commit configured at deployment; it is not a hash or attestation of the built artifact bytes or resolved dependency set.
 
 ## Final submission gate
 
@@ -230,6 +230,9 @@ The gate fails unless:
 - Session, memory type, status, cosine threshold, and a bounded result count constrain recall.
 - Deployment errors redact known credentials before printing.
 - Generated evidence is untracked until a human deliberately reviews and selects it.
+- “Verified outcome” is an upstream operator assertion accepted from a holder of the shared demo key. This application does not independently establish outcome truth, caller identity, or cryptographic provenance; production use needs an authenticated issuer and an auditable verification policy.
+- The shared demo key protects the public demo surface but is not tenant identity or session-level authorization.
+- `build_sha` binds runtime-reported configuration to a reviewed source commit; it does not attest the deployed ZIP or mutable build inputs.
 - The project does not claim that semantic similarity alone proves causality; the stored parent UUID records which memory influenced the decision.
 - Review evidence supports a merge decision but never grants merge authority.
 

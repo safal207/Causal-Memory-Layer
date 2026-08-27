@@ -88,5 +88,26 @@ def test_connect_rejects_duplicate_sslmode_values(monkeypatch) -> None:
         "@db.invalid/db?sslmode=verify-full&sslmode=disable"
     )
 
-    with pytest.raises(ValueError, match="sslmode must be exactly verify-full"):
+    with pytest.raises(ValueError, match="duplicate parameter: sslmode"):
+        CockroachMemoryStore(database_url)._connect()
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "sslmode=verify-full&SSLMODE=disable",
+        "sslmode=verify-full&ssl%6dode=disable",
+    ],
+)
+def test_connect_rejects_canonical_duplicate_sslmode_names(
+    monkeypatch,
+    query: str,
+) -> None:
+    _install_fake_psycopg(monkeypatch)
+    database_url = (
+        "postgresql://synthetic-user:synthetic-password"
+        f"@db.invalid/db?{query}"
+    )
+
+    with pytest.raises(ValueError, match="duplicate parameter: sslmode"):
         CockroachMemoryStore(database_url)._connect()

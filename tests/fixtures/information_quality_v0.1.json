@@ -1,0 +1,152 @@
+{
+  "contract": "information_quality_v0.1",
+  "evidence_binding_required": true,
+  "cases": [
+    {
+      "id": "ready-supported-complete-relevant",
+      "input": {
+        "supporting_evidence": ["ev:policy-1"],
+        "contradicting_evidence": [],
+        "required_aspects": ["identity", "amount", "recipient"],
+        "observed_aspects": ["identity", "amount", "recipient"],
+        "claim_aspects": ["recipient"],
+        "evaluated_item_id": "claim:payment-authorization",
+        "source_record_id": "record:payment-policy",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:policy-1",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:payment-policy",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
+      },
+      "expected": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "READY",
+        "reasons": []
+      }
+    },
+    {
+      "id": "review-conflicting-evidence",
+      "input": {
+        "supporting_evidence": ["ev:source-a"],
+        "contradicting_evidence": ["ev:source-b"],
+        "required_aspects": ["identity"],
+        "observed_aspects": ["identity"],
+        "claim_aspects": ["identity"],
+        "evaluated_item_id": "claim:payment-authorization",
+        "source_record_id": "record:payment-policy",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:source-a",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:payment-policy",
+            "accepted_state_token": "tok:state-v1"
+          },
+          {
+            "evidence_id": "ev:source-b",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:payment-policy",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
+      },
+      "expected": {
+        "semantic_truth": "UNRESOLVED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "REVIEW",
+        "reasons": ["truth_conflicting_evidence"]
+      }
+    },
+    {
+      "id": "review-incomplete-decision-scope",
+      "input": {
+        "supporting_evidence": ["ev:payment-record"],
+        "contradicting_evidence": [],
+        "required_aspects": ["identity", "amount", "recipient"],
+        "observed_aspects": ["identity", "amount"],
+        "claim_aspects": ["amount"],
+        "evaluated_item_id": "claim:payment-authorization",
+        "source_record_id": "record:payment-record",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:payment-record",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:payment-record",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
+      },
+      "expected": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "INCOMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "REVIEW",
+        "reasons": ["completeness_missing:recipient"]
+      }
+    },
+    {
+      "id": "exclude-irrelevant-to-current-decision",
+      "input": {
+        "supporting_evidence": ["ev:weather-report"],
+        "contradicting_evidence": [],
+        "required_aspects": ["identity", "amount", "recipient"],
+        "observed_aspects": ["identity", "amount", "recipient"],
+        "claim_aspects": ["weather"],
+        "evaluated_item_id": "claim:payment-authorization",
+        "source_record_id": "record:weather-report",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:weather-report",
+            "evaluated_item_id": "claim:payment-authorization",
+            "source_record_id": "record:weather-report",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
+      },
+      "expected": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "COMPLETE",
+        "relevance": "IRRELEVANT",
+        "readiness": "EXCLUDE",
+        "reasons": ["relevance_no_required_aspect"]
+      }
+    },
+    {
+      "id": "exclude-contradicted-claim",
+      "input": {
+        "supporting_evidence": [],
+        "contradicting_evidence": ["ev:revocation"],
+        "required_aspects": ["permission"],
+        "observed_aspects": ["permission"],
+        "claim_aspects": ["permission"],
+        "evaluated_item_id": "claim:permission-claim",
+        "source_record_id": "record:revocation-record",
+        "accepted_state_token": "tok:state-v1",
+        "evidence_bindings": [
+          {
+            "evidence_id": "ev:revocation",
+            "evaluated_item_id": "claim:permission-claim",
+            "source_record_id": "record:revocation-record",
+            "accepted_state_token": "tok:state-v1"
+          }
+        ]
+      },
+      "expected": {
+        "semantic_truth": "CONTRADICTED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "EXCLUDE",
+        "reasons": ["truth_contradicted"]
+      }
+    }
+  ]
+}

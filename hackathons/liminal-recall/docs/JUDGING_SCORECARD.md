@@ -64,7 +64,7 @@ Target proof: the video shows the exact earlier outcome responsible for the safe
 
 ### 4. Product Readiness
 
-**Claim:** The demo has explicit authority, security, resilience, artifact-identity, and observability boundaries.
+**Claim:** The demo has explicit authority, security, resilience, source-binding, artifact-identity non-claim, and observability boundaries.
 
 Evidence:
 
@@ -77,7 +77,7 @@ Evidence:
 - evidence paths cannot escape the manifest directory;
 - checksum bytes and filename are verified;
 - `runtime_instance_id` proves process replacement;
-- `build_sha` proves that both runtime observations came from the reviewed artifact.
+- `build_sha` shows that both runtime responses report the reviewed source SHA configured at deployment; it is not an artifact-byte attestation.
 
 Target proof: unauthorized requests fail, the deployed SHA matches the submitted commit, a forced new runtime receives the old memory, and no credential appears in evidence.
 

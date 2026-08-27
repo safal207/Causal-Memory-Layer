@@ -136,10 +136,41 @@ jobs:
             --expected "$EXPECTED_SHA" \
             --output artifacts/secret-scan/exact-head.json
 
+      - name: Verify generated-memory dispatch scope
+        if: github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'cml-learning/')
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          test "$(git rev-parse HEAD^)" = "$(git rev-parse origin/main)"
+          test "$(git rev-list --count origin/main..HEAD)" -eq 1
+
       - name: Scan repository for secrets
+        if: github.event_name != 'workflow_dispatch' || !startsWith(github.ref_name, 'cml-learning/')
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Scan generated-memory delta for secrets
+        if: github.event_name == 'workflow_dispatch' && startsWith(github.ref_name, 'cml-learning/')
+        env:
+          GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.24.3
+        run: |
+          docker pull "$GITLEAKS_IMAGE"
+          docker inspect --format='{{index .RepoDigests 0}}' "$GITLEAKS_IMAGE" \
+            > artifacts/secret-scan/gitleaks-image.txt
+          docker run --rm \
+            -e GIT_CONFIG_COUNT=1 \
+            -e GIT_CONFIG_KEY_0=safe.directory \
+            -e GIT_CONFIG_VALUE_0=/repo \
+            -v "$PWD:/repo" \
+            -w /repo \
+            "$GITLEAKS_IMAGE" \
+            git \
+            --redact \
+            --exit-code=2 \
+            --report-format=sarif \
+            --report-path=artifacts/secret-scan/results.sarif \
+            --log-opts="origin/main..HEAD" \
+            .
 
       - name: Record secret-scan success
         run: |

@@ -33,7 +33,7 @@ When a relevant failure is recalled, the agent:
 - stores the new decision with a causal parent link to the most influential outcome;
 - reports `execution.status = NOT_EXECUTED` and never pretends the external action occurred.
 
-Every response also includes a `runtime_instance_id`. The public `/healthz` response additionally exposes `build_sha`. During the demo, Lambda compute is replaced, the runtime ID changes, the reviewed build SHA remains identical, and the earlier CockroachDB memory UUID remains available. This distinguishes process replacement, durable memory, and deployed-code identity.
+Every response also includes a `runtime_instance_id`. The public `/healthz` response additionally exposes `build_sha`. During the demo, Lambda compute is replaced, the runtime ID changes, the configured reviewed source SHA remains identical, and the earlier CockroachDB memory UUID remains available. This separates process-replacement evidence, durable-memory evidence, and the runtime-reported source binding. The SHA is not an artifact-byte or dependency attestation.
 
 ## How we built it
 
@@ -113,7 +113,7 @@ The first demo prevents a duplicate refund after a non-idempotent retry, but the
 - healthcare workflow assistants;
 - customer-support agents handling irreversible actions.
 
-The product value is not merely “remember more.” It is “remember the verified failure that should change this decision, explain exactly which memory mattered, prove which code produced the evidence, and remain safe when infrastructure restarts.”
+The product value is not merely “remember more.” It is “remember the operator-attested failure that should change this decision, explain exactly which memory mattered, bind the runtime report to reviewed source, and remain safe when infrastructure restarts.” The demo operator supplies the negative-outcome classification; the service does not independently verify its truth or provenance.
 
 ## Challenges
 
@@ -153,9 +153,9 @@ The project does not merely initialize CockroachDB tools. Runtime responses iden
 
 ## What we learned
 
-Agent memory is most trustworthy when it is narrow, durable, and inspectable. A stable verified-outcome UUID can be more useful than a large unstructured transcript. Vector search improves recall, but the system still needs explicit boundaries between “this memory is relevant,” “this memory influenced the recommendation,” “this action was authorized,” and “this exact code produced the evidence.”
+Agent memory is most trustworthy when it is narrow, durable, and inspectable. A stable operator-attested outcome UUID can be more useful than a large unstructured transcript. Vector search improves recall, but the system still needs explicit boundaries between “this memory is relevant,” “this memory influenced the recommendation,” “this action was authorized,” and “this runtime reported the reviewed source SHA.”
 
-We also learned that process restarts, data durability, semantic relevance, execution safety, artifact identity, and submission evidence are separate claims and require separate proofs.
+We also learned that process restarts, data durability, semantic relevance, execution safety, source-configuration binding, artifact identity, and submission evidence are separate claims and require separate proofs. This demo does not provide artifact-byte attestation.
 
 ## What's next
 
@@ -213,7 +213,7 @@ Ask, “Send the customer reimbursement again,” with independent tags. Show `H
 
 Show the CockroachDB vector index/query plan, redacted ccloud JSON, and matching SHA-256 sidecar.
 
-### 1:50–2:15 — prove artifact identity and persistence
+### 1:50–2:15 — show source binding and persistence
 
 Show `/healthz` with the submitted `build_sha`, replace the Lambda runtime, then show a different `runtime_instance_id`, the same build SHA, and the same CockroachDB memory UUID.
 

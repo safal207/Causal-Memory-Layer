@@ -5,6 +5,8 @@ import importlib.util
 import uuid
 from pathlib import Path
 
+import pytest
+
 
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]
@@ -196,3 +198,58 @@ def test_public_manifest_rejects_credential_markers(tmp_path: Path) -> None:
     failures = MODULE.validate_manifest(manifest_path, manifest)
 
     assert any("credential-like marker" in failure for failure in failures)
+
+
+@pytest.mark.parametrize(
+    ("field", "url"),
+    [
+        (
+            "repository_url",
+            "https://github.com.evil.invalid/safal207/Causal-Memory-Layer/tree/"
+            + "a" * 40,
+        ),
+        (
+            "license_url",
+            "https://github.com@evil.invalid/safal207/Causal-Memory-Layer/blob/"
+            + "a" * 40
+            + "/LICENSE",
+        ),
+        (
+            "lambda_function_url",
+            "https://example.lambda-url.us-east-1.on.aws.evil.invalid",
+        ),
+        ("video_url", "https://youtube.com.evil.invalid/watch?v=proof"),
+        ("devpost_submission_url", "https://devpost.com.evil.invalid/software/demo"),
+    ],
+)
+def test_submission_urls_reject_host_lookalikes(
+    tmp_path: Path,
+    field: str,
+    url: str,
+) -> None:
+    manifest_path, manifest = complete_manifest(tmp_path)
+    manifest[field] = url
+
+    failures = MODULE.validate_manifest(manifest_path, manifest)
+
+    assert any(
+        field in failure and (
+            "unexpected host" in failure or "valid HTTPS URL" in failure
+        )
+        for failure in failures
+    )
+
+
+def test_manifest_loader_rejects_escaped_duplicate_json_names(tmp_path: Path) -> None:
+    path = tmp_path / "final-submission.json"
+    path.write_text(
+        '{"repository_commit_sha":"'
+        + "a" * 40
+        + '","repository\\u005fcommit_sha":"'
+        + "b" * 40
+        + '"}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        MODULE._load_json_object(path)

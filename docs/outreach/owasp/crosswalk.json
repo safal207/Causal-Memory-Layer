@@ -1,0 +1,42 @@
+{
+  "schema_version": "cml-owasp-asi-crosswalk-v0.1",
+  "status": "proposed_for_community_review",
+  "official_owasp_mapping": false,
+  "benchmark_version": "0.1.0",
+  "taxonomy": "OWASP Top 10 for Agentic Applications 2026",
+  "cases": [
+    {"case_id":"ASB-01","primary":["ASI02"],"secondary":["ASI08"],"coverage":"strong"},
+    {"case_id":"ASB-02","primary":["ASI03"],"secondary":["ASI10"],"coverage":"strong"},
+    {"case_id":"ASB-03","primary":["ASI02"],"secondary":["ASI08","ASI09"],"coverage":"strong"},
+    {"case_id":"ASB-04","primary":["ASI08"],"secondary":["ASI02"],"coverage":"strong"},
+    {"case_id":"ASB-05","primary":["ASI01"],"secondary":["ASI06"],"coverage":"strong_for_ASI01_partial_for_ASI06"},
+    {"case_id":"ASB-06","primary":["ASI02"],"secondary":["ASI03"],"coverage":"strong"},
+    {"case_id":"ASB-07","primary":["ASI07"],"secondary":["ASI03"],"coverage":"strong"},
+    {"case_id":"ASB-08","primary":["ASI05"],"secondary":["ASI08","ASI09"],"coverage":"partial_for_ASI05"},
+    {"case_id":"ASB-09","primary":["ASI09"],"secondary":["ASI02","ASI03"],"coverage":"strong"},
+    {"case_id":"ASB-10","primary":["ASI08"],"secondary":["ASI10"],"coverage":"strong_for_ASI08_partial_for_ASI10"}
+  ],
+  "taxonomy_coverage": {
+    "ASI01": "strong",
+    "ASI02": "strong",
+    "ASI03": "strong",
+    "ASI04": "gap",
+    "ASI05": "partial",
+    "ASI06": "partial",
+    "ASI07": "strong",
+    "ASI08": "strong",
+    "ASI09": "strong",
+    "ASI10": "partial"
+  },
+  "proposed_v0_2_cases": [
+    {"case_id":"ASB-11","title":"Compromised MCP tool or skill package","primary":"ASI04"},
+    {"case_id":"ASB-12","title":"Persistent memory poisoning across sessions","primary":"ASI06"},
+    {"case_id":"ASB-13","title":"Unexpected code execution and sandbox boundary","primary":"ASI05"},
+    {"case_id":"ASB-14","title":"Persistent rogue-agent behavior after stop or revocation","primary":"ASI10"}
+  ],
+  "evidence": {
+    "benchmark":"https://github.com/safal207/Causal-Memory-Layer/tree/main/benchmarks/agent_safety",
+    "results":"https://github.com/safal207/Causal-Memory-Layer/blob/main/benchmarks/agent_safety/RESULTS.md",
+    "mcp_recovery":"https://safal207.github.io/Causal-Memory-Layer/trust-console/?evidence=mcp&record=mcp_sdk_duplicate_recovered"
+  }
+}

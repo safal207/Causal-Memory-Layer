@@ -5,7 +5,7 @@ import os
 import uuid
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 from .embeddings import BedrockTitanEmbedder, Embedder, memory_embedding_text
 from .models import MemoryCreate, MemoryRecord
@@ -60,17 +60,19 @@ class CockroachMemoryStore:
             "connect_timeout": 8,
             "application_name": "liminal-recall",
         }
-        query = {
-            key.casefold(): [value.casefold() for value in values]
-            for key, values in parse_qs(
-                urlsplit(self.database_url).query,
-                keep_blank_values=True,
-            ).items()
-        }
-        sslmode_values = query.get("sslmode")
-        if sslmode_values is None:
+        query: dict[str, str] = {}
+        for raw_key, raw_value in parse_qsl(
+            urlsplit(self.database_url).query,
+            keep_blank_values=True,
+        ):
+            key = raw_key.casefold()
+            if key in query:
+                raise ValueError(f"DATABASE_URL contains duplicate parameter: {key}")
+            query[key] = raw_value.casefold()
+        sslmode = query.get("sslmode")
+        if sslmode is None:
             connect_options["sslmode"] = "verify-full"
-        elif sslmode_values != ["verify-full"]:
+        elif sslmode != "verify-full":
             raise ValueError("DATABASE_URL sslmode must be exactly verify-full")
         if "sslrootcert" not in query:
             connect_options["sslrootcert"] = os.getenv(

@@ -88,5 +88,8 @@ Live vector-index use, Bedrock inference, ccloud state, Lambda process replaceme
 - Every decision reports `execution.status = NOT_EXECUTED` and `authority = advisory_only`.
 - Database or embedding failure returns a fail-closed `503` with `HUMAN_REVIEW`.
 - Required `x-demo-key` authentication protects every non-health route and fails closed when the runtime key is absent.
-- `runtime_instance_id` proves process replacement; the stable memory UUID proves database durability; `build_sha` proves artifact identity.
+- A changed `runtime_instance_id` is evidence of process replacement, and a stable memory UUID is evidence of database durability.
+- `build_sha` is a deployment-configuration binding to the reviewed source commit, not an artifact-byte hash or supply-chain attestation.
+- “Verified outcome” means the authenticated demo operator asserts that upstream verification occurred; the service does not independently verify outcome truth or issuer provenance.
+- The shared demo key is demo-surface authentication, not tenant identity or per-session authorization.
 - Semantic similarity is thresholded evidence, not a claim of universal understanding.

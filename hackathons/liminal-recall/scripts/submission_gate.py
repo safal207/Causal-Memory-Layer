@@ -51,9 +51,59 @@ REQUIRED_TEXT_FIELDS = (
 )
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _load_json_object(path: Path) -> dict[str, Any]:
+    payload = json.loads(
+        path.read_text(encoding="utf-8"),
+        object_pairs_hook=_unique_json_object,
+    )
+    if not isinstance(payload, dict):
+        raise ValueError("manifest must be a JSON object")
+    return payload
+
+
 def _is_http_url(value: str) -> bool:
     parsed = urlparse(value)
-    return parsed.scheme == "https" and bool(parsed.netloc)
+    try:
+        port = parsed.port
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and bool(parsed.hostname)
+        and parsed.username is None
+        and parsed.password is None
+        and port in {None, 443}
+    )
+
+
+def _has_expected_host(field: str, value: str) -> bool:
+    host = (urlparse(value).hostname or "").casefold()
+    if field in {"repository_url", "license_url"}:
+        return host == "github.com"
+    if field == "lambda_function_url":
+        return bool(
+            re.fullmatch(r"[a-z0-9-]+\.lambda-url\.[a-z0-9-]+\.on\.aws", host)
+        )
+    if field == "video_url":
+        return host in {
+            "youtube.com",
+            "www.youtube.com",
+            "youtu.be",
+            "vimeo.com",
+            "www.vimeo.com",
+        }
+    if field == "devpost_submission_url":
+        return host == "devpost.com" or host.endswith(".devpost.com")
+    return False
 
 
 def _git_head() -> str:
@@ -148,18 +198,18 @@ def validate_manifest(
         if deployed_sha != sha:
             failures.append("deployed_build_sha does not match repository_commit_sha")
 
-    url_rules = {
-        "repository_url": ("github.com",),
-        "license_url": ("github.com",),
-        "lambda_function_url": ("lambda-url", "on.aws"),
-        "video_url": ("youtube.com", "youtu.be", "vimeo.com"),
-        "devpost_submission_url": ("devpost.com",),
-    }
-    for field, allowed_fragments in url_rules.items():
+    url_fields = (
+        "repository_url",
+        "license_url",
+        "lambda_function_url",
+        "video_url",
+        "devpost_submission_url",
+    )
+    for field in url_fields:
         value = str(manifest.get(field) or "")
         if value and not _is_http_url(value):
             failures.append(f"{field} must be a valid HTTPS URL")
-        elif value and not any(fragment in urlparse(value).netloc for fragment in allowed_fragments):
+        elif value and not _has_expected_host(field, value):
             failures.append(f"{field} has an unexpected host")
 
     if SHA_RE.fullmatch(sha):
@@ -233,12 +283,9 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        manifest = _load_json_object(args.manifest)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         print(f"ERROR: unable to read manifest: {type(exc).__name__}", file=sys.stderr)
-        return 2
-    if not isinstance(manifest, dict):
-        print("ERROR: manifest must be a JSON object", file=sys.stderr)
         return 2
 
     failures = validate_manifest(args.manifest.resolve(), manifest)

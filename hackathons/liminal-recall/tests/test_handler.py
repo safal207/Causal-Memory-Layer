@@ -241,7 +241,7 @@ def test_non_health_routes_fail_closed_when_demo_key_is_missing(
 
 
 def test_demo_key_protects_non_health_routes(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv("DEMO_API_KEY", "secret-demo-key")
+    monkeypatch.setenv("DEMO_API_KEY", "secret-demo-key-1234")
     status, body = call(
         "GET",
         "/memories",
@@ -255,9 +255,66 @@ def test_demo_key_protects_non_health_routes(monkeypatch: pytest.MonkeyPatch):
         "GET",
         "/memories",
         query={"session_id": "agent-1"},
-        headers={"X-Demo-Key": "secret-demo-key"},
+        headers={"X-Demo-Key": "secret-demo-key-1234"},
     )
     assert status == 200
+
+
+def test_short_or_canonically_duplicated_demo_key_headers_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("DEMO_API_KEY", "short")
+    status, body = call(
+        "GET",
+        "/memories",
+        query={"session_id": "agent-1"},
+        headers={"x-demo-key": "short"},
+    )
+    assert status == 401
+    assert body["error"] == "unauthorized"
+
+    monkeypatch.setenv("DEMO_API_KEY", TEST_DEMO_KEY)
+    status, body = call(
+        "GET",
+        "/memories",
+        query={"session_id": "agent-1"},
+        headers={
+            "X-Demo-Key": TEST_DEMO_KEY,
+            "x-demo-key": TEST_DEMO_KEY,
+        },
+    )
+    assert status == 401
+    assert body["error"] == "unauthorized"
+
+
+def test_request_body_rejects_duplicate_json_names_and_invalid_base64():
+    base_event = {
+        "rawPath": "/memories",
+        "requestContext": {"http": {"method": "POST"}},
+        "headers": {"x-demo-key": TEST_DEMO_KEY},
+    }
+    duplicate_event = {
+        **base_event,
+        "body": (
+            '{"session_id":"agent-1","session\\u005fid":"substituted",'
+            '"kind":"observation","content":"reviewed event"}'
+        ),
+    }
+
+    response = lambda_handler(duplicate_event, None)
+    body = json.loads(response["body"])
+
+    assert response["statusCode"] == 400
+    assert body["error"] == "invalid_request"
+    assert "duplicate JSON key" in body["detail"]
+
+    malformed_base64_event = {
+        **base_event,
+        "body": "%%%not-base64%%%",
+        "isBase64Encoded": True,
+    }
+    response = lambda_handler(malformed_base64_event, None)
+    assert response["statusCode"] == 400
 
 
 def test_bedrock_embedder_validates_request_and_response():

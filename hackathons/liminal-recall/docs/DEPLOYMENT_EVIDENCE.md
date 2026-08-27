@@ -285,7 +285,7 @@ Pass conditions:
 - decision remains `HUMAN_REVIEW`;
 - the CockroachDB memory ID remains unchanged.
 
-The runtime-ID change proves process replacement. The stable outcome UUID proves CockroachDB durability. The stable exact build SHA proves both observations came from the reviewed artifact.
+The runtime-ID change is evidence of process replacement. The stable outcome UUID is evidence of CockroachDB durability. The stable exact `build_sha` shows that both responses reported the source SHA configured during deployment; it does not attest artifact bytes or resolved dependencies.
 
 ## 10. Observability proof
 
@@ -361,4 +361,4 @@ Never publish:
 - demo API keys;
 - reusable certificates or private endpoints containing credentials.
 
-A successful demo proves that the exact submitted AWS-hosted build uses Bedrock embeddings and CockroachDB vector memory to recall a durable verified outcome after process replacement and influence a later advisory decision. It does not prove universal semantic correctness, autonomous execution safety, or immunity to every cloud or database failure mode.
+A successful demo demonstrates that the deployed AWS-hosted service uses Bedrock embeddings and CockroachDB vector memory to recall a durable operator-attested outcome after process replacement and influence a later advisory decision, while reporting the reviewed source SHA. It does not prove artifact-byte identity, upstream outcome truth, universal semantic correctness, autonomous execution safety, or immunity to every cloud or database failure mode.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hmac
 import json
 import os
@@ -19,6 +20,15 @@ from .store import CockroachMemoryStore, MemoryStore
 _store: MemoryStore | None = None
 _RUNTIME_INSTANCE_ID = str(uuid.uuid4())
 _GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
@@ -85,7 +95,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             return _response(200, decide(store, request))
 
         return _response(404, {"error": "route_not_found"})
-    except (ValueError, ValidationError, json.JSONDecodeError) as exc:
+    except (ValueError, ValidationError, json.JSONDecodeError, binascii.Error) as exc:
         return _response(400, {"error": "invalid_request", "detail": str(exc)})
     except Exception as exc:  # fail closed without leaking credentials or SQL text
         return _response(
@@ -112,12 +122,17 @@ def _get_store() -> MemoryStore:
 
 def _authorized(event: dict[str, Any]) -> bool:
     expected = os.getenv("DEMO_API_KEY", "")
-    if not expected:
+    if len(expected) < 16:
         return False
-    headers = {
-        str(key).casefold(): str(value)
-        for key, value in (event.get("headers") or {}).items()
-    }
+    raw_headers = event.get("headers") or {}
+    if not isinstance(raw_headers, dict):
+        return False
+    headers: dict[str, str] = {}
+    for key, value in raw_headers.items():
+        normalized = str(key).casefold()
+        if normalized in headers:
+            return False
+        headers[normalized] = str(value)
     supplied = headers.get("x-demo-key", "")
     return hmac.compare_digest(supplied, expected)
 
@@ -134,10 +149,10 @@ def _body(event: dict[str, Any]) -> dict[str, Any]:
     if body is None:
         return {}
     if event.get("isBase64Encoded"):
-        body = base64.b64decode(body).decode("utf-8")
+        body = base64.b64decode(body, validate=True).decode("utf-8")
     if isinstance(body, dict):
         return body
-    parsed = json.loads(body)
+    parsed = json.loads(body, object_pairs_hook=_unique_json_object)
     if not isinstance(parsed, dict):
         raise ValueError("request body must be a JSON object")
     return parsed

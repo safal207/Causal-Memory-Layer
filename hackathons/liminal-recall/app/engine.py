@@ -15,7 +15,7 @@ def decide(store: MemoryStore, request: DecisionRequest) -> dict[str, Any]:
 
     if selected:
         decision = "HUMAN_REVIEW"
-        reason = "A relevant verified-negative outcome was recalled from persistent memory."
+        reason = "A relevant negative-outcome record was recalled from persistent memory."
         parent_memory_id = selected[0].id
         confidence = max(memory.confidence for memory in selected)
     else:
