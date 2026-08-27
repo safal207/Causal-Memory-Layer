@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #293.",
+      "digest": "e14c876d2616c78ff0fa351f40d71cc9fdacbd3a1c0de5cb789e8c0a54bf5855",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/e4b5fecb0960e878ee020413e0de61d968a276f3/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #293.",
+      "digest": "111f8782810b6c4ba95ca6d4e668ed14c4e54cb05d49436f3ba7c26fad3a9a6d",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/293/files"
+    },
+    {
+      "description": "Merge commit for pull request #293.",
+      "digest": "7e388152dfe6a71e08073ad5e4e4ce26a9a402dc88c8a725070bf647712cdac4",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:57889554c4714b8c137dcaff9d6a5aa5f0b89b11"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #293.",
+      "digest": "77c54ce7d1610e4d89487a2dd93678df6f8ea9cf82f92b3d1f9c7bb6765c880f",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/293"
+    },
+    {
+      "description": "Normalized review snapshot for #293 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/293/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 2,
+          "head_sha": "e4b5fecb0960e878ee020413e0de61d968a276f3",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #293: feat: add boundary-generated read IDs for exact coverage",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 17,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Reviewed head: `e4b5fecb0960e878ee020413e0de61d968a276f3` Local replay on the exact resulting tree: - focused vCML/runtime tests: 45 passed; - full repository suite: 893 passed; - deterministic Agent Safety Benchmark: 10/10 passed, overall score 100. GitHub-hosted checks must still bind to this exact head before merge.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "- This PR adds reconciliation, not cryptographic attestation. - Callers must compare streams representing the same scope and successful-read semantics. - `read_id` is a local boundary correlation identity, separate from the causal record `id`; it is not claimed to be globally unique or cryptographically authenticated. - Unexpected ledger IDs remain diagnostic under the intentionally one-way coverage predicate. Related: #289, #290, #291, #292",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #293: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "57889554c4714b8c137dcaff9d6a5aa5f0b89b11",
+          "merged_at": "2026-08-27T10:47:46.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #293 merged into main as 57889554c4714b8c137dcaff9d6a5aa5f0b89b11",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 293,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds per-read vCML reconciliation so successful external reads can be covered by downstream ledger observations by identity instead of aggregate count. The current `main` already contains the stronger v0.8 file monitor from #292: it carries the stable boundary `read_id` across entry/exit and also binds the kernel file object at read entry. After integrating current `main`, this PR's net code delta is deliberately limited to the missing reconciliation module and its regression tests.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-27T10:47:46.000Z",
+    "description": "Automatically proposed decision memory for merged PR #293; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "57889554c4714b8c137dcaff9d6a5aa5f0b89b11",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "30161b75a290d0ba6d57d42de1045a62f4675fe8112009b38514940851792f06",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
