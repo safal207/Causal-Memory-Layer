@@ -125,6 +125,32 @@ def test_jsonl_reconciliation_fails_closed_on_malformed_ledger_stream():
         )
 
 
+@pytest.mark.parametrize("stream_name", ["external", "ledger"])
+def test_jsonl_reconciliation_rejects_duplicate_names_at_any_depth(stream_name):
+    external = [
+        '{"action":"read_exit","read_id":"r-1",'
+        '"object":{"return_value":1}}\n'
+    ]
+    ledger = ['{"read_id":"r-1"}\n']
+    duplicate = (
+        '{"action":"read_exit","read_id":"r-1",'
+        '"object":{"return_value":1,"return_value":-1}}\n'
+        if stream_name == "external"
+        else '{"read_id":"r-1","read\\u005fid":"substituted"}\n'
+    )
+    if stream_name == "external":
+        external = [duplicate]
+    else:
+        ledger = [duplicate]
+
+    with pytest.raises(ValueError, match="duplicate JSON key"):
+        reconcile_successful_read_id_coverage_jsonl(
+            external,
+            ledger,
+            scope_id="session-1",
+        )
+
+
 def test_monitor_contract_carries_kernel_boundary_identity_to_entry_and_exit():
     source = Path("vcml/linux-ebpf/file_monitor.py").read_text(encoding="utf-8")
 
@@ -132,4 +158,4 @@ def test_monitor_contract_carries_kernel_boundary_identity_to_entry_and_exit():
     assert "start.started_ns = started_ns;" in source
     assert "data.started_ns = start->started_ns;" in source
     assert source.count('"read_id": read_id') >= 2
-    assert "vcml-read:{pid}:{tid}:{started_ns}" in source
+    assert "linux-read:{pid}:{tid}:{started_ns}" in source

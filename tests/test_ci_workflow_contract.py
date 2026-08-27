@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from scripts.ci.verify_workflow_contract import PINNED_ACTION, verify_workflow, verify_workflows
@@ -9,12 +10,27 @@ WORKFLOWS = [
     ROOT / ".github/workflows/ci.yml",
     ROOT / ".github/workflows/python-package-validation.yml",
     ROOT / ".github/workflows/security.yml",
+    ROOT / ".github/workflows/ebpf-runtime-proof.yml",
 ]
 
 
 def test_required_workflows_satisfy_trust_contract():
     report = verify_workflows(WORKFLOWS)
     assert report["passed"] is True, report["violations"]
+
+
+def test_ebpf_runtime_evidence_entrypoints_are_trust_root_pinned():
+    manifest = json.loads(
+        (ROOT / ".github/trust-root/protected_files.json").read_text(encoding="utf-8")
+    )
+    protected = set(manifest["files"])
+    required = {
+        ".github/workflows/ebpf-runtime-proof.yml",
+        "cml/integrations/ebpf_fd_reuse_runtime.py",
+        "vcml/linux-ebpf/runtime_fd_reuse_proof.py",
+        "vcml/linux-ebpf/runtime_read_binding_trust_entrypoint.py",
+    }
+    assert required <= protected
 
 
 def test_action_pin_pattern_is_segment_bounded():

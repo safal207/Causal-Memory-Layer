@@ -1,0 +1,114 @@
+{
+  "schema_version": "cml-verification-envelope-fixtures-v0.1",
+  "canonicalization_profile": "rfc8785-jcs-ascii-integer-subset-v0.1",
+  "healthy": {
+    "occurrence_id": "occ-venzx-0001",
+    "bound_content": {
+      "args": {
+        "amount_cents": 5000,
+        "currency": "USD",
+        "recipient": "merchant-42"
+      },
+      "tool": "charge_card"
+    },
+    "commitment_scope": [
+      "args",
+      "tool"
+    ],
+    "fresh_through": "consumption",
+    "execution_binding": "external",
+    "requires_use_time_revalidation": true,
+    "expected_canonical_utf8": "{\"args\":{\"amount_cents\":5000,\"currency\":\"USD\",\"recipient\":\"merchant-42\"},\"tool\":\"charge_card\"}",
+    "expected_sha256": "603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b",
+    "expected_envelope_canonical_utf8": "{\"canonicalization_profile\":\"rfc8785-jcs-ascii-integer-subset-v0.1\",\"commitment_scope\":[\"args\",\"tool\"],\"content_commitment\":\"603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b\",\"execution_binding\":\"external\",\"fresh_through\":\"consumption\",\"occurrence_id\":\"occ-venzx-0001\",\"requires_use_time_revalidation\":true}",
+    "expected_envelope_sha256": "49c0525b7271ffe27a24aea3e0df3d7635956b35cf8f8b835476e43cedb07c9d"
+  },
+  "occurrence_isolation": {
+    "content_occurrence_a": "occ-venzx-0001",
+    "content_occurrence_b": "occ-venzx-0002",
+    "expected_shared_content_sha256": "603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b",
+    "expected_envelope_sha256_a": "49c0525b7271ffe27a24aea3e0df3d7635956b35cf8f8b835476e43cedb07c9d",
+    "expected_envelope_sha256_b": "deafc040eed9f3240b4ff1818c59dca9657254399841950f07cefaa8cbccb208",
+    "invariant": "identical content may share content identity; distinct occurrences must not share occurrence-bound envelope identity"
+  },
+  "peer_vectors": [
+    {
+      "id": "babyblueviper1-ledger-246-decision-ref",
+      "source_system": "babyblueviper1 live verdict ledger",
+      "source_entry": 246,
+      "preimage": {
+        "artifact_hash": "d7f8744cfdbc955abc59a5f587028598cbe4e53613bfd9b3c0c186ad95ee5065",
+        "artifact_type": "agent_output",
+        "policy_version": "invinoveritas.review.v11",
+        "verdict": "approve_with_concerns",
+        "source_class": "independent_mediator",
+        "vantage_limitation": null,
+        "related_decision_ref": null,
+        "intended_audience": null,
+        "confidentiality_tier": null,
+        "disclosed_summary": null,
+        "intended_verifier": null,
+        "policy_commitment": "sha256:b0d29b374874515c8ffa392326fd05d80fcee28dc791fdbb5edbeb6fd50396dd",
+        "verified_at": 1787077030,
+        "registry_as_of": 1787077030,
+        "registry_snapshot_sha256": "ca7912e150d4e03f4c762f4d4b2a4718c1e56043c45756f6031578f84fcddbb5"
+      },
+      "expected_sha256": "a90a6f398e94129344549d36bd93cbefabd97f0f18a2fb7ca548ada24a089aaa",
+      "reported_decision_ref": "sha256:a90a6f398e94129344549d36bd93cbefabd97f0f18a2fb7ca548ada24a089aaa",
+      "reported_execution_binding": "external"
+    }
+  ],
+  "peer_findings": [
+    {
+      "id": "babyblueviper1-occurrence-envelope-resolution",
+      "source_system": "babyblueviper1 live production admissions log",
+      "content_identity_field": "artifact_hash",
+      "occurrence_identity_field": "admission_index",
+      "envelope_identity_field": "decision_ref",
+      "content_binding": "SUPPORTED",
+      "occurrence_identity": "SUPPORTED",
+      "envelope_binding": "SUPPORTED_WITH_LIMITATION",
+      "limitation": "decision_ref can collide across distinct admissions when the wider JCS preimage is identical; verified_at has 1-second resolution and admission_index is not bound into decision_ref",
+      "reported_measurements": {
+        "recurring_probe_admissions": 289,
+        "distinct_admission_index": 289,
+        "issued_proof_rows_sampled": 101,
+        "distinct_decision_ref": 67
+      },
+      "requested_next_evidence": "one concrete redacted collision pair with distinct admission_index values and the same decision_ref"
+    }
+  ],
+  "negative_controls": [
+    {
+      "id": "args-drift",
+      "mutation": "amount_cents:5000->5001",
+      "expected_reason": "content_commitment_mismatch"
+    },
+    {
+      "id": "occurrence-drift",
+      "expected_occurrence_id": "occ-venzx-0002",
+      "expected_reason": "occurrence_mismatch"
+    },
+    {
+      "id": "occurrence-relabel-without-rebinding",
+      "mutation": "occurrence_id:occ-venzx-0001->occ-venzx-0002",
+      "expected_reason": "envelope_commitment_mismatch"
+    },
+    {
+      "id": "execution-required",
+      "require_execution_attestation": true,
+      "expected_reason": "execution_binding_insufficient"
+    },
+    {
+      "id": "execution-freshness-required",
+      "required_fresh_through": "execution",
+      "expected_reason": "freshness_insufficient"
+    },
+    {
+      "id": "execution-freshness-with-external-binding",
+      "fresh_through": "execution",
+      "execution_binding": "external",
+      "expected_error": "fresh_through=execution requires execution_binding=attested"
+    }
+  ]
+}

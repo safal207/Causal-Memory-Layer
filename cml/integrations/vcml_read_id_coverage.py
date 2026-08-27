@@ -53,6 +53,16 @@ def _read_id_from_record(record: Mapping[str, Any], *, label: str) -> str:
     return read_id
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """Build one JSON object while rejecting authority-ambiguous names."""
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
 def reconcile_successful_read_id_coverage(
     external_records: Iterable[Mapping[str, Any]],
     ledger_observations: Iterable[Mapping[str, Any]],
@@ -181,7 +191,7 @@ def reconcile_successful_read_id_coverage_jsonl(
             if not text:
                 continue
             try:
-                record = json.loads(text)
+                record = json.loads(text, object_pairs_hook=_unique_json_object)
             except json.JSONDecodeError as exc:
                 raise ValueError(
                     f"invalid {stream_name} JSONL at line {line_number}"

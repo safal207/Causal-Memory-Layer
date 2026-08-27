@@ -1,16 +1,22 @@
-"""Completion-aware witness for vCML Linux eBPF read outcomes.
+"""Completion-aware witnesses for vCML Linux eBPF read outcomes.
 
-The v0.6 file monitor emits ``action == "read_exit"`` records from
-``sys_exit_read``. Those records carry the kernel return value and therefore
-allow consumers to distinguish:
+The v0.8 file monitor emits ``action == "read_exit"`` records from
+``sys_exit_read``. Those records carry the kernel return value, a stable
+boundary ``read_id``, and—when fd resolution succeeded—the kernel object
+identity captured at ``sys_enter_read``.
 
-* successful completion with bytes returned (ret > 0),
-* successful EOF / zero-byte completion (ret == 0), and
-* failed completion (ret < 0).
+Three projections intentionally coexist:
 
-This module remains aggregate-only. It summarizes the observed stream but does
-not claim exact per-read coverage because the current JSONL contract does not
-carry a stable boundary-generated read id across entry and exit records.
+* ``CompletedReadWitness`` preserves the aggregate v0.6 contract;
+* ``ExternalReadIdentityWitness`` exposes successful completion identities for
+  exact ledger-coverage checks;
+* ``ExternalReadObjectWitness`` binds each successful read identity to the
+  kernel object that fd referenced at syscall entry.
+
+The object projection does not claim exact pathname attribution. Paths in the
+reference monitor remain descriptive userspace evidence. ``object_id`` is a
+local kernel ``(device, inode)`` correlation identity, not a content hash or a
+stable cross-host identity.
 """
 
 from __future__ import annotations
@@ -20,7 +26,11 @@ from dataclasses import dataclass
 import json
 from typing import Any
 
-from cml.external_read_witness import ExternalReadWitness
+from cml.external_read_object_witness import (
+    ExternalReadObjectBinding,
+    ExternalReadObjectWitness,
+)
+from cml.external_read_witness import ExternalReadIdentityWitness, ExternalReadWitness
 
 
 DEFAULT_COMPLETION_SOURCE_ID = "vcml-linux-ebpf:sys_exit_read"
@@ -66,12 +76,7 @@ class CompletedReadWitness:
             raise ValueError("zero_byte_reads cannot exceed completed_reads")
 
     def as_completed_external_witness(self) -> ExternalReadWitness:
-        """Project successful completions into the generic witness contract.
-
-        This projection is appropriate only when the downstream ledger count
-        represents successful read completions too. It must not be compared
-        blindly with a ledger that records read attempts instead.
-        """
+        """Project successful completions into the generic count contract."""
 
         return ExternalReadWitness(
             source_id=self.source_id,
@@ -79,6 +84,36 @@ class CompletedReadWitness:
             reads_count=self.completed_reads if self.available else 0,
             available=self.available,
         )
+
+
+def _read_exit_object(record: Mapping[str, Any], *, index: int) -> Mapping[str, Any]:
+    obj = record.get("object")
+    if not isinstance(obj, Mapping):
+        raise ValueError(f"read_exit record {index} must contain an object mapping")
+    return obj
+
+
+def _read_exit_return_value(record: Mapping[str, Any], *, index: int) -> int:
+    obj = _read_exit_object(record, index=index)
+    return_value = obj.get("return_value")
+    if not isinstance(return_value, int) or isinstance(return_value, bool):
+        raise ValueError(f"read_exit record {index} must contain integer return_value")
+    return return_value
+
+
+def _read_exit_id(record: Mapping[str, Any], *, index: int) -> str:
+    read_id = record.get("read_id")
+    if not isinstance(read_id, str) or not read_id.strip():
+        raise ValueError(f"read_exit record {index} must contain non-empty read_id")
+    return read_id
+
+
+def _read_exit_object_id(record: Mapping[str, Any], *, index: int) -> str:
+    obj = _read_exit_object(record, index=index)
+    object_id = obj.get("object_id")
+    if not isinstance(object_id, str) or not object_id.strip():
+        raise ValueError(f"successful read_exit record {index} must contain non-empty object_id")
+    return object_id
 
 
 def completed_read_witness_from_vcml_records(
@@ -90,9 +125,9 @@ def completed_read_witness_from_vcml_records(
 ) -> CompletedReadWitness:
     """Build aggregate completion evidence from vCML records.
 
-    ``action == "read"`` contributes only to ``attempts_seen``.
-    ``action == "read_exit"`` contributes outcome evidence. The return value is
-    authoritative for classification; any redundant textual status is ignored.
+    This legacy-compatible projection deliberately does not require ``read_id``
+    or ``object_id``. Older v0.6/v0.7 JSONL streams therefore remain consumable.
+    Use the identity or object projection when stronger evidence is required.
     """
 
     if not available:
@@ -126,13 +161,7 @@ def completed_read_witness_from_vcml_records(
         if action != "read_exit":
             continue
 
-        obj = record.get("object")
-        if not isinstance(obj, Mapping):
-            raise ValueError(f"read_exit record {index} must contain an object mapping")
-        return_value = obj.get("return_value")
-        if not isinstance(return_value, int) or isinstance(return_value, bool):
-            raise ValueError(f"read_exit record {index} must contain integer return_value")
-
+        return_value = _read_exit_return_value(record, index=index)
         exit_events_seen += 1
         if return_value >= 0:
             completed_reads += 1
@@ -156,23 +185,111 @@ def completed_read_witness_from_vcml_records(
     )
 
 
-def completed_read_witness_from_vcml_jsonl(
-    lines: Iterable[str | bytes],
+def completed_read_identity_witness_from_vcml_records(
+    records: Iterable[Mapping[str, Any]],
     *,
     scope_id: str,
     source_id: str = DEFAULT_COMPLETION_SOURCE_ID,
     available: bool = True,
-) -> CompletedReadWitness:
-    """Parse JSONL fail-closed and build completion-aware read evidence."""
+) -> ExternalReadIdentityWitness:
+    """Build exact successful-read identity evidence from v0.7+ records.
+
+    Every visible ``read_exit`` must carry a non-empty, unique ``read_id``. The
+    syscall return value remains authoritative: ``ret >= 0`` contributes a
+    completed identity (including EOF), while ``ret < 0`` is validated but not
+    included in the successful-read coverage set.
+    """
 
     if not available:
-        return completed_read_witness_from_vcml_records(
-            [],
-            scope_id=scope_id,
+        return ExternalReadIdentityWitness(
             source_id=source_id,
+            scope_id=scope_id,
+            completed_read_ids=(),
             available=False,
         )
 
+    completed_ids: list[str] = []
+    seen_exit_ids: set[str] = set()
+
+    for index, record in enumerate(records, start=1):
+        if not isinstance(record, Mapping):
+            raise TypeError(f"record {index} must be a mapping")
+        if record.get("action") != "read_exit":
+            continue
+
+        return_value = _read_exit_return_value(record, index=index)
+        read_id = _read_exit_id(record, index=index)
+        if read_id in seen_exit_ids:
+            raise ValueError(f"duplicate read_exit read_id: {read_id}")
+        seen_exit_ids.add(read_id)
+
+        if return_value >= 0:
+            completed_ids.append(read_id)
+
+    return ExternalReadIdentityWitness(
+        source_id=source_id,
+        scope_id=scope_id,
+        completed_read_ids=tuple(completed_ids),
+        available=True,
+    )
+
+
+def completed_read_object_witness_from_vcml_records(
+    records: Iterable[Mapping[str, Any]],
+    *,
+    scope_id: str,
+    source_id: str = DEFAULT_COMPLETION_SOURCE_ID,
+    available: bool = True,
+) -> ExternalReadObjectWitness:
+    """Build successful read→kernel-object bindings from v0.8 records.
+
+    ``read_id`` is required on every visible exit, matching the v0.7 identity
+    contract. ``object_id`` is required only for successful completions because
+    failed reads may legitimately have an unresolved/invalid fd. A successful
+    exit without object identity fails closed instead of being downgraded to a
+    vague fd/path claim.
+    """
+
+    if not available:
+        return ExternalReadObjectWitness(
+            source_id=source_id,
+            scope_id=scope_id,
+            completed_bindings=(),
+            available=False,
+        )
+
+    completed_bindings: list[ExternalReadObjectBinding] = []
+    seen_exit_ids: set[str] = set()
+
+    for index, record in enumerate(records, start=1):
+        if not isinstance(record, Mapping):
+            raise TypeError(f"record {index} must be a mapping")
+        if record.get("action") != "read_exit":
+            continue
+
+        return_value = _read_exit_return_value(record, index=index)
+        read_id = _read_exit_id(record, index=index)
+        if read_id in seen_exit_ids:
+            raise ValueError(f"duplicate read_exit read_id: {read_id}")
+        seen_exit_ids.add(read_id)
+
+        if return_value >= 0:
+            completed_bindings.append(
+                ExternalReadObjectBinding(
+                    read_id=read_id,
+                    object_id=_read_exit_object_id(record, index=index),
+                )
+            )
+
+    return ExternalReadObjectWitness(
+        source_id=source_id,
+        scope_id=scope_id,
+        completed_bindings=tuple(completed_bindings),
+        available=True,
+    )
+
+
+def _parse_vcml_jsonl(lines: Iterable[str | bytes]) -> list[Mapping[str, Any]]:
     parsed: list[Mapping[str, Any]] = []
     for line_number, line in enumerate(lines, start=1):
         if isinstance(line, bytes):
@@ -197,9 +314,75 @@ def completed_read_witness_from_vcml_jsonl(
                 f"vCML JSONL record at line {line_number} must be an object"
             )
         parsed.append(record)
+    return parsed
 
+
+def completed_read_witness_from_vcml_jsonl(
+    lines: Iterable[str | bytes],
+    *,
+    scope_id: str,
+    source_id: str = DEFAULT_COMPLETION_SOURCE_ID,
+    available: bool = True,
+) -> CompletedReadWitness:
+    """Parse JSONL fail-closed and build aggregate completion evidence."""
+
+    if not available:
+        return completed_read_witness_from_vcml_records(
+            [],
+            scope_id=scope_id,
+            source_id=source_id,
+            available=False,
+        )
     return completed_read_witness_from_vcml_records(
-        parsed,
+        _parse_vcml_jsonl(lines),
+        scope_id=scope_id,
+        source_id=source_id,
+        available=True,
+    )
+
+
+def completed_read_identity_witness_from_vcml_jsonl(
+    lines: Iterable[str | bytes],
+    *,
+    scope_id: str,
+    source_id: str = DEFAULT_COMPLETION_SOURCE_ID,
+    available: bool = True,
+) -> ExternalReadIdentityWitness:
+    """Parse v0.7+ JSONL fail-closed and build exact completion identities."""
+
+    if not available:
+        return completed_read_identity_witness_from_vcml_records(
+            [],
+            scope_id=scope_id,
+            source_id=source_id,
+            available=False,
+        )
+    return completed_read_identity_witness_from_vcml_records(
+        _parse_vcml_jsonl(lines),
+        scope_id=scope_id,
+        source_id=source_id,
+        available=True,
+    )
+
+
+def completed_read_object_witness_from_vcml_jsonl(
+    lines: Iterable[str | bytes],
+    *,
+    scope_id: str,
+    source_id: str = DEFAULT_COMPLETION_SOURCE_ID,
+    available: bool = True,
+) -> ExternalReadObjectWitness:
+    """Parse v0.8 JSONL fail-closed and build exact read→object bindings."""
+
+    if not available:
+        return completed_read_object_witness_from_vcml_records(
+            [],
+            scope_id=scope_id,
+            source_id=source_id,
+            available=False,
+        )
+    return completed_read_object_witness_from_vcml_records(
+        _parse_vcml_jsonl(lines),
         scope_id=scope_id,
         source_id=source_id,
         available=True,
