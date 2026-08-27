@@ -31,7 +31,7 @@ The publish job re-reads the pull request immediately before posting. If any bas
 
 ### Default-branch refresh lane
 
-`.github/workflows/trust-root-refresh.yml` is a trusted orchestrator that runs from the default branch every five minutes and through manual dispatch. It deliberately has **no `push` trigger**, because a push workflow loaded from an arbitrary feature branch must not receive `statuses: write` authority.
+`.github/workflows/trust-root-refresh.yml` is a trusted orchestrator that runs from the default branch every five minutes. It deliberately has **no `push` or `workflow_dispatch` trigger**, because either event can load workflow code from a selectable non-default ref that must not receive `statuses: write` authority.
 
 `CML Trust Root Refresh`:
 
@@ -44,6 +44,8 @@ The publish job re-reads the pull request immediately before posting. If any bas
 7. uploads the exact verification and freshness evidence.
 
 A base advance therefore invalidates the old status immediately by changing the test merge SHA. The scheduled refresh restores a decision for the new test merge without requiring a head-branch commit.
+
+Open pull requests for which GitHub cannot produce a current test merge commit (for example, a conflicting PR) are recorded as skipped and receive no refreshed trust status. They cannot block refresh for unrelated mergeable PRs, and the missing status remains fail-closed for the skipped PR.
 
 ### Head-executed causal lane
 
@@ -139,7 +141,7 @@ Anyone with administrative bypass authority can still override repository policy
 When a trust status is missing after a base advance:
 
 1. confirm the PR shows a new test merge commit;
-2. wait for `CML Trust Root Refresh` or dispatch it manually;
+2. wait for the scheduled `CML Trust Root Refresh` run;
 3. inspect `trust-root-verification.json` and `transition-freshness.json`;
 4. confirm `base_ref`, `base_sha`, `head_sha`, `merge_sha`, and `status_context` match the current PR;
 5. update the branch or fix the protected-file mismatch;

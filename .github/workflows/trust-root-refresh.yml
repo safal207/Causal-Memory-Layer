@@ -58,6 +58,7 @@ jobs:
               "User-Agent": "cml-trust-root-refresh",
           }
           targets = []
+          skipped = []
           page = 1
           while True:
               query = urllib.parse.urlencode(
@@ -93,9 +94,17 @@ jobs:
                       r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", head_repository
                   ):
                       raise SystemExit("invalid pull request head repository")
-                  for key in ("base_sha", "head_sha", "merge_sha"):
+                  for key in ("base_sha", "head_sha"):
                       if not re.fullmatch(r"[0-9a-f]{40}", target[key]):
                           raise SystemExit(f"invalid pull request {key}")
+                  if not re.fullmatch(r"[0-9a-f]{40}", target["merge_sha"]):
+                      skipped.append(
+                          {
+                              "number": target["number"],
+                              "reason": "test_merge_unavailable",
+                          }
+                      )
+                      continue
                   targets.append(target)
               if len(payload) < 100:
                   break
@@ -107,7 +116,11 @@ jobs:
           evidence.parent.mkdir(parents=True, exist_ok=True)
           evidence.write_text(
               json.dumps(
-                  {"schema_version": "cml-trust-refresh-targets-v1", "targets": targets},
+                  {
+                      "schema_version": "cml-trust-refresh-targets-v1",
+                      "targets": targets,
+                      "skipped": skipped,
+                  },
                   indent=2,
                   sort_keys=True,
               ) + "\n",

@@ -625,14 +625,20 @@ def evaluate_transition(
             },
             {
                 "id": "invariant",
-                "label": section_metadata.get("invariant", {}).get(
-                    "summary", "documentation-only invariant"
+                "label": (
+                    "invariant "
+                    + section_metadata["invariant"]["sha256"][:12]
+                    if "invariant" in section_metadata
+                    else "documentation-only invariant"
                 ),
             },
             {
                 "id": "regression",
-                "label": section_metadata.get("regression_evidence", {}).get(
-                    "summary", "lightweight verification"
+                "label": (
+                    "regression evidence "
+                    + section_metadata["regression_evidence"]["sha256"][:12]
+                    if "regression_evidence" in section_metadata
+                    else "lightweight verification"
                 ),
             },
             {"id": "head", "label": f"head {head_sha[:12]}"},
@@ -675,7 +681,16 @@ def evaluate_transition(
 
 
 def _mermaid_label(value: str) -> str:
-    return value.replace('"', "'").replace("\n", "<br/>")
+    """Reduce untrusted review text to inert, single-line Mermaid label text."""
+
+    allowed_punctuation = " .,:;()/_'-=+"
+    sanitized = "".join(
+        character
+        if character.isalnum() or character in allowed_punctuation
+        else " "
+        for character in value
+    )
+    return " ".join(sanitized.split())
 
 
 def render_markdown(report: dict[str, Any]) -> str:

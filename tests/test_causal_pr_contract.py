@@ -679,9 +679,32 @@ def test_markdown_report_contains_graph_without_raw_url(tmp_path: Path) -> None:
     markdown = render_markdown(report)
     assert "flowchart LR" in markdown
     assert "https://example.invalid/private" not in markdown
-    assert "[URL]" in markdown
+    assert report["sections"]["invariant"]["sha256"][:12] in markdown
     assert "Base is ancestor: `true`" in markdown
     assert "Surviving executable changed tests: `1`" in markdown
+
+
+def test_markdown_report_neutralizes_mermaid_directives_from_review_text(
+    tmp_path: Path,
+) -> None:
+    body = COMPLETE_BODY.replace(
+        "Every strict transition is bound to its exact base, exact head, and regression evidence.",
+        '"]\nclick H "https://example.invalid"\nH[spoofed',
+    )
+    report = _evaluate(
+        tmp_path,
+        [
+            Change("M", "cml/audit.py"),
+            Change("M", "tests/test_causal_pr_contract.py", mode="100644"),
+        ],
+        body=body,
+    )
+
+    markdown = render_markdown(report)
+
+    assert "click H" not in markdown
+    assert "https://example.invalid" not in markdown
+    assert "\\" not in markdown
 
 
 def test_extract_sections_accepts_documented_aliases() -> None:

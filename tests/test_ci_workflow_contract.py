@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import shlex
 from collections import Counter
 from pathlib import Path
@@ -16,11 +17,13 @@ from scripts.ci.verify_workflow_contract import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+CAUSAL_WORKFLOW = ROOT / ".github/workflows/causal-pr.yml"
 WORKFLOWS = [
     ROOT / ".github/workflows/ci.yml",
     ROOT / ".github/workflows/python-package-validation.yml",
     ROOT / ".github/workflows/security.yml",
-    ROOT / ".github/workflows/causal-pr.yml",
+    CAUSAL_WORKFLOW,
+    ROOT / ".github/workflows/ebpf-runtime-proof.yml",
 ]
 TRUSTED_WORKFLOW = ROOT / ".github/workflows/trusted-pr-gate.yml"
 REFRESH_WORKFLOW = ROOT / ".github/workflows/trust-root-refresh.yml"
@@ -349,13 +352,15 @@ def _refresh_contract_violations(path: Path) -> list[str]:
     triggers = _mapping(workflow.get("on"))
     if "push" in triggers:
         violations.append("refresh workflow may not run untrusted branch code on push")
+    if "workflow_dispatch" in triggers:
+        violations.append(
+            "refresh workflow may not expose manual dispatch from selectable refs"
+        )
     schedule = triggers.get("schedule")
     if not isinstance(schedule, list) or not any(
         _mapping(item).get("cron") == "*/5 * * * *" for item in schedule
     ):
         violations.append("refresh workflow must run every five minutes")
-    if "workflow_dispatch" not in triggers:
-        violations.append("refresh workflow must support trusted manual dispatch")
     if workflow.get("permissions") != {}:
         violations.append("refresh workflow permissions must be empty")
 
@@ -407,6 +412,10 @@ def _refresh_contract_violations(path: Path) -> list[str]:
             '"base_sha"',
             '"head_sha"',
             '"merge_sha"',
+            'if not re.fullmatch(r"[0-9a-f]{40}", target["merge_sha"]):',
+            '"reason": "test_merge_unavailable"',
+            '"skipped": skipped',
+            "continue\n        targets.append(target)",
             'output.write("matrix="',
         ),
     )
@@ -486,7 +495,7 @@ def test_required_workflows_satisfy_trust_contract():
 
 
 def test_extended_trust_contracts_pass():
-    assert _causal_contract_violations(WORKFLOWS[-1]) == []
+    assert _causal_contract_violations(CAUSAL_WORKFLOW) == []
     assert _trusted_contract_violations(TRUSTED_WORKFLOW) == []
     assert _refresh_contract_violations(REFRESH_WORKFLOW) == []
 
@@ -503,6 +512,20 @@ def test_same_head_against_two_base_refs_has_distinct_status_contexts():
     assert _branch_scoped_context("main") != _branch_scoped_context(
         "maintenance/1.x"
     )
+
+
+def test_ebpf_runtime_evidence_entrypoints_are_trust_root_pinned():
+    manifest = json.loads(
+        (ROOT / ".github/trust-root/protected_files.json").read_text(encoding="utf-8")
+    )
+    protected = set(manifest["files"])
+    required = {
+        ".github/workflows/ebpf-runtime-proof.yml",
+        "cml/integrations/ebpf_fd_reuse_runtime.py",
+        "vcml/linux-ebpf/runtime_fd_reuse_proof.py",
+        "vcml/linux-ebpf/runtime_read_binding_trust_entrypoint.py",
+    }
+    assert required <= protected
 
 
 def test_action_pin_pattern_is_segment_bounded():
@@ -573,7 +596,7 @@ def test_causal_contract_mutations_fail(tmp_path: Path):
         ),
     )
     for old, new, expected in cases:
-        mutated = _mutate(tmp_path, WORKFLOWS[-1], old, new)
+        mutated = _mutate(tmp_path, CAUSAL_WORKFLOW, old, new)
         assert any(expected in item for item in _causal_contract_violations(mutated))
 
 
@@ -584,7 +607,7 @@ def test_causal_contract_rejects_duplicate_and_shallow_steps(tmp_path: Path):
         "          test -n \"$BASE_SHA\""
     )
     duplicated = "      - name: Fetch exact base commit\n        run: echo shadowed\n\n" + original
-    mutated = _mutate(tmp_path, WORKFLOWS[-1], original, duplicated)
+    mutated = _mutate(tmp_path, CAUSAL_WORKFLOW, original, duplicated)
     assert any("exactly once" in item for item in _causal_contract_violations(mutated))
 
     for option in (
@@ -595,7 +618,7 @@ def test_causal_contract_rejects_duplicate_and_shallow_steps(tmp_path: Path):
     ):
         mutated = _mutate(
             tmp_path,
-            WORKFLOWS[-1],
+            CAUSAL_WORKFLOW,
             "git fetch --no-tags \\",
             f"git fetch --no-tags {option} \\",
         )
@@ -647,9 +670,14 @@ def test_refresh_contract_mutations_fail(tmp_path: Path):
     cases = (
         ('cron: "*/5 * * * *"', 'cron: "0 * * * *"', "every five minutes"),
         (
-            "workflow_dispatch:",
-            "push:",
+            "  schedule:\n",
+            "  push:\n  schedule:\n",
             "may not run untrusted branch code on push",
+        ),
+        (
+            "  schedule:\n",
+            "  workflow_dispatch:\n  schedule:\n",
+            "manual dispatch from selectable refs",
         ),
         (
             "base/.github/trust-root/scripts/verify_subject.py",
@@ -670,6 +698,32 @@ def test_refresh_contract_mutations_fail(tmp_path: Path):
     for old, new, expected in cases:
         mutated = _mutate(tmp_path, REFRESH_WORKFLOW, old, new)
         assert any(expected in item for item in _refresh_contract_violations(mutated))
+
+
+def test_refresh_contract_requires_unavailable_test_merges_to_be_isolated(
+    tmp_path: Path,
+):
+    mutated = _mutate(
+        tmp_path,
+        REFRESH_WORKFLOW,
+        '"reason": "test_merge_unavailable"',
+        '"reason": "ignored"',
+    )
+    assert any(
+        "test_merge_unavailable" in item
+        for item in _refresh_contract_violations(mutated)
+    )
+
+    mutated = _mutate(
+        tmp_path,
+        REFRESH_WORKFLOW,
+        "continue\n                  targets.append(target)",
+        'raise SystemExit("merge unavailable")\n                  targets.append(target)',
+    )
+    assert any(
+        "targets.append" in item
+        for item in _refresh_contract_violations(mutated)
+    )
 
 
 def test_runbook_requires_current_test_merge_protection():
