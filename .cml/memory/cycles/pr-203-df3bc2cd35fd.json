@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #203.",
+      "digest": "7894e2de0aadc934795fd2fa2481eb49e74b28ed0580f52542e97e8b35325fa8",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/e225ebe06937837d6328b423806df1aaabc828e1/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #203.",
+      "digest": "c869bbcf3ee1bbc54c11e100cea5e4377ef4a50b9eacbe6f590f0869d7e65d1a",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/203/files"
+    },
+    {
+      "description": "Merge commit for pull request #203.",
+      "digest": "9118423b9ed516078c74c26943f928d43cbef2713348eabf9103e09b402384a0",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:df3bc2cd35fdb8eacf99c2f390b5d69666651956"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #203.",
+      "digest": "eac11bc483da1bb6a994152b8cc4f0bea7198df2348df84b24969ded4deeac66",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/203"
+    },
+    {
+      "description": "Normalized review snapshot for #203 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/203/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 4,
+          "head_sha": "e225ebe06937837d6328b423806df1aaabc828e1",
+          "source": "explicit-pr-section"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "- orchestration attaches a stage to propagated exceptions without replacing root cause internally; - comment reconciliation reports its exact sub-stage; - the protected entrypoint sanitizes the stage against a fixed enum; - successful artifacts carry `failure_stage: null`.",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 19,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #203 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #203: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "df3bc2cd35fdb8eacf99c2f390b5d69666651956",
+          "merged_at": "2026-07-17T12:50:02.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #203 merged into main as df3bc2cd35fdb8eacf99c2f390b5d69666651956",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 203,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds bounded, privacy-safe failure-stage telemetry after live proof run `29581066856` failed with a deliberately generic artifact. **Current exact head:** `e225ebe06937837d6328b423806df1aaabc828e1`",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-17T12:50:02.000Z",
+    "description": "Automatically proposed decision memory for merged PR #203; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "df3bc2cd35fdb8eacf99c2f390b5d69666651956",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "f496d7fb8cf4abeeda076f74ad43815805261c2353def3b0416a36fc881bee38",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
