@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #259.",
+      "digest": "1bcff464ed69ca90dcbbf5022ccd879385fd366bf91c12845d63f83b34610ca5",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/9f087e528e9e8ea6c578b223ee954e859c44ed74/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #259.",
+      "digest": "4e688cf9cc7b1bd93972a5d1e95149ff8720f50bc62065ee85425aa86492566f",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/259/files"
+    },
+    {
+      "description": "Merge commit for pull request #259.",
+      "digest": "059553963792c715e6654c338ac0562bb6fa7cdadef89f488eff4b439aa3d6d7",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:5e25467f978f903fd3f2ca31da6d57c494dce183"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #259.",
+      "digest": "5ff87022aa5b0164608b5e83bd217337557cf483d83ee10cd62f05165c4b90b4",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/259"
+    },
+    {
+      "description": "Normalized review snapshot for #259 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/259/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 7,
+          "head_sha": "9f087e528e9e8ea6c578b223ee954e859c44ed74",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #259: docs(outreach): add OWASP causal space-time route",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 19,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "The PR must pass Python 3.10–3.12, deterministic contracts, package validation, CodeQL, dependency/source audit, secret scan, Trust Root Gate, and review-thread checks before merge. No protected workflow files or runtime behavior are changed. Disclosure: prepared with AI assistance under human direction and review. <!-- This is an auto-generated comment: release notes by coderabbit.ai -->",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #259: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "5e25467f978f903fd3f2ca31da6d57c494dce183",
+          "merged_at": "2026-08-01T20:56:45.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #259 merged into main as 5e25467f978f903fd3f2ca31da6d57c494dce183",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 259,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds a source-backed causal-space-time-transition map for routing the CML Agent Safety Benchmark through the OWASP GenAI Security Project.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-01T20:56:45.000Z",
+    "description": "Automatically proposed decision memory for merged PR #259; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "5e25467f978f903fd3f2ca31da6d57c494dce183",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "5aff9f44c4b390b4e30187388a063b88887f5771d4bf9a8cbe499708eeb37ec9",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
