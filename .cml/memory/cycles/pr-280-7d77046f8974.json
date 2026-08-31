@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #280.",
+      "digest": "0d20419a68d13bfea729adf4e93c7e79ec73d4e3a834bf58da4da330032a6dd3",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/04e6409617a541fd4029ad27e31deba106978eb6/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #280.",
+      "digest": "7ffa0a41495c92b4732f6392b0d68dd7b1fb5e25c10e125ff401e7d4a0f1cfdd",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/280/files"
+    },
+    {
+      "description": "Merge commit for pull request #280.",
+      "digest": "68a9d168ffe02de4cb2f6f7b8beb25fd3bcc2fb823cdc8b4957df1fbb3215713",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:7d77046f89740a92d66206e4804fffc7150a81dd"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #280.",
+      "digest": "bf21f3a127a5a0329304e4e1738a886cdbc16cbf36ce8793b0f2246ce513ab31",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/280"
+    },
+    {
+      "description": "Normalized review snapshot for #280 without review bodies.",
+      "digest": "14f88d424dbc3f2f175e10b892c7603953f965af92e315e898f6b7fd20104d96",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/280/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 6,
+          "head_sha": "04e6409617a541fd4029ad27e31deba106978eb6",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #280: fix(memory): harden lineage and information evidence integrity",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 17,
+          "review_count": 1
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "- `pytest tests/test_memory_lineage_coverage.py tests/test_information_quality.py tests/test_information_fitness.py` — 34 passed - full suite: 752 passed; 4 pre-existing environment-only failures (Windows CRLF tree manifest / symlink scan) reproduce identically on unmodified main - `ruff check` on all changed files — clean - `scripts.ci.assert_exact_head` against head `d947fea` — verified <!-- This is an auto-generated comment: release notes by coderabbit.ai -->",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #280: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "7d77046f89740a92d66206e4804fffc7150a81dd",
+          "merged_at": "2026-08-12T01:41:35.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #280 merged into main as 7d77046f89740a92d66206e4804fffc7150a81dd",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 280,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "* **New Features** * Added evidence-binding validation to ensure evidence matches the evaluated item, source record, and accepted state. * Added clearer outcomes for invalid or outdated evidence, including exclusion and review statuses. * **Bug Fixes** * Prevented duplicate records and invalid dependencies from affecting lineage coverage measurements. * Added strict rejection of duplicate data fields and malformed evidence bindings. * **Documentation** * Updated information-quality requirements…",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-12T01:41:35.000Z",
+    "description": "Automatically proposed decision memory for merged PR #280; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "7d77046f89740a92d66206e4804fffc7150a81dd",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "2200ff67efed17a3bd3f26240b789c77bfcdf9cebf002124c14726fa01293024",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
