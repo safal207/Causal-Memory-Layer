@@ -1,0 +1,22 @@
+{
+  "canonical_preimage": "{\"claims\":{\"authorization_source_digest\":\"3333333333333333333333333333333333333333333333333333333333333333\",\"expires_at\":\"2026-07-15T12:05:00.000Z\",\"issued_at\":\"2026-07-15T12:00:00.000Z\",\"policy_digest\":\"2222222222222222222222222222222222222222222222222222222222222222\",\"provider_id\":\"crew-policy-provider\",\"reason_code\":\"CML-GUARDRAIL-POLICY-ALLOW\",\"request_digest\":\"1111111111111111111111111111111111111111111111111111111111111111\",\"verdict\":\"DENY\"},\"schema_version\":\"cml-guardrail-decision-v1\"}",
+  "decision": {
+    "claims": {
+      "authorization_source_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "expires_at": "2026-07-15T12:05:00.000Z",
+      "issued_at": "2026-07-15T12:00:00.000Z",
+      "policy_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "provider_id": "crew-policy-provider",
+      "reason_code": "CML-GUARDRAIL-POLICY-ALLOW",
+      "request_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "verdict": "DENY"
+    },
+    "decision_id": "0152b2fdd53a315e4a2ea6c48cd79f9e076675354537e0efb5fad9f40295fe09",
+    "schema_version": "cml-guardrail-decision-v1"
+  },
+  "expected_finding_codes": [
+    "CML-GUARDRAIL-DECISION-ID-MISMATCH"
+  ],
+  "name": "verdict-mutated-with-reused-id",
+  "recomputed_decision_id": "21a7c5ba1c7f86d8721eb88c19db25086e11a614dd7cfe588f335684a5d30707"
+}

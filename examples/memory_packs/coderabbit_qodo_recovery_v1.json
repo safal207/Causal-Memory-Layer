@@ -1,0 +1,241 @@
+{
+  "evidence": [
+    {
+      "description": "Exact-head CI workflow completed successfully.",
+      "digest": "16850a18a7f632f23eb5e7cbf3495ab2a98b1a27271eb8abd1feb10eee16528c",
+      "id": "ci-pr-179",
+      "kind": "workflow_run",
+      "locator": "github-actions:29537160971"
+    },
+    {
+      "description": "Squash merge of the protected recovery implementation.",
+      "digest": "b060433abcfcc0bbf8f60d554277e8a38912dfde432d1df995e19bab92018ced",
+      "id": "merge-pr-179",
+      "kind": "commit",
+      "locator": "git:2b6d69540096b42313979dc8fcaed526caf14bd7"
+    },
+    {
+      "description": "Qodo exact-head proxy review reported no actionable findings.",
+      "digest": "813971899388613b65836b94570c8ab8031b710d473616d0bfd727d14de8e2f7",
+      "id": "qodo-pr-179",
+      "kind": "review",
+      "locator": "github-comment:4996887877"
+    },
+    {
+      "description": "Exact-head security workflow completed successfully.",
+      "digest": "5e4ead1d4d40f7c36170b5f877a5507650bc053f9d64458cb756e2cdd5b0df11",
+      "id": "security-pr-179",
+      "kind": "workflow_run",
+      "locator": "github-actions:29537160984"
+    },
+    {
+      "description": "Expected protected-bootstrap trust-root evidence.",
+      "digest": "6ae8719bbf0b304d2e0ccf96188a2fcbb862478218e3d2d303321bcc5c6ca142",
+      "id": "trust-root-pr-179",
+      "kind": "artifact",
+      "locator": "github-artifact:cml-trust-root-pr179-786034d40bb61b436103923e2b377d6882d1f91d-29537161042-1"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "ci-pr-179",
+          "qodo-pr-179",
+          "security-pr-179"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-protected-reconciliation",
+        "strength": 100,
+        "target": "check-independent-review"
+      },
+      {
+        "evidence_ids": [
+          "merge-pr-179"
+        ],
+        "id": "edge-cause-action",
+        "relation": "leads_to",
+        "source": "cause-native-delivery-not-guaranteed",
+        "strength": 95,
+        "target": "action-protected-reconciliation"
+      },
+      {
+        "evidence_ids": [
+          "ci-pr-179",
+          "qodo-pr-179",
+          "security-pr-179",
+          "trust-root-pr-179"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "leads_to",
+        "source": "check-independent-review",
+        "strength": 95,
+        "target": "outcome-recovery-merged"
+      },
+      {
+        "evidence_ids": [
+          "merge-pr-179"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-recovery-merged",
+        "strength": 95,
+        "target": "lesson-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "qodo-pr-179"
+        ],
+        "id": "edge-reject-manual-only",
+        "relation": "selected_over",
+        "source": "action-protected-reconciliation",
+        "strength": 90,
+        "target": "option-manual-qodo"
+      },
+      {
+        "evidence_ids": [
+          "merge-pr-179"
+        ],
+        "id": "edge-reject-webhook-only",
+        "relation": "selected_over",
+        "source": "action-protected-reconciliation",
+        "strength": 100,
+        "target": "option-webhook-only"
+      },
+      {
+        "evidence_ids": [
+          "merge-pr-179"
+        ],
+        "id": "edge-situation-cause",
+        "relation": "supports",
+        "source": "situation-missed-review-event",
+        "strength": 90,
+        "target": "cause-native-delivery-not-guaranteed"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "duplicate_policy": "DUPLICATE_DELIVERY_NOOP",
+          "head_binding": "current full 40-character SHA",
+          "identity": "canonical bot login plus numeric id",
+          "merge_authority": false
+        },
+        "confidence": 95,
+        "id": "action-protected-reconciliation",
+        "kind": "action",
+        "label": "Add hourly read-oriented discovery and exact-head per-PR reconciliation",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "failure_mode": "missing or unobservable provider event"
+        },
+        "confidence": 90,
+        "id": "cause-native-delivery-not-guaranteed",
+        "kind": "cause",
+        "label": "External review event delivery cannot be treated as guaranteed",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "unresolved_review_threads": 0
+        },
+        "confidence": 100,
+        "id": "check-independent-review",
+        "kind": "check",
+        "label": "Require green exact-head CI, security, and independent review",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "scope": "GitHub review-provider fallback"
+        },
+        "confidence": 95,
+        "id": "lesson-best-known-path",
+        "kind": "lesson",
+        "label": "For external bot events, combine native delivery with exact-head reconciliation and exactly-once evidence",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "limitation": "review exists but fallback execution is not proven"
+        },
+        "confidence": 75,
+        "id": "option-manual-qodo",
+        "kind": "option",
+        "label": "Request Qodo manually after CodeRabbit becomes unavailable",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "residual_risk": "missed event leaves no lifecycle evidence"
+        },
+        "confidence": 100,
+        "id": "option-webhook-only",
+        "kind": "option",
+        "label": "Use only native provider webhook events",
+        "status": "failed"
+      },
+      {
+        "attributes": {
+          "live_post_merge_acceptance": "pending",
+          "merge_commit": "2b6d69540096b42313979dc8fcaed526caf14bd7"
+        },
+        "confidence": 95,
+        "id": "outcome-recovery-merged",
+        "kind": "outcome",
+        "label": "Protected missed-event recovery merged without merge authority",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "issue": 168,
+          "observed_prs": [
+            176,
+            178,
+            179
+          ]
+        },
+        "confidence": 100,
+        "id": "situation-missed-review-event",
+        "kind": "situation",
+        "label": "Canonical CodeRabbit rate-limit comment exists without an authenticated fallback lifecycle",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-missed-review-event",
+      "cause-native-delivery-not-guaranteed",
+      "action-protected-reconciliation",
+      "check-independent-review",
+      "outcome-recovery-merged",
+      "lesson-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": false,
+    "created_at": "2026-07-17T00:00:00.000Z",
+    "description": "Public decision memory for the CodeRabbit rate-limit to Qodo exact-head recovery cycle.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "2b6d69540096b42313979dc8fcaed526caf14bd7",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "public"
+  },
+  "pack_id": "931cd50e2d30e321f8327aea5487f579f7911f7a9ab5b306b343ba5512c13da4",
+  "redactions": [
+    {
+      "path": "evidence[*].raw_payload",
+      "reason": "Raw provider payloads are not included in the portable public pack."
+    },
+    {
+      "path": "graph.nodes[*].attributes.private_notes",
+      "reason": "Private maintainer notes are excluded from the public projection."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}

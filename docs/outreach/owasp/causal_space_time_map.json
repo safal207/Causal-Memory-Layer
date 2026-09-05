@@ -1,0 +1,294 @@
+{
+  "schema_version": "cml-owasp-causal-space-time-map-v1",
+  "status": "proposed_navigation_model",
+  "official_owasp_endorsement": false,
+  "verified_at": "2026-08-01",
+  "method": {
+    "dimensions": [
+      "cause",
+      "space",
+      "time",
+      "transition"
+    ],
+    "rule": "Treat only named OWASP initiatives or working groups as organizational groups; classify guides, taxonomies, and reference implementations as workstreams or artifacts."
+  },
+  "official_sources": [
+    {
+      "id": "source-agentic-initiative",
+      "url": "https://genai.owasp.org/initiatives/agentic-security-initiative/",
+      "supports": [
+        "agentic-security-working-group",
+        "primary-channel",
+        "open-meeting"
+      ]
+    },
+    {
+      "id": "source-redteam-initiative",
+      "url": "https://genai.owasp.org/initiatives/genai-red-teaming-initiative/",
+      "supports": [
+        "red-team-evaluation-initiative",
+        "red-team-channel"
+      ]
+    },
+    {
+      "id": "source-agentic-top10",
+      "url": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
+      "supports": [
+        "asi01-asi10-taxonomy"
+      ]
+    },
+    {
+      "id": "source-secure-mcp",
+      "url": "https://genai.owasp.org/resource/a-practical-guide-for-secure-mcp-server-development/",
+      "supports": [
+        "mcp-security-workstream"
+      ]
+    },
+    {
+      "id": "source-third-party-mcp",
+      "url": "https://genai.owasp.org/resource/cheatsheet-a-practical-guide-for-securely-using-third-party-mcp-servers-1-0/",
+      "supports": [
+        "mcp-security-workstream"
+      ]
+    },
+    {
+      "id": "source-memory-guard",
+      "url": "https://github.com/OWASP/www-project-agent-memory-guard",
+      "supports": [
+        "asi06-reference-implementation"
+      ]
+    },
+    {
+      "id": "source-memory-attack-surface",
+      "url": "https://genai.owasp.org/2026/05/13/memory-is-a-feature-it-is-also-an-attack-surface/",
+      "supports": [
+        "persistent-memory-risk"
+      ]
+    }
+  ],
+  "organizational_nodes": [
+    {
+      "id": "agentic-security-working-group",
+      "classification": "official_working_group",
+      "name": "Agentic Security Working Group",
+      "channel": "#team-genai-agentic-security-initiative",
+      "role": "Primary review and routing point for the CML benchmark and ASI crosswalk."
+    },
+    {
+      "id": "red-team-evaluation-initiative",
+      "classification": "official_initiative",
+      "name": "AI Red Teaming & Evaluation",
+      "channel": "#team-genai-redteam",
+      "role": "Methodology, benchmark rigor, adversarial testing, and external harness interoperability."
+    },
+    {
+      "id": "mcp-security-workstream",
+      "classification": "documented_workstream",
+      "name": "MCP security guidance",
+      "channel": null,
+      "role": "Tool-server authorization, validation, session isolation, third-party risk, and chained-tool security."
+    },
+    {
+      "id": "asi06-memory-guard",
+      "classification": "reference_implementation",
+      "name": "OWASP Agent Memory Guard",
+      "channel": null,
+      "role": "Persistent-memory read/write defense and a natural integration target for ASB-12."
+    }
+  ],
+  "spaces": [
+    {
+      "id": "intent",
+      "question": "What user objective must remain invariant?",
+      "cml_evidence": [
+        "intent",
+        "constraints",
+        "expected_postconditions"
+      ]
+    },
+    {
+      "id": "authority",
+      "question": "Who may authorize this transition now?",
+      "cml_evidence": [
+        "authorization",
+        "scope",
+        "expiry",
+        "approval_refs"
+      ]
+    },
+    {
+      "id": "tool_mcp",
+      "question": "Which exact tool and server performed the side effect?",
+      "cml_evidence": [
+        "dispatch",
+        "tool_name",
+        "server_ref",
+        "request_digest"
+      ]
+    },
+    {
+      "id": "external_state",
+      "question": "What changed outside the model?",
+      "cml_evidence": [
+        "state_before",
+        "state_after",
+        "outcome"
+      ]
+    },
+    {
+      "id": "verification",
+      "question": "Did an independent observer confirm the user-level invariant?",
+      "cml_evidence": [
+        "verification",
+        "checks",
+        "verifier",
+        "verdict"
+      ]
+    },
+    {
+      "id": "recovery",
+      "question": "What bounded transition restored trust?",
+      "cml_evidence": [
+        "recovery",
+        "causal_parent_ids",
+        "parent_digests"
+      ]
+    },
+    {
+      "id": "memory",
+      "question": "Can untrusted state persist and influence a future session?",
+      "cml_evidence": [
+        "memory_write_lineage",
+        "quarantine",
+        "rollback",
+        "future_read_verification"
+      ]
+    }
+  ],
+  "time_states": [
+    {
+      "id": "T0",
+      "state": "declared_intent"
+    },
+    {
+      "id": "T1",
+      "state": "plan_and_preconditions"
+    },
+    {
+      "id": "T2",
+      "state": "current_authorization"
+    },
+    {
+      "id": "T3",
+      "state": "tool_dispatch"
+    },
+    {
+      "id": "T4",
+      "state": "observed_external_effect"
+    },
+    {
+      "id": "T5",
+      "state": "independent_verification"
+    },
+    {
+      "id": "T6",
+      "state": "containment"
+    },
+    {
+      "id": "T7",
+      "state": "minimal_recovery"
+    },
+    {
+      "id": "T8",
+      "state": "verified_final_state"
+    },
+    {
+      "id": "T9",
+      "state": "future_session_or_reuse"
+    }
+  ],
+  "transitions": [
+    {
+      "from": "T0",
+      "to": "T1",
+      "guard": "plan preserves declared constraints"
+    },
+    {
+      "from": "T1",
+      "to": "T2",
+      "guard": "authority is current and scoped"
+    },
+    {
+      "from": "T2",
+      "to": "T3",
+      "guard": "dispatch is the smallest authorized side effect"
+    },
+    {
+      "from": "T3",
+      "to": "T4",
+      "guard": "record actual external outcome, not tool wording alone"
+    },
+    {
+      "from": "T4",
+      "to": "T5",
+      "guard": "independent verifier checks critical postconditions"
+    },
+    {
+      "from": "T5",
+      "to": "T8",
+      "guard": "all critical checks pass"
+    },
+    {
+      "from": "T5",
+      "to": "T6",
+      "guard": "divergence or uncertainty is detected"
+    },
+    {
+      "from": "T6",
+      "to": "T7",
+      "guard": "recovery is bounded, reversible, and parent-bound"
+    },
+    {
+      "from": "T7",
+      "to": "T8",
+      "guard": "independent verification confirms restoration"
+    },
+    {
+      "from": "T8",
+      "to": "T9",
+      "guard": "persistent context is provenance-checked before reuse"
+    }
+  ],
+  "entry_route": [
+    {
+      "order": 1,
+      "target": "agentic-security-working-group",
+      "trigger": "Publish crosswalk and benchmark request.",
+      "completion_evidence": "Slack post or meeting reference."
+    },
+    {
+      "order": 2,
+      "target": "red-team-evaluation-initiative",
+      "trigger": "ASI acknowledges evaluation relevance or no routing response after five business days.",
+      "completion_evidence": "Red-team channel post referencing the ASI submission."
+    },
+    {
+      "order": 3,
+      "target": "mcp-security-workstream",
+      "trigger": "Crosswalk feedback confirms tool/MCP scenarios as a useful evaluation slice.",
+      "completion_evidence": "Review request tied to ASB-01, ASB-04, ASB-06, and ASB-11."
+    },
+    {
+      "order": 4,
+      "target": "asi06-memory-guard",
+      "trigger": "ASB-12 persistent-memory fixture and adapter are runnable.",
+      "completion_evidence": "Issue or PR proposing Memory Guard integration."
+    }
+  ],
+  "non_claims": [
+    "This map is not an official OWASP organizational chart.",
+    "The proposed route does not imply endorsement, certification, or adoption.",
+    "A guide, taxonomy, or reference implementation is not represented as a formal working group unless OWASP names it as one.",
+    "Meeting times and channel names must be rechecked before each external post."
+  ]
+}

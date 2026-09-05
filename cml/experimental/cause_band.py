@@ -22,41 +22,35 @@ DEFAULT_FIXTURE = Path("benchmarks/experimental/07_range_drift_intent.json")
 
 
 def resolve_fixture_path(path: Path) -> Path:
-    """Resolve fixture path safely, preventing directory traversal and absolute paths.
+    """Resolve fixture path safely within benchmarks/experimental.
 
-    Accepts:
-    - Absolute path: rejected (security)
-    - Path with .. traversal: rejected (security)
-    - Full repo-relative path (e.g., 'benchmarks/experimental/07_*.json'): used as-is if exists
-    - Filename only (e.g., '07_range_drift_intent.json'): resolved within benchmarks/experimental/
+    Accepts only a JSON fixture filename (basename), for example:
+    - '07_range_drift_intent.json'
     """
     base_dir = DEFAULT_FIXTURE.parent.resolve()
-    
+
     if path.is_absolute():
         raise SystemExit(f"Fixture path not allowed: {path}")
-    if any(part == ".." for part in path.parts):
+
+    # Only allow a basename; reject any directory components.
+    if len(path.parts) != 1:
         raise SystemExit(f"Fixture path not allowed: {path}")
-    
-    # Normalize path separators for consistent comparison
-    path_str = str(path).replace("\\", "/")
-    base_dir_str = "benchmarks/experimental"
-    
-    # Check if this is already a full repo-relative path
-    if path_str.startswith(base_dir_str + "/"):
-        candidate = path.resolve()
-    else:
-        # Treat as basename and prepend base_dir
-        candidate = (base_dir / path.name).resolve()
-    
+
+    fixture_name = path.name
+    if not re.fullmatch(r"[A-Za-z0-9._-]+\.json", fixture_name):
+        raise SystemExit(f"Fixture path not allowed: {path}")
+
+    candidate = (base_dir / fixture_name).resolve()
+
     # Ensure the resolved path is within base_dir
     try:
         candidate.relative_to(base_dir)
     except ValueError as exc:
         raise SystemExit(f"Fixture path not allowed: {path}") from exc
-    
+
     if not candidate.exists():
         raise SystemExit(f"Fixture not found: {candidate}")
-    
+
     return candidate
 
 

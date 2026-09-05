@@ -47,10 +47,13 @@ All options are environment variables. Common ones:
 ### Example: with Authentication
 
 ```bash
+# Generate an example local token and pass it via the environment.
+export CML_API_TOKEN="$(openssl rand -hex 32)"
+
 docker run \
   -e PORT=8080 \
   -e CML_STORE_PATH=/data/cml.db \
-  -e CML_API_TOKEN=my-secret-token-here \
+  -e CML_API_TOKEN="${CML_API_TOKEN}" \
   -e CML_CORS_ORIGINS="https://myapp.example.com" \
   -v cml-data:/data \
   -p 8080:8080 \
@@ -60,7 +63,7 @@ docker run \
 Then use it:
 
 ```bash
-curl -H "Authorization: Bearer my-secret-token-here" \
+curl -H "Authorization: Bearer ${CML_API_TOKEN}" \
   http://localhost:8080/health
 ```
 
@@ -82,7 +85,8 @@ curl -H "Authorization: Bearer my-secret-token-here" \
 
 3. **Set secrets (for auth + CORS):**
    ```bash
-   flyctl secrets set CML_API_TOKEN=my-secret-token-here
+   export CML_API_TOKEN="$(openssl rand -hex 32)"
+   flyctl secrets set CML_API_TOKEN="${CML_API_TOKEN}"
    flyctl secrets set CML_CORS_ORIGINS="https://yourfrontend.com"
    ```
 

@@ -1,0 +1,133 @@
+{
+  "fixture_version": "0.1",
+  "profile": "org.cml.three-record-causal-audit.v0.1",
+  "cases": [
+    {
+      "case_id": "broken_authorization_parent_link",
+      "authorization": {
+        "transition_id": "transition-edge-001",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-edge-001",
+        "binding_digest": "sha256:binding-edge-001",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_root": true
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record": {
+            "transition_id": "transition-edge-001",
+            "subject_id": "agent:deploy",
+            "authorization_ref": "sha256:missing-authorization-parent",
+            "action_identity_digest": "sha256:action-edge-001",
+            "binding_digest": "sha256:binding-edge-001",
+            "execution_status": "EXECUTED",
+            "result_digest": "sha256:result-edge-001"
+          }
+        }
+      ],
+      "integrity": {
+        "transition_id": "transition-edge-001",
+        "subject_id": "agent:deploy",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": ["$OBSERVATION:primary"],
+        "overall_verdict": "VERIFIED",
+        "claims": [
+          {
+            "claim_id": "claim-1",
+            "verdict": "SUPPORTED",
+            "observation_refs": ["$OBSERVATION:primary"]
+          }
+        ]
+      },
+      "expected": {
+        "status": "FAILED",
+        "finding_codes": [
+          "CML-TTR-R1-MISSING_AUTHORIZATION_PARENT"
+        ],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "VERIFIED",
+          "causal_validity": "INVALID"
+        }
+      }
+    },
+    {
+      "case_id": "ambiguous_authorization_root",
+      "authorization": {
+        "transition_id": "transition-edge-002",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-edge-002",
+        "binding_digest": "sha256:binding-edge-002",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE"
+      },
+      "observations": [],
+      "integrity": {
+        "transition_id": "transition-edge-002",
+        "subject_id": "agent:deploy",
+        "authorization_ref": "$AUTHORIZATION_REF",
+        "observation_refs": [],
+        "overall_verdict": "NOT_EVALUATED",
+        "claims": []
+      },
+      "expected": {
+        "status": "FAILED",
+        "finding_codes": [
+          "CML-TTR-R8-CAUSAL_CYCLE_OR_AMBIGUOUS_ROOT"
+        ],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "NOT_OBSERVED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "INVALID"
+        }
+      }
+    },
+    {
+      "case_id": "actual_authorization_observation_cycle",
+      "authorization_record_ref": "sha256:authorization-cycle",
+      "authorization": {
+        "transition_id": "transition-edge-cycle",
+        "subject_id": "agent:deploy",
+        "action_identity_digest": "sha256:action-edge-cycle",
+        "binding_digest": "sha256:binding-edge-cycle",
+        "decision": "ALLOW",
+        "current_state": "ACTIVE",
+        "causal_parent_refs": ["sha256:observation-cycle"]
+      },
+      "observations": [
+        {
+          "key": "primary",
+          "record_ref": "sha256:observation-cycle",
+          "record": {
+            "transition_id": "transition-edge-cycle",
+            "subject_id": "agent:deploy",
+            "authorization_ref": "$AUTHORIZATION_REF",
+            "action_identity_digest": "sha256:action-edge-cycle",
+            "binding_digest": "sha256:binding-edge-cycle",
+            "execution_status": "EXECUTED",
+            "result_digest": "sha256:result-edge-cycle"
+          }
+        }
+      ],
+      "integrity": null,
+      "expected": {
+        "status": "FAILED",
+        "finding_codes": [
+          "CML-TTR-R8-CAUSAL_CYCLE_OR_AMBIGUOUS_ROOT",
+          "CML-TTR-R9-RECORD_REFERENCE_MISMATCH",
+          "CML-TTR-R9-RECORD_REFERENCE_MISMATCH"
+        ],
+        "dimensions": {
+          "authority": "VALID",
+          "execution": "OBSERVED_EXECUTED",
+          "response_integrity": "NOT_EVALUATED",
+          "causal_validity": "INVALID"
+        }
+      }
+    }
+  ]
+}

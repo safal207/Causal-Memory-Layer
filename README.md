@@ -1,4 +1,4 @@
-# Causal Memory Layer (CML)
+# Causal Memory Layer (CML) — AI Agent Audit & Approval Lineage
 
 [![CI](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/ci.yml/badge.svg)](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/ci.yml)
 [![Package Validation](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/python-package-validation.yml/badge.svg)](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/python-package-validation.yml)
@@ -11,6 +11,26 @@
 [![Safety Eval](https://img.shields.io/badge/safety--eval-6%2F6%20matched-purple)](docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md)
 
 ![CML before-after causal audit visual](docs/assets/cml-before-after.svg)
+
+<!-- seo-product-intro:start -->
+**Open-source causal audit for AI-agent actions, tool calls, memory, delegation, policy ancestry, and human-approval lineage.**
+
+CML is designed for a narrow but important question:
+
+> The action happened — but can the trace prove why it was allowed?
+
+Use CML when ordinary logs show operational success but reviewers still need to verify the exact task, evidence, delegation, policy, or approval chain behind a high-trust action.
+
+| Search need | CML capability |
+|---|---|
+| AI-agent audit trail | Detect missing parents, ambiguous roots, and broken responsibility lineage |
+| Approval-lineage verification | Check whether a sensitive action retains a valid policy or human-approval ancestor |
+| Agent memory safety | Separate historical truth from current authority and applicability |
+| Tool-call governance evidence | Preserve provider-neutral causal links across multi-step agent workflows |
+| MCP audit tooling | Expose causal-audit checks to compatible AI-agent clients |
+
+[Install from PyPI](https://pypi.org/project/causal-memory-layer/) · [Start here](docs/START_HERE.md) · [Open the dashboard](https://safal207.github.io/Causal-Memory-Layer/)
+<!-- seo-product-intro:end -->
 
 ## Why CML?
 
@@ -98,10 +118,56 @@ python examples/crewai_style_causal_audit.py
 
 See [`docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md`](docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md).
 
+For an approval-lineage example, run:
+
+```bash
+python examples/agent_approval_lineage_audit.py
+```
+
+This demo shows how CML can flag a synthetic agent trace where a sensitive step lacks a valid policy or human approval ancestor.
+
+## For LLM agents across 7 provider ecosystems
+
+CML now includes provider-specific causal-audit mappings, deterministic examples, regression tests, and integration guides for:
+
+**OpenAI • Claude • Gemini • Grok/xAI • Qwen • Kimi • DeepSeek**
+
+Different providers use different transport IDs, but CML keeps one provider-neutral causal model:
+
+```text
+provider call ID -> which result belongs to which tool request?
+CML parent_cause -> which task, evidence, delegation, or approval caused it?
+```
+
+### Try the provider demos
+
+```bash
+python examples/grok_xai_causal_audit.py
+python examples/openai_claude_causal_audit.py
+python examples/gemini_causal_audit.py
+python examples/qwen_kimi_deepseek_causal_audit.py
+```
+
+The examples model realistic tool-use chains with causal lineage, intent metadata, risk assessment, evidence bundles, human-approval ancestry, and provider-native correlation metadata.
+
+See:
+
+- [LLM Provider Causal-Audit Matrix](docs/integrations/LLM_PROVIDER_MATRIX.md)
+- [OpenAI and Claude Agent Integration Guide](docs/integrations/OPENAI_CLAUDE_AGENT_INTEGRATION.md)
+- [Gemini Agent Integration Guide](docs/integrations/GEMINI_AGENT_INTEGRATION.md)
+- [Grok/xAI Agent Integration Guide](docs/integrations/GROK_XAI_AGENT_INTEGRATION.md)
+- [Qwen, Kimi, and DeepSeek Agent Integration Guide](docs/integrations/QWEN_KIMI_DEEPSEEK_AGENT_INTEGRATION.md)
+- [Cause Band Concept](docs/research/CAUSE_BAND.md)
+
+These are SDK-independent deterministic mappings, not official provider integrations or endorsements. They perform no real model calls or tool execution.
+
+> Cause Band is an experimental future direction for tracking multi-step intent drift. Its findings are non-normative and do not represent a production safety guarantee.
+
 ## Use CML when you need to audit
 
 - AI-agent tool calls and action chains.
 - Human approval handoffs.
+- Approval-lineage checks for high-trust agent actions.
 - Automation workflows with high-trust actions.
 - Fintech or review-heavy decision paths.
 - Structured traces where responsibility lineage matters.
@@ -181,7 +247,13 @@ https://safal207.github.io/Causal-Memory-Layer/
 - Technical report outline: [`docs/research/TECHNICAL_REPORT_OUTLINE.md`](docs/research/TECHNICAL_REPORT_OUTLINE.md)
 - Funding / research evidence: [`docs/GRANT_EVIDENCE.md`](docs/GRANT_EVIDENCE.md)
 - Docker walkthrough: [`docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md`](docs/demo/DOCKER_CAUSAL_MEMORY_WALKTHROUGH.md)
+- LLM provider matrix: [`docs/integrations/LLM_PROVIDER_MATRIX.md`](docs/integrations/LLM_PROVIDER_MATRIX.md)
+- OpenAI / Claude integration: [`docs/integrations/OPENAI_CLAUDE_AGENT_INTEGRATION.md`](docs/integrations/OPENAI_CLAUDE_AGENT_INTEGRATION.md)
+- Gemini integration: [`docs/integrations/GEMINI_AGENT_INTEGRATION.md`](docs/integrations/GEMINI_AGENT_INTEGRATION.md)
+- Grok / xAI integration: [`docs/integrations/GROK_XAI_AGENT_INTEGRATION.md`](docs/integrations/GROK_XAI_AGENT_INTEGRATION.md)
+- Qwen / Kimi / DeepSeek integration: [`docs/integrations/QWEN_KIMI_DEEPSEEK_AGENT_INTEGRATION.md`](docs/integrations/QWEN_KIMI_DEEPSEEK_AGENT_INTEGRATION.md)
 - CrewAI-style causal audit demo: [`examples/crewai_style_causal_audit.py`](examples/crewai_style_causal_audit.py)
+- Approval-lineage audit demo: [`examples/agent_approval_lineage_audit.py`](examples/agent_approval_lineage_audit.py)
 - CrewAI-style integration note: [`docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md`](docs/integrations/CREWAI_STYLE_CAUSAL_AUDIT.md)
 - MCP agent-audit integration: [`docs/integrations/MCP_AGENT_AUDIT.md`](docs/integrations/MCP_AGENT_AUDIT.md)
 - Cursor MCP quickstart: [`docs/integrations/CURSOR_MCP_QUICKSTART.md`](docs/integrations/CURSOR_MCP_QUICKSTART.md)
@@ -210,8 +282,11 @@ Current components include:
 - CLI commands for lineage validation and chain inspection;
 - API layer and store interface;
 - example logs and audit outputs;
+- deterministic provider mappings for seven LLM ecosystems;
+- regression tests for provider-native correlation and CML causal invariants;
 - CrewAI-style agent trace causal audit example;
-- tests for chain logic, audit rules, and CTAG behavior;
+- approval-lineage causal audit example;
+- tests for chain logic, audit rules, approval-lineage behavior, and CTAG behavior;
 - API smoke tests for health, audit, and CTAG decode;
 - deterministic safety-eval benchmark with fixtures and tracked results;
 - documentation for vCML semantics and audit rules.
@@ -222,8 +297,14 @@ Key implementation entry points:
 - `cml/chain.py`
 - `cli/main.py`
 - `api/server.py`
+- `examples/grok_xai_causal_audit.py`
+- `examples/openai_claude_causal_audit.py`
+- `examples/gemini_causal_audit.py`
+- `examples/qwen_kimi_deepseek_causal_audit.py`
 - `examples/crewai_style_causal_audit.py`
+- `examples/agent_approval_lineage_audit.py`
 - `tests/test_audit.py`
+- `tests/test_agent_approval_lineage_demo.py`
 - `tests/test_api_smoke.py`
 
 ## Problem
@@ -257,7 +338,10 @@ It focuses on:
 - Production release: `causal-memory-layer==0.4.0`
 - Production PyPI install smoke test: [`pypi-install-smoke.yml`](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/pypi-install-smoke.yml)
 - Grant evidence pack: `docs/evidence/GRANT_EVIDENCE_CML_0.4.0.md`
+- LLM provider matrix: `docs/integrations/LLM_PROVIDER_MATRIX.md`
+- Deterministic provider examples: `examples/grok_xai_causal_audit.py`, `examples/openai_claude_causal_audit.py`, `examples/gemini_causal_audit.py`, `examples/qwen_kimi_deepseek_causal_audit.py`
 - CrewAI-style integration example: `examples/crewai_style_causal_audit.py`
+- Approval-lineage demo: `examples/agent_approval_lineage_audit.py`
 - CrewAI outreach issue: https://github.com/crewAIInc/crewAI/issues/6063
 - Deterministic benchmark fixtures with expected audit findings: `benchmarks/fixtures/`
 - Current tracked benchmark result: `6/6 matched`
