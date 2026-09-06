@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">CML Lotus Layer emblem</title>
+  <desc id="desc">A luminous lotus combining organic petals with causal circuit geometry, symbolizing reviewed memory, responsibility lineage, and human-centered intelligence.</desc>
+  <defs>
+    <radialGradient id="background" cx="50%" cy="42%" r="68%">
+      <stop offset="0" stop-color="#18263f"/>
+      <stop offset="0.58" stop-color="#0e1728"/>
+      <stop offset="1" stop-color="#070b14"/>
+    </radialGradient>
+    <linearGradient id="petal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b9f6ff"/>
+      <stop offset="0.48" stop-color="#8e9cff"/>
+      <stop offset="1" stop-color="#dc8fff"/>
+    </linearGradient>
+    <linearGradient id="innerPetal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2fbff"/>
+      <stop offset="1" stop-color="#9ce6f2"/>
+    </linearGradient>
+    <linearGradient id="circuit" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#83f0e5" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#b7a5ff" stop-opacity="0.88"/>
+      <stop offset="1" stop-color="#ff9fde" stop-opacity="0.22"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="96" fill="url(#background)"/>
+  <circle cx="256" cy="248" r="138" fill="#7be9ff" opacity="0.08" filter="url(#softGlow)"/>
+
+  <g fill="none" stroke="url(#circuit)" stroke-width="3" stroke-linecap="round" opacity="0.76">
+    <path d="M68 270h58l28-28h42"/>
+    <path d="M444 270h-58l-28-28h-42"/>
+    <path d="M105 335h54l24-24h32"/>
+    <path d="M407 335h-54l-24-24h-32"/>
+    <path d="M256 78v64"/>
+  </g>
+  <g fill="#b9f6ff" opacity="0.9">
+    <circle cx="68" cy="270" r="5"/>
+    <circle cx="444" cy="270" r="5"/>
+    <circle cx="105" cy="335" r="5"/>
+    <circle cx="407" cy="335" r="5"/>
+    <circle cx="256" cy="78" r="5"/>
+  </g>
+
+  <g filter="url(#glow)" stroke="#d9fbff" stroke-opacity="0.4" stroke-width="2">
+    <path d="M256 335C194 286 194 212 256 142C318 212 318 286 256 335Z" fill="url(#innerPetal)"/>
+    <path d="M240 347C171 326 132 273 141 205C213 219 252 272 240 347Z" fill="url(#petal)"/>
+    <path d="M272 347C341 326 380 273 371 205C299 219 260 272 272 347Z" fill="url(#petal)"/>
+    <path d="M218 358C148 359 99 326 79 270C149 254 207 287 218 358Z" fill="url(#petal)" opacity="0.88"/>
+    <path d="M294 358C364 359 413 326 433 270C363 254 305 287 294 358Z" fill="url(#petal)" opacity="0.88"/>
+    <path d="M230 367C174 395 115 387 76 346C128 309 192 316 230 367Z" fill="url(#petal)" opacity="0.72"/>
+    <path d="M282 367C338 395 397 387 436 346C384 309 320 316 282 367Z" fill="url(#petal)" opacity="0.72"/>
+  </g>
+
+  <g fill="none" stroke="#f0fdff" stroke-linecap="round" opacity="0.74">
+    <path d="M256 170v130" stroke-width="3"/>
+    <path d="M256 218l-28 28" stroke-width="2"/>
+    <path d="M256 248l34-34" stroke-width="2"/>
+    <path d="M256 278l-36 36" stroke-width="2"/>
+    <path d="M256 288l30 30" stroke-width="2"/>
+  </g>
+  <g fill="#ffffff">
+    <circle cx="256" cy="218" r="4"/>
+    <circle cx="228" cy="246" r="4"/>
+    <circle cx="290" cy="214" r="4"/>
+    <circle cx="220" cy="314" r="4"/>
+    <circle cx="286" cy="318" r="4"/>
+  </g>
+
+  <path d="M112 402C184 426 328 426 400 402" fill="none" stroke="#9ce6f2" stroke-width="4" stroke-linecap="round" opacity="0.58"/>
+  <circle cx="256" cy="402" r="5" fill="#f2fbff"/>
+</svg>

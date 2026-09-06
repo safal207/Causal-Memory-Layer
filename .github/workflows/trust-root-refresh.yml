@@ -1,0 +1,410 @@
+name: CML Trust Root Refresh
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions: {}
+
+concurrency:
+  group: cml-trust-root-refresh
+  cancel-in-progress: true
+
+jobs:
+  enumerate:
+    name: Enumerate current pull request transitions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+      count: ${{ steps.targets.outputs.count }}
+
+    steps:
+      - name: Checkout trusted refresh orchestrator
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Enumerate exact open pull request identities
+        id: targets
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          repository = os.environ["REPOSITORY"]
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "cml-trust-root-refresh",
+          }
+          targets = []
+          skipped = []
+          page = 1
+          while True:
+              query = urllib.parse.urlencode(
+                  {"state": "open", "sort": "updated", "direction": "desc", "per_page": 100, "page": page}
+              )
+              request = urllib.request.Request(
+                  f"https://api.github.com/repos/{repository}/pulls?{query}",
+                  headers=headers,
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  payload = json.load(response)
+              if not isinstance(payload, list):
+                  raise SystemExit("pull request enumeration returned an invalid payload")
+              for pull in payload:
+                  base = pull.get("base") or {}
+                  head = pull.get("head") or {}
+                  head_repository = (head.get("repo") or {}).get("full_name")
+                  target = {
+                      "number": pull.get("number"),
+                      "base_ref": base.get("ref"),
+                      "base_sha": str(base.get("sha", "")).lower(),
+                      "head_sha": str(head.get("sha", "")).lower(),
+                      "head_repository": head_repository,
+                      "merge_sha": str(pull.get("merge_commit_sha", "")).lower(),
+                  }
+                  if not isinstance(target["number"], int) or target["number"] <= 0:
+                      raise SystemExit("invalid pull request number")
+                  if not target["base_ref"] or any(
+                      ord(character) < 32 for character in target["base_ref"]
+                  ):
+                      raise SystemExit("invalid pull request base ref")
+                  if not isinstance(head_repository, str) or not re.fullmatch(
+                      r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", head_repository
+                  ):
+                      raise SystemExit("invalid pull request head repository")
+                  for key in ("base_sha", "head_sha"):
+                      if not re.fullmatch(r"[0-9a-f]{40}", target[key]):
+                          raise SystemExit(f"invalid pull request {key}")
+                  if not re.fullmatch(r"[0-9a-f]{40}", target["merge_sha"]):
+                      skipped.append(
+                          {
+                              "number": target["number"],
+                              "reason": "test_merge_unavailable",
+                          }
+                      )
+                      continue
+                  targets.append(target)
+              if len(payload) < 100:
+                  break
+              page += 1
+
+          targets.sort(key=lambda item: item["number"])
+          matrix = {"include": targets}
+          evidence = Path("artifacts/trust-refresh/targets.json")
+          evidence.parent.mkdir(parents=True, exist_ok=True)
+          evidence.write_text(
+              json.dumps(
+                  {
+                      "schema_version": "cml-trust-refresh-targets-v1",
+                      "targets": targets,
+                      "skipped": skipped,
+                  },
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
+              output.write(f"count={len(targets)}\n")
+          PY
+
+      - name: Upload refresh target evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-trust-refresh-targets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/trust-refresh/targets.json
+          if-no-files-found: error
+          retention-days: 30
+
+  refresh:
+    name: Refresh PR ${{ matrix.number }} exact test merge
+    if: needs.enumerate.outputs.count != '0'
+    needs: [enumerate]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.enumerate.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    env:
+      PULL_NUMBER: ${{ matrix.number }}
+      BASE_REF: ${{ matrix.base_ref }}
+      BASE_SHA: ${{ matrix.base_sha }}
+      HEAD_SHA: ${{ matrix.head_sha }}
+      HEAD_REPOSITORY: ${{ matrix.head_repository }}
+      MERGE_SHA: ${{ matrix.merge_sha }}
+      REPOSITORY: ${{ github.repository }}
+      RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/attempts/${{ github.run_attempt }}
+
+    steps:
+      - name: Derive refresh trust context
+        id: scope
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import re
+
+          base_ref = os.environ["BASE_REF"]
+          for key in ("BASE_SHA", "HEAD_SHA", "MERGE_SHA"):
+              if not re.fullmatch(r"[0-9a-f]{40}", os.environ[key].lower()):
+                  raise SystemExit(f"invalid {key}")
+          context = "CML Trust Root Gate / " + hashlib.sha256(
+              base_ref.encode("utf-8")
+          ).hexdigest()
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"status_context={context}\n")
+          PY
+
+      - name: Mark current test merge verification pending
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          STATUS_CONTEXT: ${{ steps.scope.outputs.status_context }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          payload = {
+              "state": "pending",
+              "context": os.environ["STATUS_CONTEXT"],
+              "description": "Refreshing protected CI contract for current test merge",
+              "target_url": os.environ["RUN_URL"],
+          }
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/statuses/{os.environ['MERGE_SHA']}",
+              data=json.dumps(payload).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "cml-trust-root-refresh",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status not in (200, 201):
+                  raise SystemExit(f"pending status publication failed: HTTP {response.status}")
+          PY
+
+      - name: Checkout exact target base trust root
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ matrix.base_sha }}
+          path: base
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout exact untrusted subject as data only
+        if: always()
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ matrix.head_repository }}
+          ref: ${{ matrix.head_sha }}
+          path: subject
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        if: always()
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Run exact-base trust verification
+        if: always()
+        id: verify
+        env:
+          STATUS_CONTEXT: ${{ steps.scope.outputs.status_context }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          evidence = Path("artifacts/trust-refresh/trust-root-verification.json")
+          evidence.parent.mkdir(parents=True, exist_ok=True)
+          command = [
+              "python3",
+              "base/.github/trust-root/scripts/verify_subject.py",
+              "--base-root", "base",
+              "--subject-root", "subject",
+              "--expected-head", os.environ["HEAD_SHA"],
+              "--repository", os.environ["REPOSITORY"],
+              "--pull-number", os.environ["PULL_NUMBER"],
+              "--run-id", os.environ["GITHUB_RUN_ID"],
+              "--run-attempt", os.environ["GITHUB_RUN_ATTEMPT"],
+              "--output", str(evidence),
+          ]
+          completed = subprocess.run(command, check=False)
+          if evidence.is_file():
+              try:
+                  payload = json.loads(evidence.read_text(encoding="utf-8"))
+              except (OSError, json.JSONDecodeError):
+                  payload = {"passed": False, "error": {"type": "InvalidEvidence"}}
+          else:
+              payload = {"passed": False, "error": {"type": "MissingEvidence"}}
+          payload.update(
+              {
+                  "base_ref": os.environ["BASE_REF"],
+                  "base_sha": os.environ["BASE_SHA"],
+                  "head_sha": os.environ["HEAD_SHA"],
+                  "merge_sha": os.environ["MERGE_SHA"],
+                  "status_context": os.environ["STATUS_CONTEXT"],
+              }
+          )
+          evidence.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          passed = completed.returncode == 0 and payload.get("passed") is True
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("result=" + ("success" if passed else "failure") + "\n")
+          PY
+
+      - name: Reconfirm current pull request transition
+        if: always()
+        id: freshness
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/pulls/{os.environ['PULL_NUMBER']}",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "cml-trust-root-refresh",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              pull = json.load(response)
+          base = pull.get("base") or {}
+          head = pull.get("head") or {}
+          observed = {
+              "base_ref": base.get("ref"),
+              "base_sha": str(base.get("sha", "")).lower(),
+              "head_sha": str(head.get("sha", "")).lower(),
+              "head_repository": (head.get("repo") or {}).get("full_name"),
+              "merge_sha": str(pull.get("merge_commit_sha", "")).lower(),
+          }
+          expected = {
+              "base_ref": os.environ["BASE_REF"],
+              "base_sha": os.environ["BASE_SHA"],
+              "head_sha": os.environ["HEAD_SHA"],
+              "head_repository": os.environ["HEAD_REPOSITORY"],
+              "merge_sha": os.environ["MERGE_SHA"],
+          }
+          fresh = observed == expected
+          path = Path("artifacts/trust-refresh/transition-freshness.json")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(
+              json.dumps(
+                  {"expected": expected, "observed": observed, "fresh": fresh},
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("fresh=" + ("true" if fresh else "false") + "\n")
+          PY
+
+      - name: Publish refreshed test merge status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          STATUS_CONTEXT: ${{ steps.scope.outputs.status_context }}
+          VERIFY_RESULT: ${{ steps.verify.outputs.result }}
+          TRANSITION_FRESH: ${{ steps.freshness.outputs.fresh }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          if os.environ["TRANSITION_FRESH"] != "true":
+              print("pull request transition changed; refusing stale final status")
+              raise SystemExit(0)
+          passed = os.environ["VERIFY_RESULT"] == "success"
+          payload = {
+              "state": "success" if passed else "failure",
+              "context": os.environ["STATUS_CONTEXT"],
+              "description": (
+                  "Protected CI contract refreshed for exact test merge"
+                  if passed
+                  else "Protected CI contract refresh failed"
+              ),
+              "target_url": os.environ["RUN_URL"],
+          }
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{os.environ['REPOSITORY']}/statuses/{os.environ['MERGE_SHA']}",
+              data=json.dumps(payload).encode("utf-8"),
+              method="POST",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Content-Type": "application/json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "cml-trust-root-refresh",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              if response.status not in (200, 201):
+                  raise SystemExit(f"final status publication failed: HTTP {response.status}")
+          PY
+
+      - name: Upload exact refresh evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-trust-refresh-pr${{ matrix.number }}-${{ matrix.merge_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/trust-refresh/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Require refreshed verification and current transition
+        if: always()
+        env:
+          VERIFY_RESULT: ${{ steps.verify.outputs.result }}
+          TRANSITION_FRESH: ${{ steps.freshness.outputs.fresh }}
+        run: |
+          test "$VERIFY_RESULT" = "success"
+          test "$TRANSITION_FRESH" = "true"

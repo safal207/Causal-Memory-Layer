@@ -1,0 +1,112 @@
+{
+  "schema": "cml.fcrp-case.v0.1",
+  "caseId": "FCRP-SELF-006",
+  "title": "Focus-Field recovery temporal contract drift",
+  "scope": {
+    "nodeId": "cml-focus-field-current-state-eligibility",
+    "scale": "experimental-recovery/canonical-memory-contract",
+    "idea": "Historical memory may help recover context, but trusted continuation must satisfy the current canonical CML applicability and information-quality contracts."
+  },
+  "timeline": {
+    "past": {
+      "base_sha": "1635804f127b7840dca0cd2679c0f001552b7b10",
+      "branch_head_sha": "efca99c02e909d808e8294d3cb3fb37033c4a317",
+      "summary": "Focus-Field v0.1 represented verification as a branch-local boolean plus evidence references."
+    },
+    "present": {
+      "main_sha": "7d77046f89740a92d66206e4804fffc7150a81dd",
+      "summary": "Canonical CML now evaluates source, lineage, environment applicability and exact evidence binding before information may influence an action."
+    },
+    "future": {
+      "summary": "Recovery selection separates exploratory historical context from trusted current continuation and consumes canonical gate outputs rather than duplicating their semantics."
+    }
+  },
+  "evidence": [
+    {
+      "id": "E1",
+      "kind": "historical-branch",
+      "ref": "PR #269 / cml/experimental/focus_field.py@efca99c02e909d808e8294d3cb3fb37033c4a317",
+      "claim": "v0.1 used RecoveryAnchor.verified plus evidence_refs as its verification signal."
+    },
+    {
+      "id": "E2",
+      "kind": "canonical-main",
+      "ref": "cml/integrations/memory_applicability.py@7d77046f89740a92d66206e4804fffc7150a81dd",
+      "claim": "Only ApplicabilityStatus.MATCH may influence action without revalidation."
+    },
+    {
+      "id": "E3",
+      "kind": "canonical-main",
+      "ref": "cml/integrations/information_quality.py@7d77046f89740a92d66206e4804fffc7150a81dd",
+      "claim": "Information readiness requires exact evidence binding and returns READY, REVIEW or EXCLUDE independently of authority."
+    },
+    {
+      "id": "E4",
+      "kind": "refactor",
+      "ref": "cml/experimental/focus_field.py@agent/focus-field-recovery-v0-2",
+      "claim": "v0.2 consumes ApplicabilityResult and InformationQualityResult and separates exploratory re-anchoring from trusted continuation."
+    },
+    {
+      "id": "E5",
+      "kind": "regression",
+      "ref": "tests/test_focus_field.py@agent/focus-field-recovery-v0-2",
+      "claim": "Regression tests cover stale applicability, excluded information quality, missing current gates, and exploratory-only historical recovery."
+    }
+  ],
+  "causalPath": [
+    {
+      "id": "N1",
+      "level": "experimental-trust-model",
+      "phase": "first-divergence",
+      "statement": "The experiment collapsed historical verification into a local boolean that could outlive the canonical contract it was meant to summarize.",
+      "evidenceRefs": ["E1"]
+    },
+    {
+      "id": "N2",
+      "level": "canonical-memory-contract",
+      "phase": "parent-contract-strengthened",
+      "statement": "CML main added current-state applicability, lineage/environment checks and exact information-evidence binding after the experiment branch was created.",
+      "evidenceRefs": ["E2", "E3"]
+    },
+    {
+      "id": "N3",
+      "level": "recovery-decision",
+      "phase": "symptom",
+      "statement": "A high-scoring anchor marked verified by the old branch could be treated as trusted even when current CML would require revalidation, review or exclusion.",
+      "evidenceRefs": ["E1", "E2", "E3"]
+    },
+    {
+      "id": "N4",
+      "level": "recovery-eligibility",
+      "phase": "refactor",
+      "statement": "Use canonical ApplicabilityResult and InformationQualityResult at the eligibility boundary; preserve stale memory only as exploratory context and expose trusted_continuation separately.",
+      "evidenceRefs": ["E4", "E5"]
+    }
+  ],
+  "divergence": {
+    "symptomPoint": "N3",
+    "firstMeaningfulDivergence": "N1",
+    "causePoint": "N1",
+    "selectedRefactorPoint": "N4",
+    "evidenceRefs": ["E1", "E2", "E3", "E4", "E5"]
+  },
+  "navigation": {
+    "direction": "UP",
+    "reason": "The scorer symptom is explained only after comparing the experiment with its strengthened parent memory/evidence contracts."
+  },
+  "refactor": {
+    "point": "N4",
+    "change": "Remove the branch-local verified boolean, consume current canonical memory/information gate outputs, and split selected context from trusted continuation.",
+    "expectedEffect": "Historical evidence remains recoverable without being silently promoted into current trusted state."
+  },
+  "verification": {
+    "local": "PASS_PENDING_CI",
+    "upward": "PASS_PENDING_CI",
+    "stopConditions": {
+      "parentInvariantsPreserved": true,
+      "crossBoundaryEffectsAbsent": true,
+      "causalExplanationComplete": true
+    }
+  },
+  "expectedProtocolDecision": "PASS"
+}

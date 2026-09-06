@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""Event-only protected entrypoint for hardened CML Retrieval v0.1.1."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+import re
+import sys
+from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+import memory_retrieval_core as core  # noqa: E402
+import memory_retrieval_github as legacy  # noqa: E402
+import memory_retrieval_hardened as hardened  # noqa: E402
+
+REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+ENTRY_FAILURE_STAGES = frozenset(
+    {"repository-bind", "event-read", "event-bind", "runtime"}
+)
+ALL_FAILURE_STAGES = ENTRY_FAILURE_STAGES | hardened.FAILURE_STAGES
+
+
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise core.RetrievalError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def read_event(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=_unique_object
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise core.RetrievalError(
+            "cannot read GitHub pull-request event payload"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise core.RetrievalError("GitHub event payload must be an object")
+    return payload
+
+
+def write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def parser() -> argparse.ArgumentParser:
+    result = argparse.ArgumentParser(description=__doc__)
+    result.add_argument("--event-path", type=Path, required=True)
+    result.add_argument("--repository", required=True)
+    result.add_argument("--run-id", required=True)
+    result.add_argument("--run-attempt", required=True)
+    result.add_argument("--run-url", required=True)
+    result.add_argument("--output", type=Path, required=True)
+    return result
+
+
+def _positive_int(value: object, *, label: str) -> int:
+    if isinstance(value, bool):
+        raise core.RetrievalError(f"{label} must be an integer")
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise core.RetrievalError(f"{label} must be an integer") from exc
+    if parsed < 1:
+        raise core.RetrievalError(f"{label} must be positive")
+    return parsed
+
+
+def pull_number_from_event(event: dict[str, Any]) -> int:
+    """Bind to the required top-level pull-request webhook number."""
+
+    pull = event.get("pull_request")
+    if not isinstance(pull, dict):
+        raise core.RetrievalError("event pull_request must be an object")
+
+    raw_number = event.get("number")
+    if isinstance(raw_number, bool) or not isinstance(raw_number, int):
+        raise core.RetrievalError("event number must be a positive integer")
+    if raw_number < 1:
+        raise core.RetrievalError("event number must be positive")
+
+    nested_number = pull.get("number")
+    if nested_number is not None:
+        if (
+            isinstance(nested_number, bool)
+            or not isinstance(nested_number, int)
+            or nested_number != raw_number
+        ):
+            raise core.RetrievalError(
+                "event pull request number binding mismatch"
+            )
+    return raw_number
+
+
+def failure_stage(exc: Exception, fallback: str) -> str:
+    """Return only an allowlisted non-sensitive stage label."""
+
+    candidate = getattr(exc, "cml_failure_stage", fallback)
+    if isinstance(candidate, str) and candidate in ALL_FAILURE_STAGES:
+        return candidate
+    if fallback in ALL_FAILURE_STAGES:
+        return fallback
+    return "runtime"
+
+
+def _failure_result(
+    args: argparse.Namespace,
+    exc: Exception,
+    *,
+    fallback_stage: str = "runtime",
+) -> dict[str, Any]:
+    return {
+        "schema_version": core.SCHEMA_VERSION,
+        "repository": args.repository,
+        "pull_number": None,
+        "run_id": args.run_id,
+        "run_attempt": args.run_attempt,
+        "run_url": args.run_url,
+        "outcome": "RETRIEVAL_ERROR",
+        "skip_reason": None,
+        "failure_stage": failure_stage(exc, fallback_stage),
+        "accepted_count": None,
+        "publishable_count": 0,
+        "withheld_count": None,
+        "rejected_count": None,
+        "rejected": [],
+        "privacy_summary_redacted": True,
+        "selected": [],
+        "comment_action": None,
+        "comment_id": None,
+        "duplicate_managed_comments": 0,
+        "direct_main_write": False,
+        "approval_authority": False,
+        "merge_authority": False,
+        "execution_authority": False,
+        "passed": False,
+        "error": {
+            "type": type(exc).__name__,
+            "message": "CML retrieval failed closed",
+        },
+    }
+
+
+def main() -> None:
+    args = parser().parse_args()
+    stage = "repository-bind"
+    try:
+        repository = args.repository
+        if not isinstance(repository, str) or not REPOSITORY.fullmatch(repository):
+            raise core.RetrievalError("repository must use owner/name format")
+        stage = "event-read"
+        event = read_event(args.event_path)
+        stage = "event-bind"
+        pull_number = pull_number_from_event(event)
+        stage = "runtime"
+        result = hardened.retrieve_for_pull(
+            api=legacy.GitHubApi(os.environ.get("GITHUB_TOKEN", "")),
+            repository=repository,
+            pull_number=pull_number,
+            run_id=_positive_int(args.run_id, label="run id"),
+            run_attempt=_positive_int(args.run_attempt, label="run attempt"),
+            run_url=args.run_url,
+        )
+    except Exception as exc:
+        result = _failure_result(args, exc, fallback_stage=stage)
+    write_json(args.output, result)
+    if not result.get("passed", False):
+        raise SystemExit(
+            f"CML retrieval failed closed: {result.get('outcome')}"
+        )
+    print(
+        f"CML retrieval outcome={result['outcome']} "
+        f"pull={result.get('pull_number')} "
+        f"selected={len(result.get('selected', []))} "
+        f"comment={result.get('comment_action')}"
+    )
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use Causal Memory Layer in research or engineering work, please cite this repository."
+title: "Causal Memory Layer: AI Agent Audit and Approval-Lineage Verification"
+type: software
+authors:
+  - family-names: "Safonov"
+    given-names: "Aleksei"
+repository-code: "https://github.com/safal207/Causal-Memory-Layer"
+url: "https://github.com/safal207/Causal-Memory-Layer"
+license: "MIT"
+keywords:
+  - AI agent audit
+  - causal lineage
+  - approval lineage
+  - agent memory safety
+  - causal audit trail
+  - MCP

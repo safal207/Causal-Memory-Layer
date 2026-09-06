@@ -3,88 +3,138 @@ name: Python Package Validation
 on:
   push:
     branches: [main]
-    paths:
-      - pyproject.toml
-      - README.md
-      - LICENSE
-      - cml/**
-      - cli/**
-      - api/**
-      - tests/**
-      - benchmarks/**
-      - scripts/run_safety_eval.py
-      - docs/release/PYPI_RELEASE_CHECKLIST.md
-      - .github/workflows/python-package-validation.yml
   pull_request:
     branches: [main]
-    paths:
-      - pyproject.toml
-      - README.md
-      - LICENSE
-      - cml/**
-      - cli/**
-      - api/**
-      - tests/**
-      - benchmarks/**
-      - scripts/run_safety_eval.py
-      - docs/release/PYPI_RELEASE_CHECKLIST.md
-      - .github/workflows/python-package-validation.yml
   workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: python-package-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
 
 jobs:
   package-validation:
     name: Build, check, install, and smoke-test package
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    permissions:
+      contents: read
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - name: Checkout exact head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          python-version: "3.11"
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Install validation tools
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Prove exact-head checkout
         run: |
-          python -m pip install --upgrade pip build twine
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/package/exact-head.json
 
-      - name: Install package with dev extras
+      - name: Install package and validation tools
         run: |
-          pip install -e ".[dev]"
+          python -m pip install --upgrade "pip==26.1.2"
+          python -m pip install -e ".[dev]" "build==1.5.1" "twine==6.2.0"
 
-      - name: Run tests
-        run: pytest
+      - name: Run repository tests
+        run: python -m pytest
 
       - name: Run deterministic safety benchmark
-        run: python scripts/run_safety_eval.py
+        run: |
+          python scripts/run_safety_eval.py \
+            --markdown-out artifacts/package/safety-eval.md \
+            > artifacts/package/safety-eval.txt
 
       - name: Build source and wheel distributions
         run: python -m build
 
-      - name: Validate package metadata
-        run: python -m twine check dist/*
+      - name: Validate package metadata strictly
+        run: python -m twine check --strict dist/*
 
-      - name: Install built wheel in fresh environment
+      - name: Record distribution digests
         run: |
-          python -m venv .venv-wheel
-          . .venv-wheel/bin/activate
-          python -m pip install --upgrade pip
-          pip install dist/*.whl
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          distributions = sorted(Path("dist").glob("*"))
+          if len(distributions) != 2 or not any(path.suffix == ".whl" for path in distributions):
+              raise SystemExit("expected exactly one wheel and one source distribution")
+          entries = []
+          for path in distributions:
+              content = path.read_bytes()
+              entries.append({
+                  "path": path.as_posix(),
+                  "bytes": len(content),
+                  "sha256": hashlib.sha256(content).hexdigest(),
+              })
+          output = Path("artifacts/package/distributions.json")
+          output.write_text(
+              json.dumps({
+                  "schema_version": "cml-package-evidence-v1",
+                  "tested_sha": __import__("os").environ["EXPECTED_SHA"],
+                  "distributions": entries,
+              }, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Install built wheel in a clean environment
+        run: |
+          python -m venv "$RUNNER_TEMP/cml-wheel-smoke"
+          . "$RUNNER_TEMP/cml-wheel-smoke/bin/activate"
+          python -m pip install --upgrade "pip==26.1.2"
+          python -m pip install dist/*.whl
           cml --help
           python - <<'PY'
           import cml
           from cml.integrations.mcp import core
+
           print("cml import ok")
           print(core.health())
           PY
 
           set +e
-          cml-mcp > /tmp/cml-mcp.out 2>&1
+          cml-mcp > "$RUNNER_TEMP/cml-mcp.out" 2>&1
           status=$?
           set -e
-          cat /tmp/cml-mcp.out
+          cat "$RUNNER_TEMP/cml-mcp.out"
           test "$status" -eq 2
-          grep -q "requires the optional MCP dependency" /tmp/cml-mcp.out
-          grep -q 'pip install "causal-memory-layer\[mcp\]"' /tmp/cml-mcp.out
+          grep -q "requires the optional MCP dependency" "$RUNNER_TEMP/cml-mcp.out"
+          grep -q 'pip install "causal-memory-layer\[mcp\]"' "$RUNNER_TEMP/cml-mcp.out"
+
+      - name: Upload built distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-package-distributions-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload package evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-package-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/package/
+          if-no-files-found: error
+          retention-days: 30

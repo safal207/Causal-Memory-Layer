@@ -69,6 +69,11 @@ class CausalRecord:
     The minimal causal record as defined by vCML FORMAT v0.
 
     Immutable once created (append-only log semantics).
+
+    ``read_id`` is an optional boundary correlation identity. It is deliberately
+    distinct from the record ``id``: one kernel read may produce multiple causal
+    records (for example entry and completion) that need to retain the same
+    external identity while preserving their own record identities.
     """
     id:           str
     timestamp:    int                       # nanoseconds
@@ -79,6 +84,12 @@ class CausalRecord:
     parent_cause: Optional[str] = None      # id of parent causal record
     ctag:         Optional[int] = None      # 16-bit CTAG (v0.4+)
     integrity:    Optional[str] = None      # hash/sig placeholder (v0.5+)
+    read_id:      Optional[str] = None      # external read-boundary identity (v0.7+)
+
+    def __post_init__(self) -> None:
+        if self.read_id is not None:
+            if not isinstance(self.read_id, str) or not self.read_id.strip():
+                raise ValueError("read_id must be a non-empty string when provided")
 
     # ------------------------------------------------------------------
     # Convenience
@@ -92,6 +103,7 @@ class CausalRecord:
         permitted_by: str,
         parent_cause: Optional[str] = None,
         ctag: Optional[int] = None,
+        read_id: Optional[str] = None,
     ) -> "CausalRecord":
         return CausalRecord(
             id=str(uuid.uuid4()),
@@ -102,6 +114,7 @@ class CausalRecord:
             permitted_by=permitted_by,
             parent_cause=parent_cause,
             ctag=ctag,
+            read_id=read_id,
         )
 
     # ------------------------------------------------------------------
@@ -122,6 +135,8 @@ class CausalRecord:
             d["ctag"] = self.ctag
         if self.integrity is not None:
             d["integrity"] = self.integrity
+        if self.read_id is not None:
+            d["read_id"] = self.read_id
         return d
 
     def to_jsonl(self) -> str:
@@ -152,6 +167,7 @@ class CausalRecord:
             parent_cause=d.get("parent_cause"),
             ctag=d.get("ctag"),
             integrity=d.get("integrity"),
+            read_id=d.get("read_id"),
         )
 
     @staticmethod

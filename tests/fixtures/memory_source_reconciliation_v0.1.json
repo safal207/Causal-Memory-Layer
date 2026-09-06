@@ -1,0 +1,156 @@
+{
+  "version": "memory-source-reconciliation-v0.1",
+  "cases": [
+    {
+      "id": "label_is_not_provenance",
+      "records": [
+        {"memory_id": "m1", "source_label": "agent:scholar"}
+      ],
+      "inventories": [],
+      "expected": {
+        "source_field_coverage": 1.0,
+        "locator_coverage": 0.0,
+        "refetch_verification_coverage": 0.0,
+        "source_enumeration_coverage": 0.0,
+        "orphans": [],
+        "unindexed": []
+      }
+    },
+    {
+      "id": "refetchable_but_not_enumerable",
+      "records": [
+        {
+          "memory_id": "m1",
+          "source_label": "doc",
+          "source_namespace": "web",
+          "source_id": "a",
+          "locator": "https://example.test/a",
+          "refetchable": true,
+          "exists": true,
+          "expected_digest": "aaaaaaaa",
+          "observed_digest": "aaaaaaaa"
+        }
+      ],
+      "inventories": [
+        {"namespace": "web", "source_ids": ["a"], "complete": false}
+      ],
+      "expected": {
+        "source_field_coverage": 1.0,
+        "locator_coverage": 1.0,
+        "refetch_verification_coverage": 1.0,
+        "source_enumeration_coverage": 0.0,
+        "orphans": [],
+        "unindexed": [],
+        "incomplete_namespaces": ["web"]
+      }
+    },
+    {
+      "id": "complete_inventory_clean",
+      "records": [
+        {
+          "memory_id": "m1",
+          "source_label": "git",
+          "source_namespace": "git-tree",
+          "source_id": "README.md",
+          "locator": "git:abc:README.md",
+          "refetchable": true,
+          "exists": true,
+          "expected_digest": "aaaaaaaa",
+          "observed_digest": "aaaaaaaa"
+        }
+      ],
+      "inventories": [
+        {"namespace": "git-tree", "source_ids": ["README.md"], "complete": true}
+      ],
+      "expected": {
+        "source_field_coverage": 1.0,
+        "locator_coverage": 1.0,
+        "refetch_verification_coverage": 1.0,
+        "source_enumeration_coverage": 1.0,
+        "orphans": [],
+        "unindexed": []
+      }
+    },
+    {
+      "id": "deleted_source_is_orphaned",
+      "records": [
+        {
+          "memory_id": "m1",
+          "source_label": "git",
+          "source_namespace": "git-tree",
+          "source_id": "deleted.md",
+          "locator": "git:old:deleted.md",
+          "refetchable": true,
+          "exists": null
+        }
+      ],
+      "inventories": [
+        {"namespace": "git-tree", "source_ids": [], "complete": true}
+      ],
+      "expected": {
+        "source_field_coverage": 1.0,
+        "locator_coverage": 1.0,
+        "refetch_verification_coverage": 0.0,
+        "source_enumeration_coverage": 1.0,
+        "orphans": ["git-tree:deleted.md"],
+        "unindexed": []
+      }
+    },
+    {
+      "id": "new_source_is_unindexed",
+      "records": [
+        {
+          "memory_id": "m1",
+          "source_label": "git",
+          "source_namespace": "git-tree",
+          "source_id": "a.md",
+          "locator": "git:abc:a.md",
+          "refetchable": true,
+          "exists": true,
+          "expected_digest": "aaaaaaaa",
+          "observed_digest": "aaaaaaaa"
+        }
+      ],
+      "inventories": [
+        {"namespace": "git-tree", "source_ids": ["a.md", "b.md"], "complete": true}
+      ],
+      "expected": {
+        "source_field_coverage": 1.0,
+        "locator_coverage": 1.0,
+        "refetch_verification_coverage": 1.0,
+        "source_enumeration_coverage": 1.0,
+        "orphans": [],
+        "unindexed": ["git-tree:b.md"]
+      }
+    },
+    {
+      "id": "high_declared_low_verifiable",
+      "records": [
+        {"memory_id": "m1", "source_label": "agent:scholar"},
+        {"memory_id": "m2", "source_label": "agent:writer"},
+        {
+          "memory_id": "m3",
+          "source_label": "git",
+          "source_namespace": "git-tree",
+          "source_id": "a.md",
+          "locator": "git:abc:a.md",
+          "refetchable": true,
+          "exists": true,
+          "expected_digest": "aaaaaaaa",
+          "observed_digest": "aaaaaaaa"
+        }
+      ],
+      "inventories": [
+        {"namespace": "git-tree", "source_ids": ["a.md"], "complete": true}
+      ],
+      "expected": {
+        "source_field_coverage": 1.0,
+        "locator_coverage": 0.3333333333333333,
+        "refetch_verification_coverage": 0.3333333333333333,
+        "source_enumeration_coverage": 0.3333333333333333,
+        "orphans": [],
+        "unindexed": []
+      }
+    }
+  ]
+}

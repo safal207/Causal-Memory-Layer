@@ -1,4 +1,4 @@
-# Causal Memory Layer (CML)
+# Causal Memory Layer (CML) — AI Agent Audit & Approval Lineage
 
 [![CI](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/ci.yml/badge.svg)](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/ci.yml)
 [![Package Validation](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/python-package-validation.yml/badge.svg)](https://github.com/safal207/Causal-Memory-Layer/actions/workflows/python-package-validation.yml)
@@ -11,6 +11,26 @@
 [![Safety Eval](https://img.shields.io/badge/safety--eval-6%2F6%20matched-purple)](docs/evidence/BENCHMARK_EVIDENCE_SNAPSHOT.md)
 
 ![CML before-after causal audit visual](docs/assets/cml-before-after.svg)
+
+<!-- seo-product-intro:start -->
+**Open-source causal audit for AI-agent actions, tool calls, memory, delegation, policy ancestry, and human-approval lineage.**
+
+CML is designed for a narrow but important question:
+
+> The action happened — but can the trace prove why it was allowed?
+
+Use CML when ordinary logs show operational success but reviewers still need to verify the exact task, evidence, delegation, policy, or approval chain behind a high-trust action.
+
+| Search need | CML capability |
+|---|---|
+| AI-agent audit trail | Detect missing parents, ambiguous roots, and broken responsibility lineage |
+| Approval-lineage verification | Check whether a sensitive action retains a valid policy or human-approval ancestor |
+| Agent memory safety | Separate historical truth from current authority and applicability |
+| Tool-call governance evidence | Preserve provider-neutral causal links across multi-step agent workflows |
+| MCP audit tooling | Expose causal-audit checks to compatible AI-agent clients |
+
+[Install from PyPI](https://pypi.org/project/causal-memory-layer/) · [Start here](docs/START_HERE.md) · [Open the dashboard](https://safal207.github.io/Causal-Memory-Layer/)
+<!-- seo-product-intro:end -->
 
 ## Why CML?
 

@@ -1,0 +1,153 @@
+{
+  "schema_version": "cml-memory-pack-v1",
+  "pack_id": "17bda596a7530302a35eeed0336907dd96e35c1349f5694e246d1cc0b147e75b",
+  "manifest": {
+    "project": "ChatGPT public mobile web audit memory",
+    "source_repository": "https://github.com/safal207/pythiaLabs",
+    "source_commit": "cf15c07e7087f399db1b459c4850f5b4261c9b43",
+    "created_at": "2026-07-20T22:30:00.000Z",
+    "visibility": "public",
+    "license": "MIT",
+    "contains_private_data": false,
+    "merge_authority": false,
+    "execution_authority": false,
+    "description": "Public causal memory preserving a scoped ChatGPT mobile-web pass, one P3 diagnostic, rejected detector false positives, and authenticated unknowns."
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "action-run-authenticated-mobile-audit",
+        "kind": "action",
+        "label": "Run an authorised signed-in mobile-web matrix before making claims about chat, streaming, attachments, history, tools, settings, or offline recovery",
+        "status": "proposed",
+        "confidence": 100,
+        "attributes": {
+          "account_authority_required": true,
+          "external_submission": false,
+          "required_surfaces": [
+            "long_chat",
+            "streaming",
+            "virtual_keyboard",
+            "attachments",
+            "sidebar_history",
+            "offline_recovery",
+            "accessibility"
+          ]
+        }
+      },
+      {
+        "id": "constraint-public-scope-only",
+        "kind": "constraint",
+        "label": "The evidence covers public signed-out mobile web and cannot establish native-app or authenticated-chat behaviour",
+        "status": "verified",
+        "confidence": 100,
+        "attributes": {
+          "authenticated_claims_allowed": false,
+          "native_app_claims_allowed": false,
+          "security_claim_allowed": false
+        }
+      },
+      {
+        "id": "lesson-preserve-scoped-pass-and-diagnostic",
+        "kind": "lesson",
+        "label": "Remember the scoped public pass and one P3 diagnostic without reviving rejected false positives or broadening the claim",
+        "status": "verified",
+        "confidence": 100,
+        "attributes": {
+          "final_verdict": "ALLOW_BOUNDED_DIAGNOSTIC",
+          "confirmed_diagnostic_count": 1,
+          "rejected_false_positive_count": 3,
+          "human_review_required": true
+        }
+      },
+      {
+        "id": "situation-public-mobile-baseline",
+        "kind": "situation",
+        "label": "The bounded ChatGPT signed-out mobile-web audit passed route, layout, compact-height, primary-control, stability, and event-delivery checks while reproducing one opaque login console diagnostic",
+        "status": "observed",
+        "confidence": 100,
+        "attributes": {
+          "liminalqa_pr": 106,
+          "pythia_pr": 239,
+          "p3_diagnostic": "mobile-login-console-error",
+          "scoped_passes": [
+            "public-route-availability",
+            "horizontal-overflow",
+            "primary-mobile-control-size",
+            "compact-height-composer",
+            "mobile-login-layout",
+            "layout-stability",
+            "mobile-event-delivery"
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge-action-lesson",
+        "source": "action-run-authenticated-mobile-audit",
+        "target": "lesson-preserve-scoped-pass-and-diagnostic",
+        "relation": "leads_to",
+        "strength": 100,
+        "evidence_ids": [
+          "e-liminalqa-baseline",
+          "e-liminalqa-diagnostic"
+        ]
+      },
+      {
+        "id": "edge-constraint-action",
+        "source": "constraint-public-scope-only",
+        "target": "action-run-authenticated-mobile-audit",
+        "relation": "requires",
+        "strength": 100,
+        "evidence_ids": [
+          "e-liminalqa-baseline",
+          "e-liminalqa-diagnostic"
+        ]
+      },
+      {
+        "id": "edge-situation-constraint",
+        "source": "situation-public-mobile-baseline",
+        "target": "constraint-public-scope-only",
+        "relation": "supports",
+        "strength": 100,
+        "evidence_ids": [
+          "e-liminalqa-baseline",
+          "e-liminalqa-diagnostic"
+        ]
+      }
+    ],
+    "selected_path": [
+      "situation-public-mobile-baseline",
+      "constraint-public-scope-only",
+      "action-run-authenticated-mobile-audit",
+      "lesson-preserve-scoped-pass-and-diagnostic"
+    ]
+  },
+  "evidence": [
+    {
+      "id": "e-liminalqa-baseline",
+      "kind": "artifact",
+      "digest": "1be5ceda6b73ff4a92ff13fc793c22366a05c97069392ad2ac0ec4a3c5ae7316",
+      "locator": "github-actions:safal207/LiminalQAengineer:29783360123",
+      "description": "Exact public signed-out five-profile mobile-web matrix artifact."
+    },
+    {
+      "id": "e-liminalqa-diagnostic",
+      "kind": "artifact",
+      "digest": "dc76eadf08f34a03273f95aee2ff3a7256b39c1a600af5cef91c0c0fd799056c",
+      "locator": "github-actions:safal207/LiminalQAengineer:29783766882",
+      "description": "Focused event-lifecycle and public-login console diagnostic artifact."
+    }
+  ],
+  "redactions": [
+    {
+      "path": "evidence[*].raw_payload",
+      "reason": "Raw screenshots, browser traces, and console payloads remain in bounded workflow artifacts."
+    },
+    {
+      "path": "graph.nodes[*].attributes.private_conversation_data",
+      "reason": "No authenticated account, private chat, credential, or user prompt data is included."
+    }
+  ]
+}
