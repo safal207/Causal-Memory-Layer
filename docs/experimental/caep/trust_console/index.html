@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Human-readable CAEP trust receipts for AI actions, verification, divergence, and recovery.">
+  <title>CML Trust Console</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#hero" aria-label="CML Trust Console home">
+      <span class="brand-mark" aria-hidden="true">C</span>
+      <span><strong>CML Trust Console</strong><small>Human-readable AI action receipts</small></span>
+    </a>
+    <div class="topbar-actions">
+      <span class="local-only"><span class="pulse" aria-hidden="true"></span> Runs locally in your browser</span>
+      <button class="button button-ghost" id="loadDemoButton" type="button">Load recovery demo</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Trust receipt for autonomous actions</span>
+        <h1>Know whether your AI fulfilled your intent — not merely whether a tool returned success.</h1>
+        <p>Open a CAEP record or bundle to see what was requested, what changed, who verified the result, and how the system recovered when reality diverged.</p>
+        <div class="hero-actions">
+          <label class="button button-primary" for="fileInput">Open CAEP file</label>
+          <input id="fileInput" type="file" accept="application/json,.json" hidden>
+          <button class="button button-secondary" id="pasteButton" type="button">Paste JSON</button>
+        </div>
+        <p class="privacy-note">Your file stays on this device. Nothing is uploaded.</p>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="core-shield"><span class="shield-check">✓</span><small>Intent verified</small></div>
+        <div class="mini-card mini-card-one"><span>01</span> Intent</div><div class="mini-card mini-card-two"><span>02</span> Action</div><div class="mini-card mini-card-three"><span>03</span> Verification</div>
+      </div>
+    </section>
+
+    <section class="workspace" id="workspace" hidden>
+      <div class="workspace-header">
+        <div><span class="eyebrow">Loaded evidence bundle</span><h2 id="bundleTitle">Trust receipt</h2><p id="bundleSubtitle">Review the human summary first. Technical evidence remains available below.</p></div>
+        <div class="workspace-actions"><button class="button button-secondary" id="printButton" type="button">Print / save PDF</button><button class="button button-primary" id="downloadButton" type="button">Download receipt</button></div>
+      </div>
+      <div class="record-tabs" id="recordTabs" role="tablist" aria-label="CAEP records"></div>
+      <section class="receipt-card" aria-labelledby="receiptHeading">
+        <div class="receipt-status-row"><div><span class="status-badge" id="statusBadge">Verified</span><span class="integrity-badge" id="integrityBadge">Checking integrity…</span></div><code class="episode-id" id="episodeId"></code></div>
+        <div class="receipt-heading"><div class="receipt-icon" id="receiptIcon" aria-hidden="true">✓</div><div><p class="receipt-kicker" id="receiptKicker">Operation independently verified</p><h2 id="receiptHeading">The requested outcome was achieved.</h2><p id="receiptSummary"></p></div></div>
+        <div class="receipt-grid">
+          <article class="summary-panel"><span class="panel-number">01</span><h3>Your intent</h3><p id="intentSummary"></p><div class="tag-list" id="intentConstraints"></div></article>
+          <article class="summary-panel"><span class="panel-number">02</span><h3>What happened</h3><p id="outcomeSummary"></p><dl class="compact-details"><div><dt>Tool</dt><dd id="toolName"></dd></div><div><dt>Tool result</dt><dd id="toolResult"></dd></div></dl></article>
+          <article class="summary-panel"><span class="panel-number">03</span><h3>What the system did</h3><ul class="action-list" id="recoveryActions"></ul></article>
+          <article class="summary-panel accent-panel"><span class="panel-number">04</span><h3>Current trusted state</h3><p id="trustedState"></p><div class="verification-line"><span class="verification-dot" aria-hidden="true"></span><span id="verifierSummary"></span></div></article>
+        </div>
+      </section>
+      <section class="metrics-grid" aria-label="Trust metrics">
+        <article class="metric-card"><span>Intent alignment</span><strong id="intentMetric">Confirmed</strong><small id="intentMetricNote"></small></article><article class="metric-card"><span>Independent verification</span><strong id="verificationMetric">Present</strong><small id="verificationMetricNote"></small></article><article class="metric-card"><span>Critical conditions</span><strong id="criticalMetric">1 / 1 pass</strong><small id="criticalMetricNote"></small></article><article class="metric-card"><span>Causal lineage</span><strong id="lineageMetric">Bound</strong><small id="lineageMetricNote"></small></article>
+      </section>
+      <section class="section-block"><div class="section-heading"><div><span class="eyebrow">Causal reconstruction</span><h2>Why the system reached this conclusion</h2></div><span class="section-note">Earlier history is preserved — never rewritten.</span></div><div class="causal-timeline" id="causalTimeline"></div></section>
+      <section class="section-block evidence-section">
+        <div class="section-heading"><div><span class="eyebrow">Technical evidence</span><h2>Auditable details</h2></div><button class="text-button" id="toggleJsonButton" type="button" aria-expanded="false">Show raw record</button></div>
+        <div class="evidence-grid"><article class="evidence-card"><h3>Actors</h3><dl id="actorsList"></dl></article><article class="evidence-card"><h3>Integrity</h3><dl id="integrityList"></dl></article><article class="evidence-card"><h3>Timing</h3><dl id="timingList"></dl></article><article class="evidence-card"><h3>Verification checks</h3><div id="checksList"></div></article></div>
+        <pre class="raw-json" id="rawJson" hidden><code></code></pre>
+      </section>
+    </section>
+
+    <section class="empty-state" id="emptyState"><div class="empty-icon" aria-hidden="true">↗</div><h2>Open evidence, not another dashboard.</h2><p>The console accepts a single CAEP record, an array of records, or an interoperability bundle.</p><div class="empty-features"><span>Digest preview</span><span>Parent binding</span><span>Independent verifier</span><span>Recovery path</span></div></section>
+  </main>
+
+  <dialog id="pasteDialog"><form method="dialog" class="dialog-card"><div class="dialog-heading"><div><span class="eyebrow">Paste evidence</span><h2>CAEP JSON</h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></div><textarea id="pasteInput" spellcheck="false" placeholder='{"profile":"org.causal-memory-layer.caep", ...}'></textarea><p class="error-message" id="pasteError" role="alert"></p><div class="dialog-actions"><button class="button button-secondary" value="cancel">Cancel</button><button class="button button-primary" id="parsePasteButton" type="button">Open receipt</button></div></form></dialog>
+  <footer><span>CML Trust Console · Experimental CAEP viewer</span><span>Integrity is not authenticity. Signature trust is out of scope for v0.1.</span></footer>
+  <script src="app.js"></script>
+</body>
+</html>

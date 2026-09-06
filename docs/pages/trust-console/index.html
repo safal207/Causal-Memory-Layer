@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="CML Trust Console turns CAEP records into human-readable receipts for AI actions, verification, divergence, and recovery.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="CML Trust Console — verified MCP recovery evidence">
+  <meta property="og:description" content="Inspect a reproducible official MCP SDK action, divergence, independent verification, and digest-bound recovery in one link.">
+  <meta property="og:url" content="https://safal207.github.io/Causal-Memory-Layer/trust-console/?evidence=mcp&amp;record=mcp_sdk_duplicate_recovered">
+  <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="https://safal207.github.io/Causal-Memory-Layer/trust-console/">
+  <title>CML Trust Console</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="./" aria-label="CML Trust Console home">
+        <b class="mark">C</b>
+        <span><strong>CML Trust Console</strong><small>Human-readable AI action receipts</small></span>
+      </a>
+      <div class="actions">
+        <button class="btn blue" id="mcpDemo">Load official MCP SDK demo</button>
+        <button class="btn" id="demo">Load compact recovery demo</button>
+        <label class="btn primary" for="file">Open CAEP file</label>
+        <input id="file" type="file" accept="application/json,.json" hidden>
+        <button class="btn" id="paste">Paste JSON</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Trust receipt for autonomous actions</div>
+        <h1>Did your AI fulfil your intent?</h1>
+        <p class="lead">See what you requested, what the system changed, who independently checked the result, and how it recovered when a successful tool call produced the wrong real-world outcome.</p>
+        <p class="privacy">Files are processed locally in your browser. Nothing is uploaded by this page.</p>
+        <div class="actions hero-actions">
+          <button class="btn blue" id="heroMcpDemo">Open verified MCP evidence</button>
+          <a class="btn" href="?evidence=mcp&amp;record=mcp_sdk_duplicate_recovered">Open direct recovery link</a>
+          <a class="btn" href="./evidence-manifest.json">View provenance manifest</a>
+          <a class="btn" href="./mcp-sdk-bundle.json" download>Download evidence bundle</a>
+        </div>
+      </div>
+      <div class="hero-card" aria-label="Evidence flow">
+        <div class="hero-step"><b>1</b><span>Real MCP handshake and tool discovery</span></div>
+        <div class="hero-step"><b>2</b><span>Exact action, observed outcome, and independent verifier</span></div>
+        <div class="hero-step"><b>3</b><span>Divergence containment, compensation, and digest-bound recovery</span></div>
+      </div>
+    </section>
+
+    <section class="workspace" id="workspace" hidden>
+      <div class="workspace-head">
+        <div>
+          <div class="eyebrow">Loaded evidence</div>
+          <h2 id="bundleTitle">Trust receipt</h2>
+          <p class="privacy" id="source"></p>
+        </div>
+        <div class="actions no-print">
+          <button class="btn" id="copyLink">Copy evidence link</button>
+          <button class="btn" id="print">Print / save PDF</button>
+          <button class="btn blue" id="download">Download receipt</button>
+        </div>
+      </div>
+      <div class="tabs" id="tabs" role="tablist"></div>
+
+      <article class="receipt">
+        <div class="statusrow">
+          <div><span class="badge" id="badge"></span> <span class="badge" id="digestBadge"></span></div>
+          <code class="digest" id="episode"></code>
+        </div>
+        <div class="headline">
+          <div class="icon" id="icon">✓</div>
+          <div><div class="eyebrow" id="kicker"></div><h2 id="heading"></h2><p id="summary"></p></div>
+        </div>
+        <div class="grid">
+          <div class="panel"><small>01 · Your intent</small><h3 id="intentTitle"></h3><p id="intent"></p><div class="chips left" id="constraints"></div></div>
+          <div class="panel"><small>02 · What happened</small><h3 id="actionTitle"></h3><p id="outcome"></p></div>
+          <div class="panel"><small>03 · What the system did</small><h3>Recovery actions</h3><ul id="recovery"></ul></div>
+          <div class="panel"><small>04 · Current trusted state</small><h3 id="trustedTitle"></h3><p id="trusted"></p></div>
+        </div>
+      </article>
+
+      <div class="metrics">
+        <div class="metric"><span>Intent alignment</span><strong id="mIntent"></strong><small id="mIntentNote"></small></div>
+        <div class="metric"><span>Independent verification</span><strong id="mVerify"></strong><small id="mVerifyNote"></small></div>
+        <div class="metric"><span>Critical conditions</span><strong id="mCritical"></strong><small id="mCriticalNote"></small></div>
+        <div class="metric"><span>Causal lineage</span><strong id="mLineage"></strong><small id="mLineageNote"></small></div>
+      </div>
+
+      <section class="section">
+        <div class="sectionhead"><div><div class="eyebrow">Causal reconstruction</div><h2>Why this conclusion is justified</h2></div><small>History is preserved, not rewritten.</small></div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section class="section">
+        <div class="sectionhead"><div><div class="eyebrow">Technical evidence</div><h2>Auditable details</h2></div><button class="btn no-print" id="toggle">Show raw record</button></div>
+        <div class="evidencegrid">
+          <article class="evidence"><h3>Actors</h3><dl id="actors"></dl></article>
+          <article class="evidence"><h3>Integrity</h3><dl id="integrity"></dl></article>
+          <article class="evidence"><h3>MCP transport proof</h3><dl id="protocol"></dl></article>
+          <article class="evidence"><h3>Timing</h3><dl id="timing"></dl></article>
+          <article class="evidence wide"><h3>Verification checks</h3><div id="checks"></div></article>
+        </div>
+        <pre id="raw" hidden><code></code></pre>
+      </section>
+    </section>
+
+    <section class="empty" id="empty">
+      <div class="empty-card">
+        <div class="eyebrow">Evidence, not another dashboard</div>
+        <h2>Open the official MCP SDK evidence in one click.</h2>
+        <p>The published canonical JSON bundle was generated through two independent stdio MCP server processes, validated by the CAEP validator, and reproduced byte-for-byte on Python 3.10, 3.11, and 3.12.</p>
+        <div class="chips"><span class="chip">Real MCP session</span><span class="chip">Independent verifier</span><span class="chip">Digest-bound recovery</span><span class="chip">Cross-Python reproducible</span></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="paste" id="dialog">
+    <div class="pastebox">
+      <div class="sectionhead"><div><div class="eyebrow">Paste evidence</div><h2>CAEP JSON</h2></div><button class="btn" id="close">Close</button></div>
+      <textarea id="text" spellcheck="false" placeholder='{"profile":"org.causal-memory-layer.caep", ...}'></textarea>
+      <p id="error" class="error"></p>
+      <div class="actions"><button class="btn primary" id="openPaste">Open receipt</button></div>
+    </div>
+  </dialog>
+
+  <footer class="shell footer"><span>CML Trust Console · Experimental CAEP viewer</span><span>Integrity is not authenticity. The Python validator remains normative.</span></footer>
+</body>
+</html>

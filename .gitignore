@@ -25,3 +25,7 @@ venv/
 # VS Code extension build output
 integrations/vscode-cml/out/
 integrations/vscode-cml/node_modules/
+
+# Liminal Recall local build files
+hackathons/liminal-recall/.aws-sam/
+hackathons/liminal-recall/.venv-linux/

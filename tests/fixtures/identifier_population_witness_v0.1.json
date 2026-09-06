@@ -1,0 +1,307 @@
+{
+  "schema_version": "cml-identifier-population-witness-fixtures-v0.1",
+  "benchmark_contract": {
+    "negative_control_required": true,
+    "expected_cases": 5,
+    "excluded_cases": 0
+  },
+  "cases": [
+    {
+      "id": "same-count-different-population",
+      "initial": {
+        "scope": "tenant-a",
+        "records": [
+          {"key": "key-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "key-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "key-c", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v1",
+        "policy_epoch": "1",
+        "folds": [
+          {"name": "prefix_13", "verdict": "ZERO_AT_SCALE", "keys_lost": 0, "collides_at_length": 12, "headroom_chars": 1, "threshold_population": 2}
+        ]
+      },
+      "use": {
+        "expected_scope": "tenant-a",
+        "scope": "tenant-a",
+        "records": [
+          {"key": "key-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "key-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "key-d", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v1",
+        "policy_epoch": "1"
+      },
+      "expected": {
+        "measurement_valid_for_use": false,
+        "must_recompute": true,
+        "reasons": ["population_changed"],
+        "historical_integrity_available": false,
+        "historical_collision_ids": [],
+        "at_cliff_edge": ["prefix_13"]
+      },
+      "negative_control": {
+        "initial": {
+          "scope": "tenant-a",
+          "records": [
+            {"key": "key-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "key-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "key-c", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+          ],
+          "policy_digest": "policy-v1",
+          "policy_epoch": "1",
+          "folds": [
+            {"name": "prefix_13", "verdict": "ZERO_AT_SCALE", "keys_lost": 0, "collides_at_length": 12, "headroom_chars": 1, "threshold_population": 2}
+          ]
+        },
+        "use": {
+          "expected_scope": "tenant-a",
+          "scope": "tenant-a",
+          "records": [
+            {"key": "key-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "key-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "key-c", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+          ],
+          "policy_digest": "policy-v1",
+          "policy_epoch": "1"
+        }
+      }
+    },
+    {
+      "id": "check-insert-use",
+      "initial": {
+        "scope": "tenant-a",
+        "records": [
+          {"key": "key-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "key-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "key-c", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v1",
+        "policy_epoch": "1",
+        "folds": [
+          {"name": "prefix_13", "verdict": "ZERO_AT_SCALE", "keys_lost": 0, "collides_at_length": 12, "headroom_chars": 1, "threshold_population": 2}
+        ]
+      },
+      "use": {
+        "expected_scope": "tenant-a",
+        "scope": "tenant-a",
+        "records": [
+          {"key": "key-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "key-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "key-c", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "key-new", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v1",
+        "policy_epoch": "1"
+      },
+      "expected": {
+        "measurement_valid_for_use": false,
+        "must_recompute": true,
+        "reasons": ["population_changed"],
+        "historical_integrity_available": false,
+        "historical_collision_ids": [],
+        "at_cliff_edge": ["prefix_13"]
+      },
+      "negative_control": {
+        "initial": {
+          "scope": "tenant-a",
+          "records": [
+            {"key": "key-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "key-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "key-c", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+          ],
+          "policy_digest": "policy-v1",
+          "policy_epoch": "1",
+          "folds": [
+            {"name": "prefix_13", "verdict": "ZERO_AT_SCALE", "keys_lost": 0, "collides_at_length": 12, "headroom_chars": 1, "threshold_population": 2}
+          ]
+        },
+        "use": {
+          "expected_scope": "tenant-a",
+          "scope": "tenant-a",
+          "records": [
+            {"key": "key-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "key-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "key-c", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+          ],
+          "policy_digest": "policy-v1",
+          "policy_epoch": "1"
+        }
+      }
+    },
+    {
+      "id": "collision-delete-clean-current-scan",
+      "initial": {
+        "scope": "tenant-a",
+        "records": [
+          {"key": "abc1", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "abc2", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v1",
+        "policy_epoch": "1",
+        "folds": [
+          {"name": "prefix_3", "verdict": "COST_MEASURED", "keys_lost": 1, "collides_at_length": 3, "headroom_chars": 0, "threshold_population": 1}
+        ],
+        "history": {"keys": ["abc1", "abc2"], "complete": true},
+        "historical_collisions": [
+          {"collision_id": "collision-abc-prefix-3", "fold": "prefix_3", "observed_population_commitment": "$INITIAL"}
+        ]
+      },
+      "use": {
+        "expected_scope": "tenant-a",
+        "scope": "tenant-a",
+        "records": [
+          {"key": "abc1", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v1",
+        "policy_epoch": "1"
+      },
+      "expected": {
+        "measurement_valid_for_use": false,
+        "must_recompute": true,
+        "reasons": ["population_changed"],
+        "historical_integrity_available": true,
+        "historical_collision_ids": ["collision-abc-prefix-3"],
+        "at_cliff_edge": []
+      },
+      "negative_control": {
+        "initial": {
+          "scope": "tenant-a",
+          "records": [
+            {"key": "abc1", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "abc2", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+          ],
+          "policy_digest": "policy-v1",
+          "policy_epoch": "1",
+          "folds": [
+            {"name": "prefix_3", "verdict": "COST_MEASURED", "keys_lost": 1, "collides_at_length": 3, "headroom_chars": 0, "threshold_population": 1}
+          ],
+          "history": {"keys": ["abc1", "abc2"], "complete": true},
+          "historical_collisions": [
+            {"collision_id": "collision-abc-prefix-3", "fold": "prefix_3", "observed_population_commitment": "$INITIAL"}
+          ]
+        },
+        "use": {
+          "expected_scope": "tenant-a",
+          "scope": "tenant-a",
+          "records": [
+            {"key": "abc1", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+            {"key": "abc2", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+          ],
+          "policy_digest": "policy-v1",
+          "policy_epoch": "1"
+        }
+      }
+    },
+    {
+      "id": "writer-policy-drift",
+      "initial": {
+        "scope": "tenant-a",
+        "records": [
+          {"key": "old-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "old-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v2",
+        "policy_epoch": "2",
+        "folds": [
+          {"name": "prefix_8", "verdict": "ZERO_AT_SCALE", "keys_lost": 0, "collides_at_length": 6, "headroom_chars": 2, "threshold_population": 2}
+        ]
+      },
+      "use": {
+        "expected_scope": "tenant-a",
+        "scope": "tenant-a",
+        "records": [
+          {"key": "old-a", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"},
+          {"key": "old-b", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v2",
+        "policy_epoch": "2"
+      },
+      "expected": {
+        "measurement_valid_for_use": false,
+        "must_recompute": true,
+        "reasons": ["writer_policy_drift"],
+        "historical_integrity_available": false,
+        "historical_collision_ids": [],
+        "at_cliff_edge": []
+      },
+      "negative_control": {
+        "initial": {
+          "scope": "tenant-a",
+          "records": [
+            {"key": "new-a", "writer_policy_digest": "policy-v2", "writer_policy_epoch": "2"},
+            {"key": "new-b", "writer_policy_digest": "policy-v2", "writer_policy_epoch": "2"}
+          ],
+          "policy_digest": "policy-v2",
+          "policy_epoch": "2",
+          "folds": [
+            {"name": "prefix_8", "verdict": "ZERO_AT_SCALE", "keys_lost": 0, "collides_at_length": 6, "headroom_chars": 2, "threshold_population": 2}
+          ]
+        },
+        "use": {
+          "expected_scope": "tenant-a",
+          "scope": "tenant-a",
+          "records": [
+            {"key": "new-a", "writer_policy_digest": "policy-v2", "writer_policy_epoch": "2"},
+            {"key": "new-b", "writer_policy_digest": "policy-v2", "writer_policy_epoch": "2"}
+          ],
+          "policy_digest": "policy-v2",
+          "policy_epoch": "2"
+        }
+      }
+    },
+    {
+      "id": "foreign-scope",
+      "initial": {
+        "scope": "tenant-a",
+        "records": [
+          {"key": "shared-key", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v1",
+        "policy_epoch": "1",
+        "folds": [
+          {"name": "prefix_8", "verdict": "ZERO_AT_SCALE", "keys_lost": 0, "collides_at_length": 0, "headroom_chars": 8, "threshold_population": 10}
+        ]
+      },
+      "use": {
+        "expected_scope": "tenant-b",
+        "scope": "tenant-b",
+        "records": [
+          {"key": "shared-key", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+        ],
+        "policy_digest": "policy-v1",
+        "policy_epoch": "1"
+      },
+      "expected": {
+        "measurement_valid_for_use": false,
+        "must_recompute": true,
+        "reasons": ["foreign_scope"],
+        "historical_integrity_available": false,
+        "historical_collision_ids": [],
+        "at_cliff_edge": []
+      },
+      "negative_control": {
+        "initial": {
+          "scope": "tenant-a",
+          "records": [
+            {"key": "shared-key", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+          ],
+          "policy_digest": "policy-v1",
+          "policy_epoch": "1",
+          "folds": [
+            {"name": "prefix_8", "verdict": "ZERO_AT_SCALE", "keys_lost": 0, "collides_at_length": 0, "headroom_chars": 8, "threshold_population": 10}
+          ]
+        },
+        "use": {
+          "expected_scope": "tenant-a",
+          "scope": "tenant-a",
+          "records": [
+            {"key": "shared-key", "writer_policy_digest": "policy-v1", "writer_policy_epoch": "1"}
+          ],
+          "policy_digest": "policy-v1",
+          "policy_epoch": "1"
+        }
+      }
+    }
+  ]
+}

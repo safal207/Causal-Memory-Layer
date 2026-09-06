@@ -16,8 +16,11 @@ def main() -> int:
     parser.add_argument(
         "fixture",
         nargs="?",
-        default=str(DEFAULT_FIXTURE),
-        help=f"Experimental fixture or example path (default: {DEFAULT_FIXTURE})",
+        default=DEFAULT_FIXTURE.name,
+        help=(
+            "Experimental fixture filename from benchmarks/experimental "
+            f"(default: {DEFAULT_FIXTURE.name})"
+        ),
     )
     parser.add_argument(
         "--json",

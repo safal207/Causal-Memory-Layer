@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Liminal Recall - CockroachDB vector memory on AWS Lambda and Bedrock
+
+Parameters:
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: CockroachDB connection string
+  DemoApiKey:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: Required x-demo-key value for non-health routes
+  BuildSha:
+    Type: String
+    AllowedPattern: '^[0-9a-f]{40}$'
+    Description: Exact reviewed Git commit embedded in the deployed configuration
+  EmbeddingModelId:
+    Type: String
+    Default: amazon.titan-embed-text-v2:0
+    Description: Amazon Bedrock embedding model ID
+  EmbeddingDimensions:
+    Type: Number
+    Default: 256
+    AllowedValues:
+      - 256
+  SimilarityThreshold:
+    Type: Number
+    Default: 0.35
+    MinValue: 0
+    MaxValue: 2
+
+Resources:
+  LiminalRecallFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: app
+      Handler: app.handler.lambda_handler
+      Runtime: python3.12
+      Architectures:
+        - arm64
+      MemorySize: 512
+      Timeout: 30
+      Tracing: Active
+      Environment:
+        Variables:
+          DATABASE_URL: !Ref DatabaseUrl
+          DEMO_API_KEY: !Ref DemoApiKey
+          BUILD_SHA: !Ref BuildSha
+          EMBEDDING_MODEL_ID: !Ref EmbeddingModelId
+          EMBEDDING_DIMENSIONS: !Ref EmbeddingDimensions
+          SIMILARITY_THRESHOLD: !Ref SimilarityThreshold
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Statement:
+            - Sid: InvokeTitanEmbeddings
+              Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: !Sub arn:${AWS::Partition}:bedrock:${AWS::Region}::foundation-model/${EmbeddingModelId}
+            - Sid: WriteXRayTelemetry
+              Effect: Allow
+              Action:
+                - xray:PutTraceSegments
+                - xray:PutTelemetryRecords
+              Resource: '*'
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - '*'
+          AllowMethods:
+            - GET
+            - POST
+          AllowHeaders:
+            - content-type
+            - x-demo-key
+
+Outputs:
+  FunctionUrl:
+    Description: Public Liminal Recall demo endpoint
+    Value: !GetAtt LiminalRecallFunctionUrl.FunctionUrl
+  FunctionName:
+    Description: Lambda function name used by the restart evidence protocol
+    Value: !Ref LiminalRecallFunction

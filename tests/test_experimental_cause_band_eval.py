@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from cml import AuditConfig, AuditEngine
 from cml.experimental.cause_band import evaluate_fixture, load_fixture
 from cml.record import Actor, CausalRecord
@@ -198,8 +200,7 @@ def test_load_fixture_accepts_basename():
     assert payload.get("case_id") == "range-drift-intent-experimental"
 
 
-def test_load_fixture_accepts_repo_relative_path():
-    """Verify load_fixture accepts full repo-relative paths."""
-    payload = load_fixture(Path(str(FIXTURE_PATH)))
-    assert isinstance(payload, dict)
-    assert payload.get("case_id") == "range-drift-intent-experimental"
+def test_load_fixture_rejects_repo_relative_path():
+    """Verify load_fixture rejects repo-relative paths for path traversal hardening."""
+    with pytest.raises(SystemExit, match="Fixture path not allowed"):
+        load_fixture(FIXTURE_PATH)
