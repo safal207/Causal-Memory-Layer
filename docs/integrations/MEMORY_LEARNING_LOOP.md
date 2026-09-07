@@ -49,7 +49,7 @@ It is stdlib-only and split into three protected components:
 - `memory_learning_github.py` — bounded GitHub API adapter and proposal state machine;
 - `memory_learning_loop.py` — small CLI entrypoint and evidence writer.
 
-The workflow checks out the merged default-branch commit with persisted Git credentials disabled. Ordinary pull requests cannot alter the workflow or runtime without an explicit trust-root bootstrap review.
+The workflow checks out the merged default-branch commit with persisted Git credentials disabled. Changes to the workflow or runtime are reviewed in the same PR, without an additional bootstrap-review stage. The base-authoritative Trust Root Gate still rejects changes that violate the accepted protected-file baseline; normal review does not override that rejection. See [the trust-root review boundary](../ci/TRUST_ROOT_BOOTSTRAP.md#bootstrap-boundary).
 
 ## Generated memory semantics
 
