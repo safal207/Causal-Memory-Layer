@@ -721,6 +721,7 @@ def test_extract_sections_accepts_documented_aliases() -> None:
 
 
 def test_publish_artifacts_keep_reviewed_transfer_and_build_gate() -> None:
+    """Bind artifact transfer to fail-closed upload and unchanged validation gates."""
     import yaml
 
     root = Path(__file__).resolve().parents[1]
@@ -743,7 +744,7 @@ def test_publish_artifacts_keep_reviewed_transfer_and_build_gate() -> None:
     uploads = [step for step in build_steps if "upload-artifact@" in step.get("uses", "")]
     assert len(uploads) == 1
     assert uploads[0]["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
-    assert uploads[0]["with"] == artifact
+    assert uploads[0]["with"] == {**artifact, "if-no-files-found": "error"}
     for target, guard in (
         ("testpypi", "github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'"),
         ("pypi", "github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')"),
