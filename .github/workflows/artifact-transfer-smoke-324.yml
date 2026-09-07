@@ -1,0 +1,181 @@
+name: CML 324 Non-publishing Artifact Roundtrip
+
+# Evidence-only branch. Never merge this harness or use it as bootstrap approval.
+on:
+  push:
+    branches: [smoke/cml-324-artifact-roundtrip-20260907]
+    paths: [.github/workflows/artifact-transfer-smoke-324.yml]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  SUBJECT_SHA: ffdc07124f3f3b89b5a4f3849bf41e58eb48c1c2
+
+jobs:
+  build:
+    if: github.repository == 'safal207/Causal-Memory-Layer' && github.event_name == 'push' && github.ref == 'refs/heads/smoke/cml-324-artifact-roundtrip-20260907'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      manifest: ${{ steps.inventory.outputs.manifest }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+    steps:
+      - name: Checkout exact reviewed subject, without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ffdc07124f3f3b89b5a4f3849bf41e58eb48c1c2
+          persist-credentials: false
+      - name: Verify source and publishing workflow identities
+        run: |
+          test "$(git rev-parse HEAD)" = "$SUBJECT_SHA"
+          test "$(git hash-object .github/workflows/publish-python-package.yml)" = '1be48d9a8ff359374a6a7fc66158bf8ed735e31c'
+          test ! -e dist
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.11'
+      - name: Build real wheel and sdist, validate metadata, never publish
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check --strict dist/*
+          python --version
+          python -m pip freeze
+      - name: Record independent pre-upload file inventory
+        id: inventory
+        run: |
+          python - <<'PY'
+          import base64, hashlib, json, os
+          from pathlib import Path
+          files = sorted(Path('dist').iterdir())
+          if len(files) != 2 or any(p.is_symlink() or not p.is_file() for p in files):
+              raise SystemExit('Expected exactly two regular distribution files')
+          if sum(p.name.endswith('.whl') for p in files) != 1 or sum(p.name.endswith('.tar.gz') for p in files) != 1:
+              raise SystemExit('Expected one wheel and one sdist')
+          inventory = []
+          for p in files:
+              if not 0 < p.stat().st_size <= 64 * 1024 * 1024:
+                  raise SystemExit('Distribution is empty or exceeds smoke size bound')
+              inventory.append({'name': p.name, 'bytes': p.stat().st_size, 'sha256': hashlib.sha256(p.read_bytes()).hexdigest()})
+          manifest = {'subject_sha': os.environ['SUBJECT_SHA'], 'files': inventory}
+          raw = json.dumps(manifest, sort_keys=True, separators=(',', ':'))
+          print(raw)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write('manifest=' + base64.b64encode(raw.encode()).decode() + '\n')
+          PY
+      - name: Upload distributions using the exact candidate settings
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+      - name: Require a recorded artifact identity and digest
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          python - <<'PY'
+          import os, re
+          if not re.fullmatch(r'[1-9][0-9]*', os.environ['ARTIFACT_ID']):
+              raise SystemExit('Missing artifact ID')
+          if not re.fullmatch(r'[0-9a-f]{64}', os.environ['ARTIFACT_DIGEST']):
+              raise SystemExit('Missing artifact SHA-256')
+          print('artifact_id=' + os.environ['ARTIFACT_ID'])
+          print('artifact_digest=' + os.environ['ARTIFACT_DIGEST'])
+          PY
+
+  consume:
+    name: Verify clean download (${{ matrix.consumer }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        consumer: [testpypi-slot, pypi-slot]
+    env:
+      EXPECTED_MANIFEST: ${{ needs.build.outputs.manifest }}
+      ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+      ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact_digest }}
+      CONSUMER: ${{ matrix.consumer }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+    steps:
+      - name: Require clean consumer workspace, without checkout
+        run: test ! -e dist
+      - name: Download only this run's artifact using candidate settings
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Check exact bytes and exercise local rejection controls
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os, re, shutil, tempfile
+          from pathlib import Path
+          manifest = json.loads(base64.b64decode(os.environ['EXPECTED_MANIFEST'], validate=True))
+          if manifest['subject_sha'] != os.environ['SUBJECT_SHA']:
+              raise SystemExit('Subject identity mismatch')
+          entries = manifest['files']
+          if len(entries) != 2 or len({x['name'] for x in entries}) != 2:
+              raise SystemExit('Expected two distinct distribution names')
+          for x in entries:
+              if Path(x['name']).name != x['name'] or not re.fullmatch(r'[0-9a-f]{64}', x['sha256']):
+                  raise SystemExit('Invalid inventory')
+              if type(x['bytes']) is not int or not 0 < x['bytes'] <= 64 * 1024 * 1024:
+                  raise SystemExit('Invalid inventory size')
+          def verify(root):
+              actual = list(root.iterdir())
+              if {p.name for p in actual} != {x['name'] for x in entries}:
+                  raise ValueError('FILE_SET_MISMATCH')
+              for x in entries:
+                  p = root / x['name']
+                  if p.is_symlink() or not p.is_file():
+                      raise ValueError('NOT_REGULAR_FILE')
+                  if p.stat().st_size != x['bytes']:
+                      raise ValueError('FILE_SIZE_MISMATCH')
+                  if hashlib.sha256(p.read_bytes()).hexdigest() != x['sha256']:
+                      raise ValueError('CONTENT_HASH_MISMATCH')
+          verify(Path('dist'))
+          controls = {}
+          for case, reason in [('same-size-corruption', 'CONTENT_HASH_MISMATCH'), ('missing-file', 'FILE_SET_MISMATCH'), ('extra-file', 'FILE_SET_MISMATCH')]:
+              with tempfile.TemporaryDirectory() as td:
+                  root = Path(td) / 'dist'
+                  shutil.copytree('dist', root)
+                  target = root / entries[0]['name']
+                  if case == 'same-size-corruption':
+                      data = bytearray(target.read_bytes())
+                      data[0] ^= 1
+                      target.write_bytes(data)
+                  elif case == 'missing-file':
+                      target.unlink()
+                  else:
+                      (root / 'unexpected.txt').write_text('unexpected')
+                  try:
+                      verify(root)
+                  except ValueError as exc:
+                      if str(exc) != reason:
+                          raise
+                      controls[case] = reason
+                  else:
+                      raise SystemExit('Negative control was not rejected: ' + case)
+          proof = {'passed': True, 'claim': 'hosted-artifact-roundtrip-only', 'repository': os.environ['GITHUB_REPOSITORY'], 'subject_sha': os.environ['SUBJECT_SHA'], 'harness_sha': os.environ['GITHUB_SHA'], 'workflow_sha': os.environ['WORKFLOW_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'], 'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'], 'consumer': os.environ['CONSUMER'], 'artifact_id': os.environ['ARTIFACT_ID'], 'artifact_digest': os.environ['ARTIFACT_DIGEST'], 'files': entries, 'local_rejection_controls': controls, 'bootstrap_approved': False, 'package_published': False}
+          raw = json.dumps(proof, indent=2, sort_keys=True)
+          Path('roundtrip-proof.json').write_text(raw + '\n')
+          print(raw)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('Verified two exact files in a clean consumer. Three local rejection controls passed. No package publishing or bootstrap approval.\n')
+          PY
+      - name: Preserve bounded consumer evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cml-324-roundtrip-${{ matrix.consumer }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: roundtrip-proof.json
+          if-no-files-found: error
+          retention-days: 7
