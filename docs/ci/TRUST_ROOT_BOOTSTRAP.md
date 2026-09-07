@@ -31,15 +31,27 @@ failures still produce structured JSON evidence before the job exits non-zero.
 
 ## Bootstrap boundary
 
-The first pull request that installs this trust root cannot be authenticated by
-the mechanism it is introducing. It requires explicit human and independent bot
-review. The bootstrap PR therefore contains both the protected CI implementation
-and the matching manifest identities in one exact tree.
+Trust-root installation and maintenance are reviewed in the same pull request as
+the implementation, using the normal PR review process. No separate bootstrap-review
+PR, additional approval round, or extra human-and-bot sign-off is required. This
+removes the additional procedural stage, not existing repository review settings,
+automated review checks, or technical validation requirements.
 
-After it lands on the protected default branch, ordinary pull requests are checked
-by the base-branch trust root. Changes to the trusted gate, its manifest, or approved
-file identities require a dedicated bootstrap review; they cannot be approved by an
-ordinary pull request.
+The first installation still cannot be authenticated by the mechanism it introduces.
+Each proposed trust-root transition must bind the protected CI implementation and
+matching manifest identities to one exact tree; the candidate cannot certify itself.
+
+After installation, the base-branch trust root remains authoritative. Changes to the
+trusted gate, its manifest, or protected file identities that violate that baseline
+remain rejected. Normal PR review does not override a failing gate, replace the
+trusted base, or authorize a candidate to approve its own manifest. Removing the
+separate review stage neither approves a new baseline nor authorizes a merge,
+release, or package publication.
+
+The verifier's historical diagnostic text may still mention a "dedicated bootstrap
+review". That text reports a protected-path rejection; it is not a separate review
+job or a reason to remove the rejection. The verifier and its acceptance conditions
+are unchanged by this procedural update.
 
 Repository rules must require the `CML Trust Root Gate` status for merges to
 `main`. Existing CI, package, and security checks remain required as execution
