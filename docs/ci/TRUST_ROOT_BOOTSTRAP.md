@@ -25,9 +25,28 @@ The evidence report records repository, pull request, exact head, workflow run I
 and run attempt. Artifact names and the published status URL are also bound to the
 exact run attempt, so reruns cannot silently reuse or obscure earlier evidence.
 
-The final status is written to the pull-request head as `CML Trust Root Gate` by a
-separate job that never checks out or executes pull-request content. Verification
-failures still produce structured JSON evidence before the job exits non-zero.
+The gate publishes a branch-scoped commit status on the exact test-merge SHA,
+not on the pull-request head. The separate publishing job never checks out or
+executes pull-request content. Before publication it re-reads the PR and compares
+its base ref, base SHA, head SHA, and test-merge SHA with the selected tuple. If
+that tuple changed, it refuses to publish a stale status. Verification failures
+still produce structured JSON evidence before the verification job exits non-zero.
+
+The context is derived from the exact base-ref name encoded as UTF-8:
+
+```python
+"CML Trust Root Gate / " + hashlib.sha256(base_ref.encode("utf-8")).hexdigest()
+```
+
+For `main`, the exact context is:
+
+```text
+CML Trust Root Gate / 0d6e4079e36703ebd37c00722f5891d28b0e2811dc114b129215123adcce3605
+```
+
+Matching PR metadata across reads is a freshness check, not independent proof
+that the selected base is the current branch tip or that the test-merge parents
+match the selected base/head. Those stronger checks are not claimed here.
 
 ## Bootstrap boundary
 
@@ -53,17 +72,39 @@ review". That text reports a protected-path rejection; it is not a separate revi
 job or a reason to remove the rejection. The verifier and its acceptance conditions
 are unchanged by this procedural update.
 
-Repository rules must require the `CML Trust Root Gate` status for merges to
-`main`. Existing CI, package, and security checks remain required as execution
-evidence; the trust-root gate proves that their definitions and authoritative
-validators match the approved contract.
+## Merge enforcement
+
+Repository rules must require the exact branch-scoped context above for merges
+to `main`, rather than the historical unsuffixed workflow name. The expected
+status-source app must be verified and configured; accepting any source is not
+equivalent to verifying the intended publisher. Required CI, package, and security
+checks must also be retained as execution evidence.
+
+These are configuration requirements, not a claim that protection is currently
+enabled. Confirm the effective branch-protection and applicable ruleset settings
+separately. A denied administrative read means that detailed configuration is
+unverified; it must not be interpreted as an empty configuration. A red status
+alone does not prove that GitHub prohibits a merge. Documentation edits and
+ordinary PR review do not configure protection or authorize bypassing a failure.
+
+The exact test-merge status, the current PR tuple, and the published run/attempt
+must be checked together. Historical success on another head or merge SHA is not
+a new verification. See GitHub's [required-status-check guidance](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)
+and [status-source configuration](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets#require-status-checks-to-pass-before-merging).
+
+The gate checks that protected definitions and authoritative validators match
+the accepted baseline. Runtime CI success and authorization to change that
+baseline remain distinct. This section adds no separate bootstrap-review stage.
 
 ## Security separation
 
-The verification job has only `contents: read`. It checks out the base and proposed
-commit into separate directories and uses the proposed tree strictly as data. The
-status-publishing job has `statuses: write`, never checks out proposed content, and
-bases its result only on GitHub's `needs.verify.result`.
+The verification job has `contents: read` and `pull-requests: read`, with no
+write permissions. It checks out the base and proposed commit into separate
+directories and uses the proposed tree strictly as data. The status-publishing
+job has `pull-requests: read` and `statuses: write`, never checks out proposed
+content, and publishes success only when GitHub's `needs.verify.result` is
+`success` and the selected PR transition still matches. A changed transition
+produces no new status, not a successful verification.
 
 This design prevents a pull request from replacing its own evidence validator,
 adding a status-spoofing workflow, changing the trusted manifest, hiding a change
