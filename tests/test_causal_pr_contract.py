@@ -718,3 +718,41 @@ def test_extract_sections_accepts_documented_aliases() -> None:
         "regression_evidence": "C",
         "residual_risk": "D",
     }
+
+
+def test_publish_artifacts_keep_reviewed_transfer_and_build_gate() -> None:
+    import yaml
+
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.load(
+        (root / ".github/workflows/publish-python-package.yml").read_text(encoding="utf-8"),
+        Loader=yaml.BaseLoader,
+    )
+    assert set(workflow["on"]) == {"workflow_dispatch", "release"}
+    jobs = workflow["jobs"]
+    build_steps = jobs["build"]["steps"]
+    required_commands = {
+        "pytest", "python scripts/run_safety_eval.py",
+        "python -m build", "python -m twine check dist/*",
+    }
+    assert required_commands.issubset({step.get("run") for step in build_steps})
+    for step in build_steps:
+        if step.get("run") in required_commands:
+            assert "if" not in step and "continue-on-error" not in step
+    artifact = {"name": "python-package-distributions", "path": "dist/"}
+    uploads = [step for step in build_steps if "upload-artifact@" in step.get("uses", "")]
+    assert len(uploads) == 1
+    assert uploads[0]["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    assert uploads[0]["with"] == artifact
+    for target, guard in (
+        ("testpypi", "github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'"),
+        ("pypi", "github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')"),
+    ):
+        job = jobs[f"publish-{target}"]
+        assert job["needs"] == "build"
+        assert job["if"] == guard
+        assert job["environment"]["name"] == target
+        download = job["steps"][0]
+        assert download["uses"] == "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+        assert download["with"] == artifact
+        assert "continue-on-error" not in download
