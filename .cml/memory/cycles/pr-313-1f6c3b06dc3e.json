@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #313.",
+      "digest": "90b11b923aae088fdcc9a0d606482c7d21b468b6466f3c3cc944f4689ad3eef5",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/a8bc02c86280eabea02ef04ab92f535e1edd1d51/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #313.",
+      "digest": "95b38ddfccc9e26c5665cda4fae7a3de66214d7eebb10db19394df95bf71b337",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/313/files"
+    },
+    {
+      "description": "Merge commit for pull request #313.",
+      "digest": "8e6910346898b6cd9056f17bc424fe7a64a1ee7c9a6cf5c13750908155cfeef7",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:1f6c3b06dc3e5c7ceeb2912994b6642de521954b"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #313.",
+      "digest": "964ba0e4da301b9ff988c80d61af70ee68cd088037cf9b41097603669b296a84",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/313"
+    },
+    {
+      "description": "Normalized review snapshot for #313 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/313/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 5,
+          "head_sha": "a8bc02c86280eabea02ef04ab92f535e1edd1d51",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #313: feat: add verification envelope interoperability v0.1",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 19,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Exact head: ```text a8bc02c86280eabea02ef04ab92f535e1edd1d51 ``` Exact-head evidence: - CI — PASS; - Python Package Validation — PASS, including repository tests and deterministic safety benchmark; - eBPF Runtime Proof — PASS; - Security Baseline — PASS, including CodeQL, dependency/source audit, secret scan, and final Security Gate.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "CML has no RFC 8785 dependency, so v0.1 does not claim full JCS. It freezes an explicit dependency-free subset: ```text rfc8785-jcs-ascii-integer-subset-v0.1 ``` Printable ASCII keys/strings, safe integers, booleans/null, arrays and objects are accepted. Floats, non-ASCII strings and control characters fail closed. Authoritative frozen hashes: ```text content_sha256 = 603e6a4e5dcf67b03b2e0221a0d26f1feafd2a8db0f10f71d5becd5c29ef0d4b envelope_sha256 = 49c0525b7271ffe27a24aea3e0df3d7635956b35cf8f8…",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #313: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "1f6c3b06dc3e5c7ceeb2912994b6642de521954b",
+          "merged_at": "2026-08-27T10:18:38.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #313 merged into main as 1f6c3b06dc3e5c7ceeb2912994b6642de521954b",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 313,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds Verification Envelope Interoperability v0.1: a dependency-free executable seam for independently implemented proof/authorization systems. The bar is deliberately narrow: a verifier must be able to reproduce what was bound, distinguish content identity from occurrence identity, and determine where freshness/execution guarantees stop.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-27T10:18:38.000Z",
+    "description": "Automatically proposed decision memory for merged PR #313; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "1f6c3b06dc3e5c7ceeb2912994b6642de521954b",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "02b35c75d2981c404827d92108ef4e3e62f7665d7c31722d444c5b969a1ab2c8",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
