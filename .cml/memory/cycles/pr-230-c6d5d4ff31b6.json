@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #230.",
+      "digest": "ea57dd63ae7a96af48f5c31706c6e5258f3b92ac83b3b94621f62ec4db993ecb",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/e3ba93fb1efb2785b760dcc75686875c8ab0f836/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #230.",
+      "digest": "842e230c302fc6244b26dfbf88fc5a82269d255d0d2d30aa69a837efa33a0737",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/230/files"
+    },
+    {
+      "description": "Merge commit for pull request #230.",
+      "digest": "2e2bd6e571a42ac80d195e689e47f9240e5c35848f847f8cfedfa8401dc3a062",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:c6d5d4ff31b6a35d24dd16ea1ee0a7b13958dd5f"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #230.",
+      "digest": "21095062c60f28fa680d6864df2e50915c40c269e58972aee4ed955dbd20e783",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/230"
+    },
+    {
+      "description": "Normalized review snapshot for #230 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/230/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 2,
+          "head_sha": "e3ba93fb1efb2785b760dcc75686875c8ab0f836",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #230: feat(pages): publish CAEP Trust Console",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 17,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #230 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "- the page is a viewer, not the normative validator; - browser digest checking is a convenience preview; - `validate_caep.py` remains responsible for schema, semantic, temporal, digest, and complete parent-bundle validation; - integrity is not authenticity; - signatures and external artifacts are not verified.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #230: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "c6d5d4ff31b6a35d24dd16ea1ee0a7b13958dd5f",
+          "merged_at": "2026-07-29T21:55:32.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #230 merged into main as c6d5d4ff31b6a35d24dd16ea1ee0a7b13958dd5f",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 230,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Publishes a public, dependency-free CML Trust Console under the repository's existing GitHub Pages source tree.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-29T21:55:32.000Z",
+    "description": "Automatically proposed decision memory for merged PR #230; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "c6d5d4ff31b6a35d24dd16ea1ee0a7b13958dd5f",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "38a79d50106c7690f93cedebabdd3edf51fa48465d6a83720a2611803a631d8e",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
