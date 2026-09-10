@@ -57,7 +57,7 @@ def _verification_program() -> str:
     script = _named_step(workflow, "Run exact-base trust verification").get("run")
     assert isinstance(script, str)
     prefix = "python3 - <<'PY'\n"
-    suffix = "\nPY"
+    suffix = "\nPY\n"
     assert script.startswith(prefix)
     assert script.endswith(suffix)
     return script[len(prefix) : -len(suffix)]
