@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #325.",
+      "digest": "7ef38da9301fd67050659b1e51c309901444fa4683fc5f57a8e08f1ae4140abf",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/29e3303e390c2053f83e5388844d63bfa49437be/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #325.",
+      "digest": "256bb78732674b728a20ced42d002273fe280a40a4b27a534e51d6eac90e0e12",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/325/files"
+    },
+    {
+      "description": "Merge commit for pull request #325.",
+      "digest": "eafec79852c7923d2d742b2ec36356bbcc1806a2a1e16a7315d23bbf2b735264",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:bfc76b515350a6e13fbec76c36ae5af7112001ad"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #325.",
+      "digest": "f6093cfe5f113c6f4d07d759284abc1329916be3b86b2a58186359522fd2a33b",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/325"
+    },
+    {
+      "description": "Normalized review snapshot for #325 without review bodies.",
+      "digest": "ebb2730b74d7393a452bdc972d80e29c5ecd852defe83e3b286099b0e411288a",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/325/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 6,
+          "head_sha": "29e3303e390c2053f83e5388844d63bfa49437be",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #325: ci: bootstrap trust refresh outcome semantics",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 25,
+          "review_count": 6
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #325 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #325: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "bfc76b515350a6e13fbec76c36ae5af7112001ad",
+          "merged_at": "2026-09-10T20:04:40.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #325 merged into main as bfc76b515350a6e13fbec76c36ae5af7112001ad",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 325,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Bootstrap a bounded trust-root repair for CML Trust Root Refresh run `34510858337` on `main@7a3a98c60a402d394e4d286da956823898454b8a`. This is intentionally a **trust-root bootstrap PR**. The current base verifier must reject this transition rather than authenticate its own replacement. Do not bypass that result. The exact bootstrap head under review is `29e3303e390c2053f83e5388844d63bfa49437be`.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-09-10T20:04:40.000Z",
+    "description": "Automatically proposed decision memory for merged PR #325; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "bfc76b515350a6e13fbec76c36ae5af7112001ad",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "8645ff0ed4bac8bc8a367d071e5408573d54b698961816ddd80848b7720eb9cd",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
