@@ -1,0 +1,122 @@
+{
+  "schema": "cml.memory-proposal-queue.revalidation-input.v0.2",
+  "source_audit_schema": "cml.memory-proposal-queue.audit.v0.1",
+  "source_audit_digest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "current_main_revision": "9999999999999999999999999999999999999999",
+  "captured_at": "2026-08-15T13:00:00Z",
+  "synthetic": true,
+  "expected_record_count": 6,
+  "records": [
+    {
+      "proposal_pr": 1001,
+      "source_pr": 901,
+      "source_merge": "1111111111111111111111111111111111111111",
+      "pack_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "lineage_root_id": "pr-contracts",
+      "lineage_evidence_refs": ["synthetic:lineage:pr-contracts:a"],
+      "gate_evidence_refs": ["synthetic:gates:a"],
+      "applicability": {"status": "MATCH", "reasons": []},
+      "quality": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "READY",
+        "reasons": []
+      },
+      "claimed_fitness_status": "READY_FOR_AUTHORITY_CHECK"
+    },
+    {
+      "proposal_pr": 1002,
+      "source_pr": 902,
+      "source_merge": "2222222222222222222222222222222222222222",
+      "pack_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "lineage_root_id": "pr-contracts",
+      "lineage_evidence_refs": ["synthetic:lineage:pr-contracts:b"],
+      "gate_evidence_refs": ["synthetic:gates:b"],
+      "applicability": {"status": "MATCH", "reasons": []},
+      "quality": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "READY",
+        "reasons": []
+      },
+      "claimed_fitness_status": "READY_FOR_AUTHORITY_CHECK"
+    },
+    {
+      "proposal_pr": 1003,
+      "source_pr": 903,
+      "source_merge": "3333333333333333333333333333333333333333",
+      "pack_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "lineage_root_id": "pr-contracts",
+      "lineage_evidence_refs": ["synthetic:lineage:pr-contracts:c"],
+      "gate_evidence_refs": ["synthetic:gates:c"],
+      "applicability": {
+        "status": "REVALIDATE",
+        "reasons": ["environment_mismatch:commit_sha"]
+      },
+      "quality": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "READY",
+        "reasons": []
+      },
+      "claimed_fitness_status": "REVIEW_REQUIRED"
+    },
+    {
+      "proposal_pr": 1004,
+      "source_pr": 904,
+      "source_merge": "4444444444444444444444444444444444444444",
+      "pack_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "lineage_root_id": "security",
+      "lineage_evidence_refs": ["synthetic:lineage:security:d"],
+      "gate_evidence_refs": ["synthetic:gates:d"],
+      "applicability": {"status": "MATCH", "reasons": []},
+      "quality": {
+        "semantic_truth": "UNRESOLVED",
+        "completeness": "INCOMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "REVIEW",
+        "reasons": ["completeness_missing:independent-review"]
+      },
+      "claimed_fitness_status": "REVIEW_REQUIRED"
+    },
+    {
+      "proposal_pr": 1005,
+      "source_pr": 905,
+      "source_merge": "5555555555555555555555555555555555555555",
+      "pack_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "lineage_root_id": "security",
+      "lineage_evidence_refs": ["synthetic:lineage:security:e"],
+      "gate_evidence_refs": ["synthetic:gates:e"],
+      "applicability": {"status": "DRIFT", "reasons": ["source_digest_mismatch"]},
+      "quality": {
+        "semantic_truth": "SUPPORTED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "READY",
+        "reasons": []
+      },
+      "claimed_fitness_status": "NOT_FIT"
+    },
+    {
+      "proposal_pr": 1006,
+      "source_pr": 906,
+      "source_merge": "6666666666666666666666666666666666666666",
+      "pack_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "lineage_root_id": "docs",
+      "lineage_evidence_refs": ["synthetic:lineage:docs:f"],
+      "gate_evidence_refs": ["synthetic:gates:f"],
+      "applicability": {"status": "MATCH", "reasons": []},
+      "quality": {
+        "semantic_truth": "CONTRADICTED",
+        "completeness": "COMPLETE",
+        "relevance": "RELEVANT",
+        "readiness": "EXCLUDE",
+        "reasons": ["truth_contradicted"]
+      },
+      "claimed_fitness_status": "NOT_FIT"
+    }
+  ]
+}

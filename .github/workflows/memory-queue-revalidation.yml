@@ -1,0 +1,134 @@
+name: Memory Queue Revalidation v0.3
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "cml/experimental/memory_proposal_queue.py"
+      - "cml/experimental/memory_proposal_queue_planner.py"
+      - "cml/experimental/memory_proposal_queue_revalidation.py"
+      - ".github/trust-root/scripts/memory_queue_revalidation_collect.py"
+      - "tests/test_memory_proposal_queue.py"
+      - "tests/test_memory_proposal_queue_planner.py"
+      - "tests/test_memory_proposal_queue_revalidation.py"
+      - "docs/integrations/MEMORY_PROPOSAL_QUEUE_REVALIDATION_V0_3.md"
+      - ".github/workflows/memory-queue-revalidation.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cml-memory-queue-revalidation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  revalidate:
+    name: Read-only live queue revalidation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+
+    steps:
+      - name: Checkout exact verifier head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          repository: ${{ env.SOURCE_REPOSITORY }}
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Prove exact-head checkout
+        run: |
+          python -m scripts.ci.assert_exact_head \
+            --expected "$EXPECTED_SHA" \
+            --output artifacts/memory-queue-revalidation/exact-head.json
+
+      - name: Install package and test tooling
+        run: |
+          python -m pip install --upgrade "pip==26.1.2"
+          python -m pip install -e ".[dev]"
+
+      - name: Run queue contract tests
+        run: |
+          python -m pytest \
+            tests/test_memory_proposal_queue.py \
+            tests/test_memory_proposal_queue_planner.py \
+            tests/test_memory_proposal_queue_revalidation.py
+
+      - name: Collect and revalidate every live Memory Proposal
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python .github/trust-root/scripts/memory_queue_revalidation_collect.py \
+            --out-dir artifacts/memory-queue-revalidation/live
+
+      - name: Verify coverage and authority boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("artifacts/memory-queue-revalidation/live")
+          summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
+          plan = json.loads((root / "planner-result.json").read_text(encoding="utf-8"))
+          queue = json.loads((root / "queue-audit.json").read_text(encoding="utf-8"))
+
+          proposal_count = summary["proposal_count"]
+          assert proposal_count == summary["planner_record_count"]
+          assert proposal_count == queue["queue"]["proposal_count"]
+          assert plan["record_count"] == proposal_count
+
+          stable_matches = summary["stable_source_core_match_count"]
+          stable_drifts = summary["stable_source_core_drift_count"]
+          assert stable_matches + stable_drifts == proposal_count
+
+          ancestry_matches = summary["source_ancestor_of_main_count"]
+          ancestry_misses = summary["source_not_ancestor_of_main_count"]
+          assert ancestry_matches + ancestry_misses == proposal_count
+
+          assert sum(summary["applicability_counts"].values()) == proposal_count
+          assert sum(summary["quality_readiness_counts"].values()) == proposal_count
+          assert sum(summary["fitness_counts"].values()) == proposal_count
+
+          assert summary["authority_granted"] is False
+          assert plan["authority_granted"] is False
+          assert plan["merge_authority"] is False
+          assert plan["close_authority"] is False
+          assert plan["acceptance_authority"] is False
+          assert plan["execution_authority"] is False
+          assert plan["policy_mutation_authority"] is False
+          assert summary["semantic_acceptance_evidence"] == "NOT_COLLECTED"
+          PY
+
+      - name: Build evidence manifest
+        run: |
+          cd artifacts/memory-queue-revalidation
+          find . -type f -name '*.json' -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > SHA256SUMS
+
+      - name: Upload live queue evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cml-memory-queue-revalidation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/memory-queue-revalidation/
+          if-no-files-found: error
+          retention-days: 30
