@@ -17,6 +17,7 @@ REFRESH_WORKFLOW = ROOT / ".github/workflows/trust-root-refresh.yml"
 PROTECTED_MANIFEST = ROOT / ".github/trust-root/protected_files.json"
 THIS_TEST_REL = "tests/test_publish_trust_contract.py"
 PYPI_PUBLISH_ACTION = "pypa/gh-action-pypi-publish"
+MAIN_REF_GUARD = "github.ref == 'refs/heads/main'"
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -66,6 +67,18 @@ def test_canonical_publish_workflow_pins_every_external_action():
     assert sum(action.startswith(PYPI_PUBLISH_ACTION + "@") for action in actions) == 2
 
 
+def test_build_checkout_is_exact_and_non_persistent():
+    workflow = _load(PUBLISH_WORKFLOW)
+    checkout = _named_step(workflow, "Checkout repository")
+    inputs = _mapping(checkout.get("with"))
+    assert inputs.get("repository") == "${{ github.repository }}"
+    assert inputs.get("ref") == "${{ github.sha }}"
+    assert inputs.get("persist-credentials") == "false"
+
+    upload = _named_step(workflow, "Upload distributions artifact")
+    assert _mapping(upload.get("with")).get("if-no-files-found") == "error"
+
+
 def test_oidc_is_scoped_only_to_publish_jobs():
     workflow = _load(PUBLISH_WORKFLOW)
     assert workflow.get("permissions") == {}
@@ -79,8 +92,25 @@ def test_oidc_is_scoped_only_to_publish_jobs():
             expected_publish_permissions
         )
 
-    checkout = _named_step(workflow, "Checkout repository")
-    assert _mapping(checkout.get("with")).get("persist-credentials") == "false"
+
+def test_manual_publish_is_main_only_and_release_tag_matches_version():
+    workflow = _load(PUBLISH_WORKFLOW)
+    jobs = _mapping(workflow.get("jobs"))
+    for job_id in ("publish-testpypi", "publish-pypi"):
+        condition = _mapping(jobs.get(job_id)).get("if")
+        assert isinstance(condition, str)
+        assert MAIN_REF_GUARD in condition
+
+    version_guard = _named_step(workflow, "Verify release tag matches package version")
+    assert version_guard.get("if") == "github.event_name == 'release'"
+    script = version_guard.get("run")
+    assert isinstance(script, str)
+    for fragment in (
+        'tag="${GITHUB_REF_NAME#v}"',
+        'tomllib.load(open("pyproject.toml", "rb"))["project"]["version"]',
+        'if [ "$tag" != "$package_version" ]; then',
+    ):
+        assert fragment in script
 
 
 def test_publish_workflow_and_contract_are_exact_trust_root_entries():
