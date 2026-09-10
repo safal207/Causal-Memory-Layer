@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #225.",
+      "digest": "e018227af85227695911cec67682985fc50c698fa9441340b2ba18822930f7c4",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/e062071b346550e21c96a1a36d25b7b3e1407fa3/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #225.",
+      "digest": "477ae283dbb404bc00165014a63a80c20275b5ce356808e7689ed9d314eff117",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/225/files"
+    },
+    {
+      "description": "Merge commit for pull request #225.",
+      "digest": "34c2dbb74d20db8bda70e9b382c241f6d0575b990b70550ee8f090915de1acf9",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:6389280728c2466faafcd1c3422ab122a8626c8b"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #225.",
+      "digest": "ce948c56497df7bde293a56e8ad3337b868793277b75622e778f6e999674f787",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/225"
+    },
+    {
+      "description": "Normalized review snapshot for #225 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/225/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 8,
+          "head_sha": "e062071b346550e21c96a1a36d25b7b3e1407fa3",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #225: feat(caep): add cross-process interoperability demo",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Before writing the output bundle, the orchestrator loads the parent-directory canonical `caep.schema.json` and `validate_caep.py` and validates: - the happy `verified` record; - the `contained` divergence record; - the `recovered` record with the exact divergent parent supplied. The process exits unsuccessfully if any generated record fails schema, semantic, temporal, digest, critical-postcondition, independence, or parent-binding validation.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "The demo uses deterministic filesystem JSON as its transport. It does **not** claim to implement the MCP wire protocol or an official MCP SDK. The goal is to test the portable CAEP record contract independently of transport. A future adapter can replace the file transport with an official MCP SDK without changing the bundle shape.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #225: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "6389280728c2466faafcd1c3422ab122a8626c8b",
+          "merged_at": "2026-07-29T21:08:16.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #225 merged into main as 6389280728c2466faafcd1c3422ab122a8626c8b",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 225,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds a transport-neutral interoperability reference demo for the experimental CAEP profile. The demo runs three independent Python processes: ```text state server → action server → independent verifier ↓ CAEP execution bundle ``` It demonstrates that the CAEP contract can survive process boundaries and preserve independent verification, critical postconditions, causal parent bindings, containment, compensation, and recovery.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-29T21:08:16.000Z",
+    "description": "Automatically proposed decision memory for merged PR #225; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "6389280728c2466faafcd1c3422ab122a8626c8b",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "e4dcc5f0c1cd8b31c557728903bc70ca189fa8be114dede12cf6bbe2318e1c90",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
