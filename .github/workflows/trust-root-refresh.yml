@@ -406,5 +406,11 @@ jobs:
           VERIFY_RESULT: ${{ steps.verify.outputs.result }}
           TRANSITION_FRESH: ${{ steps.freshness.outputs.fresh }}
         run: |
-          test "$VERIFY_RESULT" = "success"
-          test "$TRANSITION_FRESH" = "true"
+          case "$VERIFY_RESULT" in
+            success|failure) ;;
+            *) echo "invalid or missing verification result"; exit 1 ;;
+          esac
+          case "$TRANSITION_FRESH" in
+            true|false) ;;
+            *) echo "invalid or missing transition freshness"; exit 1 ;;
+          esac
