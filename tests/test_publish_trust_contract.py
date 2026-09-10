@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +50,17 @@ def _named_step(workflow: dict[str, Any], name: str) -> dict[str, Any]:
             if step.get("name") == name:
                 return step
     raise AssertionError(f"missing workflow step: {name}")
+
+
+def _verification_program() -> str:
+    workflow = _load(REFRESH_WORKFLOW)
+    script = _named_step(workflow, "Run exact-base trust verification").get("run")
+    assert isinstance(script, str)
+    prefix = "python3 - <<'PY'\n"
+    suffix = "\nPY"
+    assert script.startswith(prefix)
+    assert script.endswith(suffix)
+    return script[len(prefix) : -len(suffix)]
 
 
 def test_release_authority_has_one_canonical_workflow():
@@ -135,8 +149,9 @@ def test_refresh_success_status_requires_verified_current_transition():
 
 
 def test_refresh_verifier_distinguishes_denial_from_execution_error():
-    workflow = _load(REFRESH_WORKFLOW)
-    script = _named_step(workflow, "Run exact-base trust verification").get("run")
+    script = _named_step(_load(REFRESH_WORKFLOW), "Run exact-base trust verification").get(
+        "run"
+    )
     assert isinstance(script, str)
     required = (
         'passed = completed.returncode == 0 and payload.get("passed") is True',
@@ -155,3 +170,91 @@ def test_refresh_verifier_distinguishes_denial_from_execution_error():
     )
     for fragment in required:
         assert fragment in script
+
+
+def test_refresh_verifier_outcome_matrix_executes_actual_workflow_program(
+    tmp_path: Path,
+):
+    verifier = tmp_path / "base/.github/trust-root/scripts/verify_subject.py"
+    verifier.parent.mkdir(parents=True)
+    verifier.write_text(
+        """from pathlib import Path
+import json
+import os
+import sys
+
+mode = os.environ["FAKE_VERIFY_MODE"]
+output = Path(sys.argv[sys.argv.index("--output") + 1])
+output.parent.mkdir(parents=True, exist_ok=True)
+if mode == "missing":
+    raise SystemExit(1)
+if mode == "invalid":
+    output.write_text("{", encoding="utf-8")
+    raise SystemExit(1)
+if mode == "success":
+    payload, code = {"passed": True, "findings": []}, 0
+elif mode == "denied":
+    payload, code = {"passed": False, "findings": [{"code": "POLICY-DENY"}]}, 1
+elif mode == "verifier-error":
+    payload, code = {"passed": False, "error": {"type": "FakeError"}}, 1
+elif mode == "inconsistent":
+    payload, code = {"passed": False, "findings": [{"code": "POLICY-DENY"}]}, 0
+else:
+    raise SystemExit("unknown fake mode")
+output.write_text(json.dumps(payload), encoding="utf-8")
+raise SystemExit(code)
+""",
+        encoding="utf-8",
+    )
+
+    scenarios = (
+        ("success", 0, "success", "success"),
+        ("denied", 0, "failure", "denied"),
+        ("verifier-error", 1, "failure", "error"),
+        ("missing", 1, "failure", "error"),
+        ("invalid", 1, "failure", "error"),
+        ("inconsistent", 1, "failure", "error"),
+    )
+    program = _verification_program()
+    for mode, expected_returncode, expected_result, expected_outcome in scenarios:
+        output = tmp_path / f"github-output-{mode}.txt"
+        evidence = tmp_path / "artifacts/trust-refresh/trust-root-verification.json"
+        if evidence.exists():
+            evidence.unlink()
+        env = os.environ.copy()
+        env.update(
+            {
+                "FAKE_VERIFY_MODE": mode,
+                "HEAD_SHA": "a" * 40,
+                "BASE_SHA": "b" * 40,
+                "BASE_REF": "main",
+                "MERGE_SHA": "c" * 40,
+                "REPOSITORY": "safal207/Causal-Memory-Layer",
+                "PULL_NUMBER": "325",
+                "GITHUB_RUN_ID": "123",
+                "GITHUB_RUN_ATTEMPT": "1",
+                "STATUS_CONTEXT": "CML Trust Root Gate / test",
+                "GITHUB_OUTPUT": str(output),
+            }
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", program],
+            cwd=tmp_path,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert (completed.returncode == 0) == (expected_returncode == 0), (
+            mode,
+            completed.stdout,
+            completed.stderr,
+        )
+        outputs = dict(
+            line.split("=", 1)
+            for line in output.read_text(encoding="utf-8").splitlines()
+        )
+        assert outputs["result"] == expected_result
+        assert outputs["outcome"] == expected_outcome
+        payload = json.loads(evidence.read_text(encoding="utf-8"))
+        assert payload["refresh_outcome"] == expected_outcome
