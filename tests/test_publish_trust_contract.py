@@ -132,3 +132,26 @@ def test_refresh_success_status_requires_verified_current_transition():
     )
     for fragment in required:
         assert fragment in script
+
+
+def test_refresh_verifier_distinguishes_denial_from_execution_error():
+    workflow = _load(REFRESH_WORKFLOW)
+    script = _named_step(workflow, "Run exact-base trust verification").get("run")
+    assert isinstance(script, str)
+    required = (
+        'passed = completed.returncode == 0 and payload.get("passed") is True',
+        'findings = payload.get("findings")',
+        'completed.returncode != 0',
+        'and payload.get("passed") is False',
+        'and isinstance(findings, list)',
+        'and bool(findings)',
+        'and payload.get("error") is None',
+        'outcome = "denied"',
+        'outcome = "error"',
+        '"refresh_outcome": outcome',
+        'output.write("outcome=" + outcome + "\\n")',
+        'if outcome == "error":',
+        'raise SystemExit("trust verifier execution or evidence failed")',
+    )
+    for fragment in required:
+        assert fragment in script
