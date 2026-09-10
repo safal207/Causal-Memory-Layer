@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shlex
+import subprocess
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -484,9 +485,27 @@ def _refresh_contract_violations(path: Path) -> list[str]:
             "run"
         ),
         "refresh final requirement",
-        ('test "$VERIFY_RESULT" = "success"', 'test "$TRANSITION_FRESH" = "true"'),
+        (
+            'case "$VERIFY_RESULT" in',
+            "success|failure) ;;",
+            'case "$TRANSITION_FRESH" in',
+            "true|false) ;;",
+            '*) echo "invalid or missing verification result"; exit 1 ;;',
+            '*) echo "invalid or missing transition freshness"; exit 1 ;;',
+        ),
     )
     return violations
+
+
+def _refresh_final_requirement_script() -> str:
+    workflow = _load(REFRESH_WORKFLOW)
+    jobs = _mapping(workflow.get("jobs"))
+    _, named = _steps_by_name(jobs)
+    script = named.get("Require refreshed verification and current transition", {}).get(
+        "run"
+    )
+    assert isinstance(script, str)
+    return script
 
 
 def test_required_workflows_satisfy_trust_contract():
@@ -498,6 +517,52 @@ def test_extended_trust_contracts_pass():
     assert _causal_contract_violations(CAUSAL_WORKFLOW) == []
     assert _trusted_contract_violations(TRUSTED_WORKFLOW) == []
     assert _refresh_contract_violations(REFRESH_WORKFLOW) == []
+
+
+def test_refresh_final_requirement_distinguishes_denial_from_orchestrator_failure():
+    script = _refresh_final_requirement_script()
+    handled = (
+        ("success", "true"),
+        ("failure", "true"),
+        ("success", "false"),
+        ("failure", "false"),
+    )
+    for verify_result, transition_fresh in handled:
+        completed = subprocess.run(
+            ["/bin/bash", "-c", script],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={
+                "VERIFY_RESULT": verify_result,
+                "TRANSITION_FRESH": transition_fresh,
+            },
+        )
+        assert completed.returncode == 0, (
+            verify_result,
+            transition_fresh,
+            completed.stdout,
+            completed.stderr,
+        )
+
+    invalid = (
+        ("", "true"),
+        ("unknown", "true"),
+        ("success", ""),
+        ("success", "unknown"),
+    )
+    for verify_result, transition_fresh in invalid:
+        completed = subprocess.run(
+            ["/bin/bash", "-c", script],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={
+                "VERIFY_RESULT": verify_result,
+                "TRANSITION_FRESH": transition_fresh,
+            },
+        )
+        assert completed.returncode != 0, (verify_result, transition_fresh)
 
 
 def test_status_identity_changes_when_base_transition_changes():
@@ -693,6 +758,16 @@ def test_refresh_contract_mutations_fail(tmp_path: Path):
             "observed == expected",
             "True",
             "observed == expected",
+        ),
+        (
+            "success|failure) ;;",
+            "success) ;;",
+            "success|failure) ;;",
+        ),
+        (
+            "true|false) ;;",
+            "true) ;;",
+            "true|false) ;;",
         ),
     )
     for old, new, expected in cases:
