@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #200.",
+      "digest": "621284081533004aceb011c2eed08f86ef38289cb188b764e399498f99b2ad25",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/cfd5311c544749a8936652d115b0c0fd3ce4472f/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #200.",
+      "digest": "dab318adcfcc563159c5f43e24ad1a19253a4db7f1070a3e5de1493646853e45",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/200/files"
+    },
+    {
+      "description": "Merge commit for pull request #200.",
+      "digest": "6a74d44223a77b3a164e893fa5e840af7bd3184632606ae876d3fd9788059c1e",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:c684257d675a6252bc4a9d6a4e56f65a6d03cd13"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #200.",
+      "digest": "e464c8b3ba4e61f03c6033b769ae099d9e065fa78e03a1e7e9c4abbf16641821",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/200"
+    },
+    {
+      "description": "Normalized review snapshot for #200 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/200/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 3,
+          "head_sha": "cfd5311c544749a8936652d115b0c0fd3ce4472f",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #200: fix: bind retrieval to webhook PR number",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 19,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Final exact-head CI, package validation, security, external review, and trust-root bootstrap disposition are required before merge. The still-open proof PR #199 will then be synchronized to prove a deployed managed comment and privacy-safe artifact. Relates to #196 and #199.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #200: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "c684257d675a6252bc4a9d6a4e56f65a6d03cd13",
+          "merged_at": "2026-07-17T12:37:29.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #200 merged into main as c684257d675a6252bc4a9d6a4e56f65a6d03cd13",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 200,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Fixes the live runtime failure discovered by post-merge proof PR #199 for issue #196. **Current exact head:** `cfd5311c544749a8936652d115b0c0fd3ce4472f` GitHub's pull-request webhook binds the required pull-request number at top-level `event.number`. The protected entrypoint incorrectly attempted to read `event.pull_request.number`, so run `29580190993` failed during event binding before any GitHub API call or managed comment creation. Exact-base checkout and privacy-safe failure evidence both…",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-17T12:37:29.000Z",
+    "description": "Automatically proposed decision memory for merged PR #200; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "c684257d675a6252bc4a9d6a4e56f65a6d03cd13",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "db58181ce1eccaecc4efacc775280dc5851395bb1739c3c4f3494bbac9aab18e",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
