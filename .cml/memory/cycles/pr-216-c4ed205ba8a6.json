@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #216.",
+      "digest": "bfc98e63797159d17c5eb09a6d9514328775de38dfc2a9053c4e67bb5517010a",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/29f31980c2ba229a38c4a3530eb4930e14dd3fa5/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #216.",
+      "digest": "f6406ef0959d49045bd3f87e9629dd55b11fa560b863b7ab536d2e186c3b56ee",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/216/files"
+    },
+    {
+      "description": "Merge commit for pull request #216.",
+      "digest": "17ba3bb2b6383335d25cc8f7057a48d65de00f362a02900bf3fae4be30753f80",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:c4ed205ba8a6123083b9249af5fe0b60415490fd"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #216.",
+      "digest": "99a07a25b2d7cf74bef25a67e182b01e2f496f2f24ea39bf652d5da4ccf27309",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/216"
+    },
+    {
+      "description": "Normalized review snapshot for #216 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/216/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 3,
+          "head_sha": "29f31980c2ba229a38c4a3530eb4930e14dd3fa5",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #216: docs: add ChatGPT mobile-web causal memory",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "```bash python -m pytest tests/test_chatgpt_public_mobile_web_memory_pack.py ```",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #216: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "c4ed205ba8a6123083b9249af5fe0b60415490fd",
+          "merged_at": "2026-07-30T22:29:51.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #216 merged into main as c4ed205ba8a6123083b9249af5fe0b60415490fd",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 216,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds a canonical public CML Memory Pack derived from the ChatGPT mobile-web Pythia judgment in `safal207/pythiaLabs` PR #239 at exact source head `cf15c07e7087f399db1b459c4850f5b4261c9b43`.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-30T22:29:51.000Z",
+    "description": "Automatically proposed decision memory for merged PR #216; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "c4ed205ba8a6123083b9249af5fe0b60415490fd",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "2838a00d739280593398276cb24f31ccbbfb3b6584bac6cf540e0da5dd33c249",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
