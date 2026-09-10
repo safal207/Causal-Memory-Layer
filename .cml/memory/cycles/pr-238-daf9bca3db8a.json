@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #238.",
+      "digest": "2fffe3f35f8ca601aff5748f185c67a799448b6699da6c0a6b39bd0f789d33fa",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/d26a94e3b3bd04c4318eb9996f5422ad75abd828/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #238.",
+      "digest": "64520340a8a3ee445cad0d02441e0635585ac043c7c6fe532fde88cdfb0cbc7a",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/238/files"
+    },
+    {
+      "description": "Merge commit for pull request #238.",
+      "digest": "f9fb5af499e27b2b51ed6fdd91ec807e0e34ec3b1b2ce7598ede9f901cda5be6",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:daf9bca3db8af10d8c6dad6a9a0d8ecb26fbdddb"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #238.",
+      "digest": "bd72a4d90815bf930cd035a60a76da0c1734972869b976ab8ae77dd030f9394c",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/238"
+    },
+    {
+      "description": "Normalized review snapshot for #238 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/238/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 12,
+          "head_sha": "d26a94e3b3bd04c4318eb9996f5422ad75abd828",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #238: feat(benchmark): add CML Agent Safety Benchmark v0.1",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 16,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "The exact head passed: - Python 3.10, 3.11, and 3.12 tests; - package build, metadata validation, and clean-wheel smoke test; - deterministic, mutation, and large-trace contracts; - CodeQL, dependency/source audit, and secret scan; - CodeRabbit and CML Trust Root Gate. Open review threads: 0.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #238: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "daf9bca3db8af10d8c6dad6a9a0d8ecb26fbdddb",
+          "merged_at": "2026-07-30T08:06:37.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #238 merged into main as daf9bca3db8af10d8c6dad6a9a0d8ecb26fbdddb",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 238,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds a deterministic ten-scenario benchmark for evaluating whether an AI agent preserves intent, reconstructs causality, contains harm, performs bounded recovery, and independently verifies the final state.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-30T08:06:37.000Z",
+    "description": "Automatically proposed decision memory for merged PR #238; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "daf9bca3db8af10d8c6dad6a9a0d8ecb26fbdddb",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "5fd1155bb7d34ba8bcee93dc846b89d44e4b0db498655f36bcf812323429fa47",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
