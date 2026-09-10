@@ -63,6 +63,15 @@ def _verification_program() -> str:
     return script[len(prefix) : -len(suffix)]
 
 
+def _final_requirement_script() -> str:
+    workflow = _load(REFRESH_WORKFLOW)
+    script = _named_step(
+        workflow, "Require refreshed verification and current transition"
+    ).get("run")
+    assert isinstance(script, str)
+    return script
+
+
 def test_release_authority_has_one_canonical_workflow():
     assert PUBLISH_WORKFLOW.is_file()
     assert not LEGACY_PUBLISH_WORKFLOW.exists()
@@ -170,6 +179,22 @@ def test_refresh_verifier_distinguishes_denial_from_execution_error():
     )
     for fragment in required:
         assert fragment in script
+
+
+def test_denied_verification_cannot_bypass_invalid_freshness():
+    script = _final_requirement_script()
+    for transition_fresh in ("", "unknown"):
+        completed = subprocess.run(
+            ["/bin/bash", "-c", script],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={
+                "VERIFY_RESULT": "failure",
+                "TRANSITION_FRESH": transition_fresh,
+            },
+        )
+        assert completed.returncode != 0, transition_fresh
 
 
 def test_refresh_verifier_outcome_matrix_executes_actual_workflow_program(
