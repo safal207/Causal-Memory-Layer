@@ -1,0 +1,221 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #248.",
+      "digest": "ff6b3cd87214ec85d233342cfc8a564f3005964a41857fff2e2b20477f7a295a",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/dad18660b5e54d1006a52c230af9b9f2187d0106/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #248.",
+      "digest": "5683ab9b0b5bc3c49d9bb4d17dcce87ceac1cd50538ffd910f6a427c110637c0",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/248/files"
+    },
+    {
+      "description": "Merge commit for pull request #248.",
+      "digest": "995e0a7ff9d7deea7e8bfba3139c179a54bc5790af80708d57c603a0e52b8406",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:aa1cdccd42d5c1779d9c19a824bb74fcf50ca0bf"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #248.",
+      "digest": "cac2388e6e4a07ba423ffed605b7efe0426bb9b0b5dcd8edc700246dc9839cb6",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/248"
+    },
+    {
+      "description": "Normalized review snapshot for #248 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/248/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-situation-cause",
+        "relation": "supports",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "cause-explicit"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "cause-explicit",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 2,
+          "head_sha": "dad18660b5e54d1006a52c230af9b9f2187d0106",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #248: Preserve validated agent identity in single-case mode",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "inference": false,
+          "source": "explicit-pr-section"
+        },
+        "confidence": 90,
+        "id": "cause-explicit",
+        "kind": "cause",
+        "label": "PR #244 added `--agent` for external case fragments, but the full-envelope branch resolved the report identity as `agent_override or submission[\"agent\"]`. That allowed a caller to relabel already validated evidence without changing the evidence itself.",
+        "status": "observed"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Target head SHA: `dad18660b5e54d1006a52c230af9b9f2187d0106`. Expected CI command coverage: ```bash python -m pytest tests/test_agent_safety_benchmark.py tests/test_agent_safety_single_case_identity.py ``` The repository trust-root workflow must pass against the exact PR head before merge.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #248: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "aa1cdccd42d5c1779d9c19a824bb74fcf50ca0bf",
+          "merged_at": "2026-07-30T15:55:46.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #248 merged into main as aa1cdccd42d5c1779d9c19a824bb74fcf50ca0bf",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 248,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Preserve validated agent identity in single-case mode",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "cause-explicit",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-30T15:55:46.000Z",
+    "description": "Automatically proposed decision memory for merged PR #248; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "aa1cdccd42d5c1779d9c19a824bb74fcf50ca0bf",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "3e0996da6bad39f2e9369038813d36b7f6b32099ec66cfa4bf5894741a9205eb",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
