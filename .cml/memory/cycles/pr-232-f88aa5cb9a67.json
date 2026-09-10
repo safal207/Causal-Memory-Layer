@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #232.",
+      "digest": "2f099b913ecc964541712ef8d5c68ed57189fde55ee0b669a84dced32af6bce0",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/e2dc46f1fca081952aa8415f41e180bc2ae73e84/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #232.",
+      "digest": "cc71c5ae5d8e26062fcd3eea618967d513452b9e78d38d3df87b6d0ad8d79829",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/232/files"
+    },
+    {
+      "description": "Merge commit for pull request #232.",
+      "digest": "897daa64d08cc8f753c54e3db035da96dc8be39524f209b29053a947f21b555e",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:f88aa5cb9a67cfa392e2501220f9c2778d2f2a57"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #232.",
+      "digest": "a10f9540dbb0da0daf9eb4f089867f158145097ada90cd8d4d36d7918847972a",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/232"
+    },
+    {
+      "description": "Normalized review snapshot for #232 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/232/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 8,
+          "head_sha": "e2dc46f1fca081952aa8415f41e180bc2ae73e84",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #232: feat(caep): add official MCP SDK adapter",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "The new pytest launches both MCP servers as subprocesses, exercises the full adapter, validates generated records through the canonical `caep.schema.json` and `validate_caep.py`, and checks the recovery parent binding. Local syntax validation completed for all new Python files. Full runtime validation depends on CI because the local execution environment cannot download the MCP package.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #232: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "f88aa5cb9a67cfa392e2501220f9c2778d2f2a57",
+          "merged_at": "2026-07-29T22:36:36.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #232 merged into main as f88aa5cb9a67cfa392e2501220f9c2778d2f2a57",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 232,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds a real official MCP Python SDK adapter for CAEP. The adapter opens two independent stdio MCP sessions: ```text MCP client ├─ payment action server └─ independent verifier server ↓ CAEP bundle ↓ Trust Console ```",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-29T22:36:36.000Z",
+    "description": "Automatically proposed decision memory for merged PR #232; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "f88aa5cb9a67cfa392e2501220f9c2778d2f2a57",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "44dbc9d5d6a0eeb9f547af3cbe4aef78b12b7fc229d8ed77bd30ab5b1e8e975f",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
