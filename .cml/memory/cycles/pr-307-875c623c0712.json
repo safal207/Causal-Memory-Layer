@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #307.",
+      "digest": "45f62d512caf7529b4b1bdcab858fb5b57738cd029a25531ac3c293f11bdd61c",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/9f7a6d8906b41098e62bca549416297e0a5c1b91/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #307.",
+      "digest": "1e1ef746c6b8cce5ab38c261e36c8b7769adc3fd326f526fe8ecc5f07f39e2e1",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/307/files"
+    },
+    {
+      "description": "Merge commit for pull request #307.",
+      "digest": "9926b61890f1bc84c00337bae1a1a14de824ce65f7afdbfe40c125453344b122",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:875c623c07125ac9bf2d9d7b7108afe3d1f8fec6"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #307.",
+      "digest": "50945b149551e1b943ac438bc028635493422ed2ea5bf0eb1008bbf19c0c59e6",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/307"
+    },
+    {
+      "description": "Normalized review snapshot for #307 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/307/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 6,
+          "head_sha": "9f7a6d8906b41098e62bca549416297e0a5c1b91",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #307: feat: add source-side memory reconciliation v0.1",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 19,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "The new module and tests were executed in an isolated Python test harness before publishing: `4 passed`, covering all six frozen fixture cases plus fail-closed controls for partial enumeration, missing locator on a re-fetchable record, and duplicate inventory authority. Repository CI should still be treated as the authoritative integration check for the full suite.",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #307: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "875c623c07125ac9bf2d9d7b7108afe3d1f8fec6",
+          "merged_at": "2026-08-19T16:55:35.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #307 merged into main as 875c623c07125ac9bf2d9d7b7108afe3d1f8fec6",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 307,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds a deterministic source-side reconciliation layer for memory provenance without changing the existing applicability verdict set.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-19T16:55:35.000Z",
+    "description": "Automatically proposed decision memory for merged PR #307; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "875c623c07125ac9bf2d9d7b7108afe3d1f8fec6",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "bcb33a96b6bcc56075367152ff98a1ccd27a6fdf2d5a1cf41a2e8bf315f8cafc",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
