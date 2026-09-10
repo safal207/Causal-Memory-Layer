@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #299.",
+      "digest": "5e03e01b981c413bc5466139474365f7451fc4bf39d28228c3e0d8164fc8953d",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/4a5526fe0518652904b7afdab43071a98daa4aec/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #299.",
+      "digest": "adfce4ce186ec2dc6a3e0319b0995afae04ae9943f4f886f1843bf489530d338",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/299/files"
+    },
+    {
+      "description": "Merge commit for pull request #299.",
+      "digest": "7c1aa18eddcba8978f923399a0bfa32bad1df02ad02798dced28b860beadb16a",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:efe9832561ede507f7deb490e27b28a4d07a5fee"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #299.",
+      "digest": "33f8b6926d42e2be288ce32f756edf114e2c3ee6efd0830175eb5efad5ca44a4",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/299"
+    },
+    {
+      "description": "Normalized review snapshot for #299 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/299/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 7,
+          "head_sha": "4a5526fe0518652904b7afdab43071a98daa4aec",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #299: feat: bind completed reads to kernel object identity",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 15,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #299 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Path strings remain descriptive evidence from the existing last-open-by-PID cache and are now labelled `path_evidence=last_open_path_by_pid`. Exact object coverage uses the kernel `(device, inode)` binding, not path equality. The object ID is local correlation evidence, not a content digest or stable cross-host identity.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #299: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "efe9832561ede507f7deb490e27b28a4d07a5fee",
+          "merged_at": "2026-08-18T03:15:46.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #299 merged into main as efe9832561ede507f7deb490e27b28a4d07a5fee",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 299,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Strengthen exact read coverage from per-read identity to per-read **kernel object identity**. The vCML Linux eBPF reference monitor is bumped to v0.8. At `sys_enter_read`, it resolves the current fd through the task fd table to the kernel file object's inode and superblock device, then stores that `(device, inode)` binding in the kernel read-start state together with the existing `read_id`. `sys_exit_read` carries the same binding forward rather than re-resolving the numeric fd later. This make…",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-18T03:15:46.000Z",
+    "description": "Automatically proposed decision memory for merged PR #299; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "efe9832561ede507f7deb490e27b28a4d07a5fee",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "6fa6a13425e8ace33e34ba91d96b4309ce8760dbfe76721be2dd06876d49c2d7",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
