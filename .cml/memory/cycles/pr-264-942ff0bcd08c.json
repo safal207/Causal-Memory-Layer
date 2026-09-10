@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #264.",
+      "digest": "ea02cff986ed0219a7be30a31ca32882afcbeab04ff25957ec0639d222cebe51",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/cfb7d658b4938c9e448eb2c79a909d9d252db81c/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #264.",
+      "digest": "b55773aeacbe464c20cd8d55dee21b47389e7543f417d3b3ea91d2b8a69c039b",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/264/files"
+    },
+    {
+      "description": "Merge commit for pull request #264.",
+      "digest": "2e07c8ce0ceb447f1be9939382bebbffe1214a7b2956c38841dc2aca96b8bf87",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:942ff0bcd08c97d8be5bfab0fe72e1b0a725896f"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #264.",
+      "digest": "e829a05a54f27eab217910a3ada94e8fbb6a6a2b16bbb0164a1347532e6b4a78",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/264"
+    },
+    {
+      "description": "Normalized review snapshot for #264 without review bodies.",
+      "digest": "dc57d3fa2f8a9c6d137a916ca25665e630cd0c533da3f56366c11b4ccaa58c5c",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/264/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 12,
+          "head_sha": "cfb7d658b4938c9e448eb2c79a909d9d252db81c",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #264: feat(security): block CoT-forgery authority escalation",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 16,
+          "review_count": 1
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "```bash python -m pytest -q tests/test_causal_transition_guard.py python scripts/run_asb15_cot_forgery.py ``` Expected demo result: ```text ASB-15: PASS score=100 verdicts=deny,deny reasons=NO_TRUSTED_AUTHORITY_PATH,SECRET_TAINT_CROSSES_EXTERNAL_BOUNDARY ```",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #264: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "942ff0bcd08c97d8be5bfab0fe72e1b0a725896f",
+          "merged_at": "2026-08-04T16:22:55.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #264 merged into main as 942ff0bcd08c97d8be5bfab0fe72e1b0a725896f",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 264,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds a fail-closed Causal Transition Guard between LLM proposals and side-effecting tools. The guard models four dimensions explicitly: - **cause**: an active intent must propose the exact action; - **space**: user, retrieved, tool, memory, policy, authority, secret, runtime, and external zones remain distinct; - **transition**: operation, resource, destination, proposed state, and actual state are recorded; - **time**: policy and authorization must be active and not revoked at dispatch. It als…",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-04T16:22:55.000Z",
+    "description": "Automatically proposed decision memory for merged PR #264; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "942ff0bcd08c97d8be5bfab0fe72e1b0a725896f",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "a8dfe4dde362c5a5d57d2e5ce49ceb855cc0fd5672c738bfa51407a012f2792f",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
