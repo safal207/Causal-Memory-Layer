@@ -1,0 +1,221 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #308.",
+      "digest": "d713e39b28d51e733d37f02b4f16da03720f5db62d3956966474beafe451018e",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/d7c0ac9401d386921f9782b3d8dae13c13379096/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #308.",
+      "digest": "bd1528ac28b85c738e3c455d1b09c04e8fec0dd4ddf8dc48614a24448cd37bab",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/308/files"
+    },
+    {
+      "description": "Merge commit for pull request #308.",
+      "digest": "34739c7bc30964cd4fd4ba1804f741d3f8f039aafc0346bad5f3ca88aedb2c56",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:fa240659d39c0155d3bdbc6b8ecb9d228c929326"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #308.",
+      "digest": "feb074a85ededc47127791fb68299abe79f42d4e8f9c000ce03f01c7f5b69cf3",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/308"
+    },
+    {
+      "description": "Normalized review snapshot for #308 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/308/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-situation-cause",
+        "relation": "supports",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "cause-explicit"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "cause-explicit",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 2,
+          "head_sha": "d7c0ac9401d386921f9782b3d8dae13c13379096",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #308: ci: harden eBPF BCC install timeouts",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "inference": false,
+          "source": "explicit-pr-section"
+        },
+        "confidence": 90,
+        "id": "cause-explicit",
+        "kind": "cause",
+        "label": "The workflow used `timeout 120s sudo -E apt-get ...`. That places `timeout` outside `sudo`, so the deadline controls the `sudo` process rather than directly controlling the privileged `apt-get` process tree. A stuck package operation can therefore outlive the intended step deadline.",
+        "status": "observed"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #308 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #308: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "fa240659d39c0155d3bdbc6b8ecb9d228c929326",
+          "merged_at": "2026-08-19T16:43:21.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #308 merged into main as fa240659d39c0155d3bdbc6b8ecb9d228c929326",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 308,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Hardens the eBPF Runtime Proof bootstrap after two hosted-runner failures during BCC installation.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "cause-explicit",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-19T16:43:21.000Z",
+    "description": "Automatically proposed decision memory for merged PR #308; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "fa240659d39c0155d3bdbc6b8ecb9d228c929326",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "3437e42ef55cdff3cefc41cb180602ed317d247923975f76e009ecb788eaef14",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
