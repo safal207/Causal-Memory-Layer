@@ -275,6 +275,23 @@ jobs:
                   payload = {"passed": False, "error": {"type": "InvalidEvidence"}}
           else:
               payload = {"passed": False, "error": {"type": "MissingEvidence"}}
+
+          passed = completed.returncode == 0 and payload.get("passed") is True
+          findings = payload.get("findings")
+          denied = (
+              completed.returncode != 0
+              and payload.get("passed") is False
+              and isinstance(findings, list)
+              and bool(findings)
+              and payload.get("error") is None
+          )
+          if passed:
+              outcome = "success"
+          elif denied:
+              outcome = "denied"
+          else:
+              outcome = "error"
+
           payload.update(
               {
                   "base_ref": os.environ["BASE_REF"],
@@ -282,15 +299,18 @@ jobs:
                   "head_sha": os.environ["HEAD_SHA"],
                   "merge_sha": os.environ["MERGE_SHA"],
                   "status_context": os.environ["STATUS_CONTEXT"],
+                  "refresh_outcome": outcome,
               }
           )
           evidence.write_text(
               json.dumps(payload, indent=2, sort_keys=True) + "\n",
               encoding="utf-8",
           )
-          passed = completed.returncode == 0 and payload.get("passed") is True
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write("result=" + ("success" if passed else "failure") + "\n")
+              output.write("outcome=" + outcome + "\n")
+          if outcome == "error":
+              raise SystemExit("trust verifier execution or evidence failed")
           PY
 
       - name: Reconfirm current pull request transition
