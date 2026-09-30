@@ -208,5 +208,18 @@ def load_jsonl(path: str) -> list[CausalRecord]:
     return records
 
 
+class DuplicateRecordIDError(ValueError):
+    """The log cannot be indexed without losing an ambiguous record identity."""
+
+
 def records_to_index(records: list[CausalRecord]) -> dict[str, CausalRecord]:
-    return {r.id: r for r in records}
+    """Index unique record identities; reject even byte-identical duplicates.
+
+    A last-write-wins index would let input order replace causal evidence.
+    """
+    index: dict[str, CausalRecord] = {}
+    for record in records:
+        if record.id in index:
+            raise DuplicateRecordIDError(f"Duplicate record id: {record.id!r}")
+        index[record.id] = record
+    return index

@@ -68,10 +68,10 @@ def _cmd_audit(args: argparse.Namespace) -> None:
 
     try:
         records = _load_jsonl(file_path)
+        result = audit(records)
     except ValueError as exc:
         print(f"[ERROR] Failed to parse log: {exc}", file=sys.stderr)
         sys.exit(1)
-    result = audit(records)
     result["file"] = file_path
 
     if args.format == "json":

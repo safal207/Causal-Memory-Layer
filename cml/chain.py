@@ -23,8 +23,9 @@ def reconstruct_chain(
     """
     Walk parent_cause links from `record_id` to the root.
 
-    Returns the chain ordered root-first (oldest → newest).
-    Stops at max_depth to prevent infinite loops on corrupt logs.
+    Returns the observed chain oldest-first, root-first only if complete.
+    Missing parents, cycles and max_depth stop the walk and leave a partial
+    diagnostic chain. Its first record is not necessarily a root.
     """
     chain: list[CausalRecord] = []
     visited: set[str] = set()
@@ -50,9 +51,14 @@ def find_root(
     record_id: str,
     index: dict[str, CausalRecord],
 ) -> Optional[CausalRecord]:
-    """Return the root CausalRecord for the given record's chain."""
+    """Return a parentless record only if the bounded walk reaches it.
+
+    Return None for missing records/parents, cycles, or depth truncation.
+    This is structural root discovery; semantic root labels are audited
+    separately by AuditConfig.is_root.
+    """
     chain = reconstruct_chain(record_id, index)
-    return chain[0] if chain else None
+    return chain[0] if chain and chain[0].parent_cause is None else None
 
 
 # ---------------------------------------------------------------------------
