@@ -23,6 +23,11 @@ A vCML audit consumes:
 - JSONL causal records (append-only)
 - optional semantic config defining expected chains (see `examples/audit_config_example.yaml`)
 
+Record IDs must be unique. `records_to_index` and `AuditEngine.run` reject
+duplicates (including identical repeated records) with `DuplicateRecordIDError`,
+a `ValueError`, before evaluating rules. No last-write-wins interpretation is
+permitted. The CLI reports an input error; the HTTP API returns 422.
+
 ---
 
 ## Core Concepts
@@ -61,6 +66,17 @@ Common outcomes:
 ---
 
 ## Rules (canonical v0.5.1)
+
+### Structural preflight
+Every cycle of `parent_cause` references produces a
+`CML-AUDIT-R1-CYCLE` **FAIL** for each member of the cycle. Self-cycles and cycles
+longer than the diagnostic chain-walk limit are included. This validation is
+mandatory; disabling optional semantic rules cannot make cyclic evidence pass.
+
+`reconstruct_chain` retains partial diagnostic walks for missing parents,
+cycles, and depth limits. Its first record is not necessarily a root.
+`find_root` returns `None` unless the walk actually reaches a parentless record;
+semantic root labels are checked separately.
 
 ### R1 — Reference Integrity
 **FAIL** if a record’s `parent_cause` points to a non-existent id.

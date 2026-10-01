@@ -12,10 +12,27 @@ behavior.
 
 | Code | Severity | Plain-language meaning |
 | --- | --- | --- |
+| `CML-AUDIT-R1-CYCLE` | FAIL | Parent references loop back instead of reaching a causal origin. |
 | `CML-AUDIT-R1-MISSING_PARENT` | FAIL | A record points to a parent record that is not present in the log. |
 | `CML-AUDIT-R2-GAP_NOT_MARKED` | WARN | A record has no parent, but the gap is not explicitly marked. |
 | `CML-AUDIT-R3-SECRET_NET_MISSING_CHAIN` | FAIL | A network action follows secret access without a causal link back to that secret access. |
 | `CML-AUDIT-R4-AMBIGUOUS_ROOT` | WARN | A record looks like it may be a root event, but its root label is unclear or malformed. |
+
+## `CML-AUDIT-R1-CYCLE`
+
+**What it means:** Following `parent_cause` links returns to a record already
+visited. A record can also point directly to itself.
+
+**Why it matters:** A loop cannot explain where the action originated. Existing
+parent IDs alone do not establish a valid causal chain. This structural check
+always runs, even if the optional R1 missing-parent rule is disabled.
+
+**Tiny example:** `approval-1` names `send-2` as its parent while `send-2` names
+`approval-1`. Both records receive a failure.
+
+**What to check next:** Reconstruct the actual event order from the source
+system and correct its parent references. Do not invent a root merely to make
+the report pass.
 
 ## `CML-AUDIT-R1-MISSING_PARENT`
 
@@ -103,4 +120,3 @@ label like `root_event:system_boot` or `root_event:user_request`.
 - Decision code reference: [`../../DECISION_CODES.md`](../../DECISION_CODES.md)
 - Benchmark fixtures and results: [`../../benchmarks/README.md`](../../benchmarks/README.md)
 - Example audit report: [`../../examples/audit_report_example.md`](../../examples/audit_report_example.md)
-

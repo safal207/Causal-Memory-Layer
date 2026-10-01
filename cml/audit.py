@@ -264,9 +264,14 @@ class AuditEngine:
         self.config = config or AuditConfig()
 
     def run(self, records: list[CausalRecord]) -> AuditResult:
+        """Audit unique records; duplicate identities raise ValueError.
+
+        Structural cycles always fail, independently of optional rule flags.
+        """
         index = records_to_index(records)
         result = AuditResult(total=len(records))
 
+        self._check_cycles(index, result)
         self._check_reference_integrity(records, index, result)
         self._check_root_and_gap_marking(records, result)
         self._check_secret_net_chain(records, index, result)
@@ -275,6 +280,39 @@ class AuditEngine:
 
         result.ok = max(0, result.total - result.warnings - result.failures)
         return result
+
+    def _check_cycles(
+        self,
+        index: dict[str, CausalRecord],
+        result: AuditResult,
+    ) -> None:
+        """Validate the entire parent graph without a depth cap or recursion.
+
+        Each record is walked at most once. Semantic rule configuration cannot
+        turn malformed cyclic evidence into a passing audit.
+        """
+        complete: set[str] = set()
+        cyclic: set[str] = set()
+        for record_id in index:
+            path: list[str] = []
+            positions: dict[str, int] = {}
+            current: Optional[str] = record_id
+            while current in index and current not in complete:
+                if current in positions:
+                    cyclic.update(path[positions[current]:])
+                    break
+                positions[current] = len(path)
+                path.append(current)
+                current = index[current].parent_cause
+            complete.update(path)
+
+        for record_id in sorted(cyclic):
+            result.add(Finding(
+                code="CML-AUDIT-R1-CYCLE",
+                severity=Severity.FAIL,
+                record_id=record_id,
+                message="Record participates in a parent_cause cycle; no causal root is reachable.",
+            ))
 
     def _check_reference_integrity(
         self,

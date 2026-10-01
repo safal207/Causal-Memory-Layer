@@ -9,6 +9,11 @@ Codes are stable identifiers for audit outcomes.
 
 ## Codes
 
+### CML-AUDIT-R1-CYCLE (FAIL)
+The record participates in a cycle of `parent_cause` references, including a
+self-reference. The cycle cannot reconstruct to a causal root. This structural
+check is mandatory even when optional R1 missing-parent checks are disabled.
+
 ### CML-AUDIT-R1-MISSING_PARENT (FAIL)
 `parent_cause` references a record id that does not exist in the log.
 
