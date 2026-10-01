@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #304.",
+      "digest": "f157a2fa6db7bbc0bd47ee2f415d8ec9d09ce46658cb0643305b667818efe207",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/d9a65607254cd2ee6b5aa775d81ff08af3283d98/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #304.",
+      "digest": "210a133e22fd8b600ff419bdf0e6e7762d299f0fcc156549ea7a011290a0da63",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/304/files"
+    },
+    {
+      "description": "Merge commit for pull request #304.",
+      "digest": "242b7be11dd5eee69f4a0f798527d39f6b6199c7e6f7fd6c52505a9ea019079e",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:db6ca00a53f9b04d7c84a5d072fcc16fa3cebf57"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #304.",
+      "digest": "fa463fd8f956159f5d3ebf4f89379fb93eff659c5c64019a5dfa13a56893cc3a",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/304"
+    },
+    {
+      "description": "Normalized review snapshot for #304 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/304/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 9,
+          "head_sha": "d9a65607254cd2ee6b5aa775d81ff08af3283d98",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #304: test: bind witness-issued one-shot read tokens at kernel use time",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 16,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #304 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #304: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "db6ca00a53f9b04d7c84a5d072fcc16fa3cebf57",
+          "merged_at": "2026-08-18T06:52:06.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #304 merged into main as db6ca00a53f9b04d7c84a5d072fcc16fa3cebf57",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 304,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Strengthen the external read witness from post-hoc correlation to **witness-issued, one-shot use-time binding**. The new live reference proof uses two paths: 1. an external witness controller issues a 128-bit `read_id`, injects it into a BPF map for a stopped target thread, and independently captures kernel read completion; 2. the application child receives the same token before execution and authors a standalone CML `Action.READ` record after the first successful read. At `sys_enter_read`, the…",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-18T06:52:06.000Z",
+    "description": "Automatically proposed decision memory for merged PR #304; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "db6ca00a53f9b04d7c84a5d072fcc16fa3cebf57",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "397415c0840eecb31c3c37bb3b70b14290b2cf5b8b3c81720ea2a1e856b2768c",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
