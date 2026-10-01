@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #332.",
+      "digest": "0f799c5da49351570fb7bc63b2b0465e3569c45daf130f8e77a85cef271d92dc",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/078b835bee80d002f929a477ac6d37064d87e957/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #332.",
+      "digest": "4302757e92dfe5912129d72f42c11b154da21155273432a3f1ad5ee7afec1ea5",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/332/files"
+    },
+    {
+      "description": "Merge commit for pull request #332.",
+      "digest": "43aa836b784b3e44b768919c98d773f436c35cf8215399958a46d09c2de4731b",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:d3fe7d83a1eac58d96d0bc70dde651f330b1b6aa"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #332.",
+      "digest": "79366dc483b0852f7ce36cfec5484b8c007442280ad9c3f37cb52e77ed7dab1f",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/332"
+    },
+    {
+      "description": "Normalized review snapshot for #332 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/332/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 10,
+          "head_sha": "078b835bee80d002f929a477ac6d37064d87e957",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #332: fix(audit): reject duplicate IDs and fail cyclic parent graphs",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 29,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #332 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #332: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "d3fe7d83a1eac58d96d0bc70dde651f330b1b6aa",
+          "merged_at": "2026-10-01T03:45:40.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #332 merged into main as d3fe7d83a1eac58d96d0bc70dde651f330b1b6aa",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 332,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "fix(audit): reject duplicate IDs and fail cyclic parent graphs",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-10-01T03:45:40.000Z",
+    "description": "Automatically proposed decision memory for merged PR #332; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "d3fe7d83a1eac58d96d0bc70dde651f330b1b6aa",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "35f29ad115517a6eb9f2704fc347ceef91eaa9d219dca43e40c003585dc3ca16",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
