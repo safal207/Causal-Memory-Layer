@@ -63,6 +63,10 @@ class Actor:
 # CausalRecord
 # ---------------------------------------------------------------------------
 
+class InvalidRecordIdentityError(ValueError):
+    """A record ID or parent reference violates the string identity contract."""
+
+
 @dataclass
 class CausalRecord:
     """
@@ -87,9 +91,17 @@ class CausalRecord:
     read_id:      Optional[str] = None      # external read-boundary identity (v0.7+)
 
     def __post_init__(self) -> None:
+        self._validate_identity()
         if self.read_id is not None:
             if not isinstance(self.read_id, str) or not self.read_id.strip():
                 raise ValueError("read_id must be a non-empty string when provided")
+
+    def _validate_identity(self) -> None:
+        # Do not coerce: numeric 1 and string "1" must never be merged.
+        if not isinstance(self.id, str):
+            raise InvalidRecordIdentityError("id must be a string")
+        if self.parent_cause is not None and not isinstance(self.parent_cause, str):
+            raise InvalidRecordIdentityError("parent_cause must be a string or None")
 
     # ------------------------------------------------------------------
     # Convenience
@@ -219,6 +231,8 @@ def records_to_index(records: list[CausalRecord]) -> dict[str, CausalRecord]:
     """
     index: dict[str, CausalRecord] = {}
     for record in records:
+        # Dataclasses remain mutable; recheck before hashing or graph traversal.
+        record._validate_identity()
         if record.id in index:
             raise DuplicateRecordIDError(f"Duplicate record id: {record.id!r}")
         index[record.id] = record

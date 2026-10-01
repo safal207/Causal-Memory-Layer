@@ -35,10 +35,11 @@ def audit(records: list[dict], _config: dict | None = None) -> dict:
     cml_records: list[CausalRecord] = []
     id_to_line: dict[str, int] = {}
     for i, raw in enumerate(records):
-        rid = raw.get("id")
+        record = CausalRecord.from_dict(raw)
+        rid = record.id
         if rid:
             id_to_line[rid] = i + 1
-        cml_records.append(CausalRecord.from_dict(raw))
+        cml_records.append(record)
 
     result = AuditEngine(AuditConfig()).run(cml_records)
 
