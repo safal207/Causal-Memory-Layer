@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #321.",
+      "digest": "aedfae1b634b53943680f40f63b32c5d9b20c695821ea01be49e867c1a5d5203",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/f9b522a6145f7ee4def3f8f476bf9882f6f90d2c/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #321.",
+      "digest": "8ba5c8bbb2146b07f9601d6cb84b82f0182cd2fb70be05b541f120f305aa9066",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/321/files"
+    },
+    {
+      "description": "Merge commit for pull request #321.",
+      "digest": "26e177942698ea9d034e86bb8075474f1188402d88575fb26843f393990ac259",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:7a3a98c60a402d394e4d286da956823898454b8a"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #321.",
+      "digest": "4fb2d6bad783b8db5f4d62c7635962348479124d2dc3ff36706fbebe47b17668",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/321"
+    },
+    {
+      "description": "Normalized review snapshot for #321 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/321/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 1,
+          "head_sha": "f9b522a6145f7ee4def3f8f476bf9882f6f90d2c",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #321: security: pin reviewed gitleaks false positives",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 21,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #321 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "- no real credential is introduced or retained; - no history rewrite is performed; - no production secret value is copied into the PR; - future findings continue to fail closed.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #321: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "7a3a98c60a402d394e4d286da956823898454b8a",
+          "merged_at": "2026-08-31T15:21:38.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #321 merged into main as 7a3a98c60a402d394e4d286da956823898454b8a",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 321,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Pins four reviewed Gitleaks false-positive fingerprints so the full-history security gate can distinguish known synthetic/documentation examples from new secret findings.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-31T15:21:38.000Z",
+    "description": "Automatically proposed decision memory for merged PR #321; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "7a3a98c60a402d394e4d286da956823898454b8a",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "26e3c92bbbbfb51bb73b0232198ffd6d48d9363edc943d234c1e5c28a9b27176",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
