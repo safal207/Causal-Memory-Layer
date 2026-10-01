@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #213.",
+      "digest": "84f5ff465991a735a312ec7110aebd9249b38a096b293b6319f7c2d08e76c1e1",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/0a3995e2508d204cdff2a6817563fa7e3f7a46fe/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #213.",
+      "digest": "0cf86e2a1a707c390bfb9e2308859095b8912908b8e25d87f1b4e6add8fe7e9d",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/213/files"
+    },
+    {
+      "description": "Merge commit for pull request #213.",
+      "digest": "115a2a76a18ff7c0d994ee0910bab05f771c834f3773c4712159ac43596c07ee",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:47222cb6a6839fefe6d7821248c85b582de7fa01"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #213.",
+      "digest": "95604b14d2f00d70527aa4b0a11433103fdf8358c22ac3a7a875c6bdbe6d529c",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/213"
+    },
+    {
+      "description": "Normalized review snapshot for #213 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/213/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 3,
+          "head_sha": "0a3995e2508d204cdff2a6817563fa7e3f7a46fe",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #213: docs: add Tradernet mobile public QA Memory Pack",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 19,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "`tests/test_tradernet_lotus_memory_pack.py` loads the example through the production `load_memory_pack_json` path and verifies: - canonical `pack_id` recomputation; - complete selected causal path; - public/no-private-data manifest; - no execution or merge authority; - shared cause remains `proposed` at confidence `75`; - the hypothesis carries `must_not_be_reported_as_fact=true`. The first exact-head run intentionally exposed an incorrect manually supplied identity. The pack was corrected to t…",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #213: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "47222cb6a6839fefe6d7821248c85b582de7fa01",
+          "merged_at": "2026-07-30T22:29:26.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #213 merged into main as 47222cb6a6839fefe6d7821248c85b582de7fa01",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 213,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds a public CML Memory Pack derived from the Pythia Tradernet Lotus judgment at exact source commit `aa169a3a897a61bb578816ea9e8fb3e374405b34`.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-30T22:29:26.000Z",
+    "description": "Automatically proposed decision memory for merged PR #213; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "47222cb6a6839fefe6d7821248c85b582de7fa01",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "a22be38997026445dcbec42c18955626e2d043a366bf32a4da1c907efff70c9d",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
