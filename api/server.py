@@ -79,7 +79,7 @@ from cml import (
     decode_ctag,
 )
 from api.store import InMemoryStore, SQLiteStore, StoreLimitError
-from cml.record import DuplicateRecordIDError
+from cml.record import DuplicateRecordIDError, InvalidRecordIdentityError
 
 
 logger = logging.getLogger("cml.api")
@@ -241,8 +241,11 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 
 @app.exception_handler(DuplicateRecordIDError)
-async def duplicate_record_id_handler(request: Request, exc: DuplicateRecordIDError):
-    """Reject ambiguous log identities consistently across audit/chain formats."""
+@app.exception_handler(InvalidRecordIdentityError)
+async def record_identity_handler(
+    request: Request, exc: DuplicateRecordIDError | InvalidRecordIdentityError,
+):
+    """Reject malformed or ambiguous identities, including in stored logs."""
     return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 # Methods are restricted to those the API actually serves. Allowed headers are
