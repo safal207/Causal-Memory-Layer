@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #246.",
+      "digest": "14d206e07f446c6b6d98977da03bf98d6734e4716991cc57db198445a95edd2f",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/37fdbfa785c9813ba779891f26c95b778aba65be/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #246.",
+      "digest": "4695569c4299584267223e72010ffcb986f865d5559ceafaec4b3c3b156643ce",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/246/files"
+    },
+    {
+      "description": "Merge commit for pull request #246.",
+      "digest": "e9dc6c69cec4b95b5b39f0d424c361e40ad2aafb40869f3a1f0acf30ae950d83",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:918127be30fcc2b7595b48ca746559c0ad5fb36c"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #246.",
+      "digest": "8d3e0c1c82f62ef35c03ca5faa6ffc88c727bf5a65b777e721c77a52242b60c8",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/246"
+    },
+    {
+      "description": "Normalized review snapshot for #246 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/246/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 4,
+          "head_sha": "37fdbfa785c9813ba779891f26c95b778aba65be",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #246: Derive ProofPath ASB-01 from raw evidence",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #246 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #246: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "918127be30fcc2b7595b48ca746559c0ad5fb36c",
+          "merged_at": "2026-07-30T15:46:47.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #246 merged into main as 918127be30fcc2b7595b48ca746559c0ad5fb36c",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 246,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Derive ProofPath ASB-01 from raw evidence",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-30T15:46:47.000Z",
+    "description": "Automatically proposed decision memory for merged PR #246; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "918127be30fcc2b7595b48ca746559c0ad5fb36c",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "0bb45d4584feefd38b1b01b16ddd74764785909eb55ee545b60fbfe34cb09023",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
