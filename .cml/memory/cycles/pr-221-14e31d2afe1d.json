@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #221.",
+      "digest": "254a199621852390cbe0085913bb4fb28d2c261f1e0640d143e6c0fea3f82b87",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/ebbdbb742e417ff1bbe1ba61b14f282b4a9d29be/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #221.",
+      "digest": "a002f981aeba166baad31cadf7c2b9a99e60f8f8c9826e0852f2daa62c389c06",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/221/files"
+    },
+    {
+      "description": "Merge commit for pull request #221.",
+      "digest": "fb20e61b4110bea611523a7396f9496093d9fdf8d1229250a1d084f7b1c70a70",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:14e31d2afe1d972f2cdb3707ef5483640d676bc5"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #221.",
+      "digest": "88860e356ebea8b88ed96b235360b5f5a458a583462fcb9b0df0f7f49dcd1032",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/221"
+    },
+    {
+      "description": "Normalized review snapshot for #221 without review bodies.",
+      "digest": "a4ffd71096361a69ee1ba03612ff23b7d4b22e40209f7a99b5e873d8fe6d05f0",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/221/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 9,
+          "head_sha": "ebbdbb742e417ff1bbe1ba61b14f282b4a9d29be",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #221: Add experimental CAEP profile with digest-bound recovery auditing",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 16,
+          "review_count": 1
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "```text python docs/experimental/caep/validate_caep.py docs/experimental/caep/caep.example.json VALID python docs/experimental/caep/validate_caep.py docs/experimental/caep/caep.diverged.example.json VALID python docs/experimental/caep/validate_caep.py docs/experimental/caep/caep.recovered.example.json --parent docs/experimental/caep/caep.diverged.example.json VALID python -m unittest docs/experimental/caep/test_validate_caep.py Ran 9 tests — OK python -m py_compile docs/experimental/caep/valida…",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "This is an experimental prototype intended for review and possible discussion as an optional execution-record profile. It is not an official MCP extension and does not claim production security certification. Disclosure: prepared with AI assistance under human direction and review.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #221: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "14e31d2afe1d972f2cdb3707ef5483640d676bc5",
+          "merged_at": "2026-07-29T18:41:42.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #221 merged into main as 14e31d2afe1d972f2cdb3707ef5483640d676bc5",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 221,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Adds an experimental **Portable Causal Action Episode (CAEP)** profile for CML/MCP workflow auditing. The prototype connects observable state, intent, authorization, decision, exact dispatch, outcome, independent verification, containment, compensation, and digest-bound causal lineage.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-07-29T18:41:42.000Z",
+    "description": "Automatically proposed decision memory for merged PR #221; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "14e31d2afe1d972f2cdb3707ef5483640d676bc5",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "3dfca9ebe372c8c042fd03353d3acfecebd948a85d8ea0fb19371a238f01fcb7",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
