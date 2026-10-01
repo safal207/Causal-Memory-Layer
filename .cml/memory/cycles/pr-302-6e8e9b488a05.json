@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #302.",
+      "digest": "4edf4a0a08182ef2ec8f66626821cbe9345c9bfc7730134dc3ddd46bb193db11",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/db6bc074cc93223250d1c58ed05cf47479dca439/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #302.",
+      "digest": "e649be789a3ea7e1e23d4fd3149e5f78d018de4e33256c7e9c345fcec22c3cff",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/302/files"
+    },
+    {
+      "description": "Merge commit for pull request #302.",
+      "digest": "35f9db0e832c2f7616b7b6efb2a6bdf0aa6575e49de716267f5edd29bba65bb4",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:6e8e9b488a051a7243bf769739ed03b74b5bfc44"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #302.",
+      "digest": "f2a67a42cd01c9af56bba4f4802b3c4789e01302422972b23f7b821a2050d7b0",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/302"
+    },
+    {
+      "description": "Normalized review snapshot for #302 without review bodies.",
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/302/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 6,
+          "head_sha": "db6bc074cc93223250d1c58ed05cf47479dca439",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #302: test: prove eBPF fd reuse against live kernel objects",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 16,
+          "review_count": 0
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #302 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "Human review is required before accepting or sharing this generated lesson",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #302: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "6e8e9b488a051a7243bf769739ed03b74b5bfc44",
+          "merged_at": "2026-08-18T03:38:48.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #302 merged into main as 6e8e9b488a051a7243bf769739ed03b74b5bfc44",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 302,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "Add a live Linux/BCC runtime proof for the v0.8 kernel object-identity claim from #299. The harness forks a target child, pauses it before the workload, loads an eBPF program, then lets the child: 1. open/read/close file A; 2. open/read file B; 3. report the numeric file descriptors it received. The BPF tracepoints capture successful `read` completions for that child only and bind each read to `(device, inode)` resolved from the kernel fd table at `sys_enter_read`. The proof passes only when al…",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-18T03:38:48.000Z",
+    "description": "Automatically proposed decision memory for merged PR #302; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "6e8e9b488a051a7243bf769739ed03b74b5bfc44",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "0bba10a8019d201d1d889ecd28f7913587bdad43a7ae08f1c775853ee10a5ec3",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
