@@ -1,0 +1,199 @@
+{
+  "evidence": [
+    {
+      "description": "Normalized exact-head check-run snapshot for #283.",
+      "digest": "21351b457dd6b2b8a361a9f4d661c7a5314432906108590e92052e7c958d07dd",
+      "id": "source-checks",
+      "kind": "test",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/commit/6614c9c765636c7990b97c9a935966dc20ce6e3c/checks"
+    },
+    {
+      "description": "Normalized changed-file snapshot for #283.",
+      "digest": "b825d267e95995bb91a219d3278cc1e001a1adacf2159e4d72f027f32946387c",
+      "id": "source-files",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/283/files"
+    },
+    {
+      "description": "Merge commit for pull request #283.",
+      "digest": "bb2dfb4783e637878fc2bee866a58555b580c9c0c3077df8caae9acfbd60ccec",
+      "id": "source-merge",
+      "kind": "commit",
+      "locator": "git:2a649903693fc61a560ee056834127ada3120206"
+    },
+    {
+      "description": "Normalized merged pull-request snapshot for #283.",
+      "digest": "23d2718d087c439d7978e86b586f001ede73965301e8976ebbcd8575e6ad4614",
+      "id": "source-pr",
+      "kind": "document",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/283"
+    },
+    {
+      "description": "Normalized review snapshot for #283 without review bodies.",
+      "digest": "d998231d632024d908a43056e0a7230372fe522201f6d521bc54b26a6526a495",
+      "id": "source-reviews",
+      "kind": "review",
+      "locator": "https://github.com/safal207/Causal-Memory-Layer/pull/283/reviews"
+    }
+  ],
+  "graph": {
+    "edges": [
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-reviews"
+        ],
+        "id": "edge-action-check",
+        "relation": "requires",
+        "source": "action-merged-approach",
+        "strength": 100,
+        "target": "check-recorded-evidence"
+      },
+      {
+        "evidence_ids": [
+          "source-checks",
+          "source-merge",
+          "source-reviews"
+        ],
+        "id": "edge-check-outcome",
+        "relation": "supports",
+        "source": "check-recorded-evidence",
+        "strength": 90,
+        "target": "outcome-merged"
+      },
+      {
+        "evidence_ids": [
+          "source-pr"
+        ],
+        "id": "edge-constraint-lesson",
+        "relation": "requires",
+        "source": "constraint-review-required",
+        "strength": 100,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-merge"
+        ],
+        "id": "edge-outcome-lesson",
+        "relation": "leads_to",
+        "source": "outcome-merged",
+        "strength": 75,
+        "target": "lesson-proposed-best-known-path"
+      },
+      {
+        "evidence_ids": [
+          "source-files",
+          "source-pr"
+        ],
+        "id": "edge-to-action",
+        "relation": "leads_to",
+        "source": "situation-merged-pr",
+        "strength": 90,
+        "target": "action-merged-approach"
+      }
+    ],
+    "nodes": [
+      {
+        "attributes": {
+          "changed_files": 8,
+          "head_sha": "6614c9c765636c7990b97c9a935966dc20ce6e3c",
+          "source": "deterministic-fallback"
+        },
+        "confidence": 95,
+        "id": "action-merged-approach",
+        "kind": "action",
+        "label": "Apply the merged approach from PR #283: refactor(experimental): reconcile Focus–Field recovery with current CML trust gates (FCRP-SELF-006)",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "check_run_count": 18,
+          "review_count": 1
+        },
+        "confidence": 90,
+        "id": "check-recorded-evidence",
+        "kind": "check",
+        "label": "Review recorded exact-head checks and reviews for PR #283 before reuse",
+        "status": "tested"
+      },
+      {
+        "attributes": {
+          "execution_authority": false,
+          "generated": true,
+          "merge_authority": false
+        },
+        "confidence": 100,
+        "id": "constraint-review-required",
+        "kind": "constraint",
+        "label": "This branch preserves the original #269 history and reconciles it with current main through merge commit: `4e8ce48bc84115ea6643a9c5515581b68bac6df9` No force-push or history rewrite was used. Once this replacement PR is established, #269 can remain as the historical v0.1 record and be closed as superseded rather than merged.",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "generated": true,
+          "globally_optimal": false,
+          "human_review_required": true
+        },
+        "confidence": 75,
+        "id": "lesson-proposed-best-known-path",
+        "kind": "lesson",
+        "label": "Best-known repository-local path for PR #283: reuse the merged approach only when the recorded constraints and checks still apply",
+        "status": "proposed"
+      },
+      {
+        "attributes": {
+          "merge_commit": "2a649903693fc61a560ee056834127ada3120206",
+          "merged_at": "2026-08-14T05:06:49.000Z"
+        },
+        "confidence": 100,
+        "id": "outcome-merged",
+        "kind": "outcome",
+        "label": "PR #283 merged into main as 2a649903693fc61a560ee056834127ada3120206",
+        "status": "verified"
+      },
+      {
+        "attributes": {
+          "pull_request": 283,
+          "source": "explicit-pr-text"
+        },
+        "confidence": 100,
+        "id": "situation-merged-pr",
+        "kind": "situation",
+        "label": "This PR supersedes #269 by reconciling the Focus–Field Recovery experiment with **current CML main** and the stronger memory/evidence contracts added after the original branch was cut. The experiment remains isolated under `cml/experimental` and is still non-normative. The important change is its trust boundary.",
+        "status": "observed"
+      }
+    ],
+    "selected_path": [
+      "situation-merged-pr",
+      "action-merged-approach",
+      "check-recorded-evidence",
+      "outcome-merged",
+      "lesson-proposed-best-known-path"
+    ]
+  },
+  "manifest": {
+    "contains_private_data": true,
+    "created_at": "2026-08-14T05:06:49.000Z",
+    "description": "Automatically proposed decision memory for merged PR #283; human review is required before broader sharing.",
+    "execution_authority": false,
+    "license": "MIT",
+    "merge_authority": false,
+    "project": "Causal-Memory-Layer",
+    "source_commit": "2a649903693fc61a560ee056834127ada3120206",
+    "source_repository": "https://github.com/safal207/Causal-Memory-Layer",
+    "visibility": "team"
+  },
+  "pack_id": "684ddfce4f9ddbe263c965680fc253f012d5e15ad46c29699ee6e9f124cfc20d",
+  "redactions": [
+    {
+      "path": "review.body",
+      "reason": "Review bodies are excluded to reduce disclosure and prompt-injection carryover."
+    },
+    {
+      "path": "source_event.raw_payload",
+      "reason": "Only normalized source snapshots are retained."
+    }
+  ],
+  "schema_version": "cml-memory-pack-v1"
+}
