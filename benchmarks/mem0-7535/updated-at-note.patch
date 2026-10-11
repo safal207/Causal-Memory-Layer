@@ -1,0 +1,13 @@
+--- a/docs/core-concepts/memory-operations/update.mdx
++++ b/docs/core-concepts/memory-operations/update.mdx
+@@ -148,6 +148,10 @@
+ 
+ <Note>
+   In both OSS SDKs the content is optional: pass only `metadata` and/or an expiration date to update those while keeping the existing content. At least one of the three must be provided, otherwise the call raises.
++</Note>
++
++<Note>
++  In the Python OSS SDK, `updated_at` records the latest memory update, including metadata-only changes that preserve the stored text. It is not the date of the described event and does not establish that a fact is current. For example, adding an audit tag to an older assertion changes `updated_at` without changing that assertion.
+ </Note>
+ 
+ <Note>

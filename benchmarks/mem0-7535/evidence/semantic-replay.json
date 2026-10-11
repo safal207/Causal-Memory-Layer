@@ -1,0 +1,10 @@
+{
+  "status": "PASS_WITHIN_BOUND",
+  "distinct_attempts": [
+    "afae90d8-ef1e-4bc7-9024-d0d6a1932bff",
+    "b0d614f6-55c1-4638-9f6e-66848ea898fd"
+  ],
+  "fixture_sha256": "d4dd85efe721d59617fddc666bca435bae8a1ac1fa2685d27b184fbc2659027c",
+  "comparison": "all case snapshots, exact payloads, native score signatures, counts, ordered events and history fields; ignores random SQLite history row id and absolute checkout path",
+  "case_count": 2
+}
