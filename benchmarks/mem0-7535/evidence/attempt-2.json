@@ -1,0 +1,466 @@
+{
+  "schema": "mem0-7535-metadata-mutation-clock/1",
+  "attempt_id": "b0d614f6-55c1-4638-9f6e-66848ea898fd",
+  "source_sha": "b7ad69afda6b6ed030347c66d48a13e4de9dec08",
+  "fixture_sha256": "d4dd85efe721d59617fddc666bca435bae8a1ac1fa2685d27b184fbc2659027c",
+  "fixed_mutation_clock": "2026-10-11T12:00:00+00:00",
+  "synthetic_fixed_input_scores": {
+    "january": 0.6,
+    "june": 0.9
+  },
+  "cases": [
+    {
+      "case": "Memory.update",
+      "before": {
+        "rows": {
+          "january": {
+            "data": "Synthetic January assertion: deployment region is North.",
+            "hash": "6d755837cd907b76c536f60d97b33992",
+            "created_at": "2026-01-15T12:00:00+00:00",
+            "updated_at": "2026-01-15T12:00:00+00:00",
+            "text_lemmatized": "Synthetic January assertion: deployment region is North.",
+            "user_id": "synthetic-user"
+          },
+          "june": {
+            "data": "Synthetic June assertion: deployment region is South.",
+            "hash": "080ffb07f3d3d1297d23a7c743d632e8",
+            "created_at": "2026-06-15T12:00:00+00:00",
+            "updated_at": "2026-06-15T12:00:00+00:00",
+            "text_lemmatized": "Synthetic June assertion: deployment region is South.",
+            "user_id": "synthetic-user"
+          }
+        },
+        "application_updated_at_order": [
+          "june",
+          "january"
+        ],
+        "native_fixed_score_signature": [
+          {
+            "id": "june",
+            "score": 0.9,
+            "score_details": {
+              "semantic_score": 0.9,
+              "bm25_score": 0.0,
+              "entity_boost": 0.0,
+              "raw_score": 0.9,
+              "max_possible_score": 1.0,
+              "final_score": 0.9,
+              "threshold": 0
+            }
+          },
+          {
+            "id": "january",
+            "score": 0.6,
+            "score_details": {
+              "semantic_score": 0.6,
+              "bm25_score": 0.0,
+              "entity_boost": 0.0,
+              "raw_score": 0.6,
+              "max_possible_score": 1.0,
+              "final_score": 0.6,
+              "threshold": 0
+            }
+          }
+        ]
+      },
+      "after": {
+        "rows": {
+          "january": {
+            "data": "Synthetic January assertion: deployment region is North.",
+            "hash": "6d755837cd907b76c536f60d97b33992",
+            "created_at": "2026-01-15T12:00:00+00:00",
+            "updated_at": "2026-10-11T12:00:00+00:00",
+            "text_lemmatized": "Synthetic January assertion: deployment region is North.",
+            "user_id": "synthetic-user",
+            "audit_tag": "metadata-only-review"
+          },
+          "june": {
+            "data": "Synthetic June assertion: deployment region is South.",
+            "hash": "080ffb07f3d3d1297d23a7c743d632e8",
+            "created_at": "2026-06-15T12:00:00+00:00",
+            "updated_at": "2026-06-15T12:00:00+00:00",
+            "text_lemmatized": "Synthetic June assertion: deployment region is South.",
+            "user_id": "synthetic-user"
+          }
+        },
+        "application_updated_at_order": [
+          "january",
+          "june"
+        ],
+        "native_fixed_score_signature": [
+          {
+            "id": "june",
+            "score": 0.9,
+            "score_details": {
+              "semantic_score": 0.9,
+              "bm25_score": 0.0,
+              "entity_boost": 0.0,
+              "raw_score": 0.9,
+              "max_possible_score": 1.0,
+              "final_score": 0.9,
+              "threshold": 0
+            }
+          },
+          {
+            "id": "january",
+            "score": 0.6,
+            "score_details": {
+              "semantic_score": 0.6,
+              "bm25_score": 0.0,
+              "entity_boost": 0.0,
+              "raw_score": 0.6,
+              "max_possible_score": 1.0,
+              "final_score": 0.6,
+              "threshold": 0
+            }
+          }
+        ]
+      },
+      "history": [
+        {
+          "id": "42d39934-a2c9-4b1d-a832-155446346399",
+          "memory_id": "january",
+          "old_memory": "Synthetic January assertion: deployment region is North.",
+          "new_memory": "Synthetic January assertion: deployment region is North.",
+          "event": "UPDATE",
+          "created_at": "2026-01-15T12:00:00+00:00",
+          "updated_at": "2026-10-11T12:00:00+00:00",
+          "is_deleted": false,
+          "actor_id": null,
+          "role": null
+        }
+      ],
+      "adapter_counts": {
+        "get": 1,
+        "embed": 1,
+        "update": 1,
+        "history_write": 1
+      },
+      "trace": [
+        {
+          "sequence": 1,
+          "event": "before_public_update",
+          "counts": {
+            "get": 0,
+            "embed": 0,
+            "update": 0,
+            "history_write": 0
+          }
+        },
+        {
+          "sequence": 2,
+          "event": "provider_get",
+          "counts": {
+            "get": 1,
+            "embed": 0,
+            "update": 0,
+            "history_write": 0
+          }
+        },
+        {
+          "sequence": 3,
+          "event": "provider_embed_unchanged_text",
+          "counts": {
+            "get": 1,
+            "embed": 1,
+            "update": 0,
+            "history_write": 0
+          }
+        },
+        {
+          "sequence": 4,
+          "event": "provider_update",
+          "counts": {
+            "get": 1,
+            "embed": 1,
+            "update": 1,
+            "history_write": 0
+          }
+        },
+        {
+          "sequence": 5,
+          "event": "native_sqlite_history_written",
+          "counts": {
+            "get": 1,
+            "embed": 1,
+            "update": 1,
+            "history_write": 1
+          }
+        },
+        {
+          "sequence": 6,
+          "event": "public_update_returned",
+          "counts": {
+            "get": 1,
+            "embed": 1,
+            "update": 1,
+            "history_write": 1
+          }
+        }
+      ],
+      "network_attempts": [],
+      "source_path": "/workspace/scratch/5b0f6da052fa/mem0-7535-20261011/source",
+      "assertions": "PASS_WITHIN_BOUND"
+    },
+    {
+      "case": "AsyncMemory.update",
+      "before": {
+        "rows": {
+          "january": {
+            "data": "Synthetic January assertion: deployment region is North.",
+            "hash": "6d755837cd907b76c536f60d97b33992",
+            "created_at": "2026-01-15T12:00:00+00:00",
+            "updated_at": "2026-01-15T12:00:00+00:00",
+            "text_lemmatized": "Synthetic January assertion: deployment region is North.",
+            "user_id": "synthetic-user"
+          },
+          "june": {
+            "data": "Synthetic June assertion: deployment region is South.",
+            "hash": "080ffb07f3d3d1297d23a7c743d632e8",
+            "created_at": "2026-06-15T12:00:00+00:00",
+            "updated_at": "2026-06-15T12:00:00+00:00",
+            "text_lemmatized": "Synthetic June assertion: deployment region is South.",
+            "user_id": "synthetic-user"
+          }
+        },
+        "application_updated_at_order": [
+          "june",
+          "january"
+        ],
+        "native_fixed_score_signature": [
+          {
+            "id": "june",
+            "score": 0.9,
+            "score_details": {
+              "semantic_score": 0.9,
+              "bm25_score": 0.0,
+              "entity_boost": 0.0,
+              "raw_score": 0.9,
+              "max_possible_score": 1.0,
+              "final_score": 0.9,
+              "threshold": 0
+            }
+          },
+          {
+            "id": "january",
+            "score": 0.6,
+            "score_details": {
+              "semantic_score": 0.6,
+              "bm25_score": 0.0,
+              "entity_boost": 0.0,
+              "raw_score": 0.6,
+              "max_possible_score": 1.0,
+              "final_score": 0.6,
+              "threshold": 0
+            }
+          }
+        ]
+      },
+      "after": {
+        "rows": {
+          "january": {
+            "data": "Synthetic January assertion: deployment region is North.",
+            "hash": "6d755837cd907b76c536f60d97b33992",
+            "created_at": "2026-01-15T12:00:00+00:00",
+            "updated_at": "2026-10-11T12:00:00+00:00",
+            "text_lemmatized": "Synthetic January assertion: deployment region is North.",
+            "user_id": "synthetic-user",
+            "audit_tag": "metadata-only-review"
+          },
+          "june": {
+            "data": "Synthetic June assertion: deployment region is South.",
+            "hash": "080ffb07f3d3d1297d23a7c743d632e8",
+            "created_at": "2026-06-15T12:00:00+00:00",
+            "updated_at": "2026-06-15T12:00:00+00:00",
+            "text_lemmatized": "Synthetic June assertion: deployment region is South.",
+            "user_id": "synthetic-user"
+          }
+        },
+        "application_updated_at_order": [
+          "january",
+          "june"
+        ],
+        "native_fixed_score_signature": [
+          {
+            "id": "june",
+            "score": 0.9,
+            "score_details": {
+              "semantic_score": 0.9,
+              "bm25_score": 0.0,
+              "entity_boost": 0.0,
+              "raw_score": 0.9,
+              "max_possible_score": 1.0,
+              "final_score": 0.9,
+              "threshold": 0
+            }
+          },
+          {
+            "id": "january",
+            "score": 0.6,
+            "score_details": {
+              "semantic_score": 0.6,
+              "bm25_score": 0.0,
+              "entity_boost": 0.0,
+              "raw_score": 0.6,
+              "max_possible_score": 1.0,
+              "final_score": 0.6,
+              "threshold": 0
+            }
+          }
+        ]
+      },
+      "history": [
+        {
+          "id": "b9c7d24b-43ce-4644-a59f-2ece69986eb2",
+          "memory_id": "january",
+          "old_memory": "Synthetic January assertion: deployment region is North.",
+          "new_memory": "Synthetic January assertion: deployment region is North.",
+          "event": "UPDATE",
+          "created_at": "2026-01-15T12:00:00+00:00",
+          "updated_at": "2026-10-11T12:00:00+00:00",
+          "is_deleted": false,
+          "actor_id": null,
+          "role": null
+        }
+      ],
+      "adapter_counts": {
+        "get": 1,
+        "embed": 1,
+        "update": 1,
+        "history_write": 1
+      },
+      "trace": [
+        {
+          "sequence": 1,
+          "event": "before_public_update",
+          "counts": {
+            "get": 0,
+            "embed": 0,
+            "update": 0,
+            "history_write": 0
+          }
+        },
+        {
+          "sequence": 2,
+          "event": "provider_get",
+          "counts": {
+            "get": 1,
+            "embed": 0,
+            "update": 0,
+            "history_write": 0
+          }
+        },
+        {
+          "sequence": 3,
+          "event": "provider_embed_unchanged_text",
+          "counts": {
+            "get": 1,
+            "embed": 1,
+            "update": 0,
+            "history_write": 0
+          }
+        },
+        {
+          "sequence": 4,
+          "event": "provider_update",
+          "counts": {
+            "get": 1,
+            "embed": 1,
+            "update": 1,
+            "history_write": 0
+          }
+        },
+        {
+          "sequence": 5,
+          "event": "native_sqlite_history_written",
+          "counts": {
+            "get": 1,
+            "embed": 1,
+            "update": 1,
+            "history_write": 1
+          }
+        },
+        {
+          "sequence": 6,
+          "event": "public_update_returned",
+          "counts": {
+            "get": 1,
+            "embed": 1,
+            "update": 1,
+            "history_write": 1
+          }
+        }
+      ],
+      "network_attempts": [],
+      "source_path": "/workspace/scratch/5b0f6da052fa/mem0-7535-20261011/source",
+      "assertions": "PASS_WITHIN_BOUND"
+    }
+  ],
+  "pass_count": 2,
+  "boundary": "Synthetic provider data; application timestamp sort, not native retrieval or truth ranking",
+  "execution": {
+    "started_at": "2026-10-11T06:00:54.791172+00:00",
+    "completed_at": "2026-10-11T06:00:55.775861+00:00",
+    "python": "3.12.14",
+    "platform": "Linux-6.18.44-x86_64-with-glibc2.39",
+    "dependency_manager": "Hatch detached environment",
+    "installed_versions": {
+      "Pygments": "2.21.0",
+      "SQLAlchemy": "2.1.4",
+      "annotated-types": "0.8.0",
+      "anyio": "4.15.1",
+      "backoff": "2.2.1",
+      "certifi": "2026.7.22",
+      "charset-normalizer": "3.5.2",
+      "distro": "1.9.0",
+      "grpcio": "1.84.0",
+      "h11": "0.16.0",
+      "h2": "4.4.1",
+      "hpack": "4.2.0",
+      "httpcore": "1.0.9",
+      "httpcore2": "2.13.1",
+      "httpx": "0.28.1",
+      "httpx2": "2.13.1",
+      "hyperframe": "6.1.0",
+      "idna": "3.20",
+      "iniconfig": "2.3.1",
+      "jiter": "0.17.0",
+      "mem0ai": "2.2.1",
+      "numpy": "2.5.4",
+      "openai": "3.28.0",
+      "packaging": "26.3",
+      "pip": "26.2.1",
+      "pluggy": "1.6.0",
+      "portalocker": "3.2.0",
+      "posthog": "7.67.0",
+      "protobuf": "6.33.6",
+      "pydantic": "2.14.0",
+      "pydantic_core": "2.50.0",
+      "pytest": "9.1.1",
+      "pytest-asyncio": "1.4.0",
+      "pytest-mock": "3.16.0",
+      "pytz": "2026.5",
+      "qdrant-client": "1.19.1",
+      "requests": "2.34.2",
+      "ruff": "0.16.0",
+      "sniffio": "1.3.1",
+      "truststore": "0.10.4",
+      "typing-inspection": "0.4.4",
+      "typing_extensions": "4.16.0",
+      "urllib3": "2.8.0"
+    },
+    "junit_counts": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "exit_code": 0,
+    "source_initial_sha": "b7ad69afda6b6ed030347c66d48a13e4de9dec08",
+    "source_final_sha": "b7ad69afda6b6ed030347c66d48a13e4de9dec08",
+    "source_worktree": "CLEAN",
+    "stdout": "..                                                                       [100%]\n2 passed in 0.61s\n",
+    "stderr": "",
+    "process_isolation": "fresh pytest subprocess"
+  }
+}

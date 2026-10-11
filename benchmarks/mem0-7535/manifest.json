@@ -1,0 +1,89 @@
+{
+  "schema": "mem0-7535-closed-artifact-manifest/1",
+  "foreign_source_sha": "b7ad69afda6b6ed030347c66d48a13e4de9dec08",
+  "host_base_sha": "2d961896ca527e44f57b240041f173106821563d",
+  "collected_at": "2026-10-11T06:05:35.617575+00:00",
+  "boundary": "byte membership/integrity only; not semantic truth or authority",
+  "artifacts": [
+    {
+      "path": "README.md",
+      "bytes": 4622,
+      "sha256": "a8a786d025f1de067ace4e5bee735366c3e6a7231784b069783c375c5e0a18b8"
+    },
+    {
+      "path": "REVIEW.md",
+      "bytes": 1462,
+      "sha256": "982260411e5f120286c1cd5d9213367562c938862c96c480d7aa7926b25d7d02"
+    },
+    {
+      "path": "evidence/attempt-1.json",
+      "bytes": 14010,
+      "sha256": "54b48fdbd613c1cf88ebbf8bb41cda67570f24e23f1cb4abe1d8edf35f316262"
+    },
+    {
+      "path": "evidence/attempt-2.json",
+      "bytes": 14024,
+      "sha256": "0f73556d8c07dcbf6c7d15f3734a5d264f9d9aa4ea604d83ef4973ef17fced29"
+    },
+    {
+      "path": "evidence/baseline-checks.json",
+      "bytes": 2503,
+      "sha256": "99104659a3d7fe36e27328f9d0a5ea2ae1a315e38d84b46ba9f70f63f6224664"
+    },
+    {
+      "path": "evidence/semantic-replay.json",
+      "bytes": 447,
+      "sha256": "3d1791b7d78bd02a199340fc58c0b2605d78570db7bf8d565c3a7edcd616b160"
+    },
+    {
+      "path": "proposed-update.mdx",
+      "bytes": 6903,
+      "sha256": "6fe439cd41898ad0e8e35bdccc2b1bf79446fd89e7b3f7c0fadbfc507d2db341"
+    },
+    {
+      "path": "provenance.json",
+      "bytes": 1951,
+      "sha256": "53704f93ec5db72908ba60a99e0f7facdaaba197d91ff73af463a20df4ae18c3"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 1214,
+      "sha256": "43da146263ff56b02d3a2bff974466770a897c0eab54b90ac55889846abc5f32"
+    },
+    {
+      "path": "replay.py",
+      "bytes": 4744,
+      "sha256": "625916a58e6771849402b69ab8edf724ef547e514a647fddd0162fc50b00cf30"
+    },
+    {
+      "path": "requirements.lock",
+      "bytes": 703,
+      "sha256": "832177f5baca2853be9b70cbc4a3a64e7d1de27a198d97905dd6f7c11479b1db"
+    },
+    {
+      "path": "scope.md",
+      "bytes": 1844,
+      "sha256": "a132cf6902d783693b0982c9d93fe5b3b7dc31646d467f3eb33e1b2cb02f0410"
+    },
+    {
+      "path": "source-bindings.json",
+      "bytes": 1223,
+      "sha256": "98f6b0f0623fd5e29639488cb0e97f98b7cae639114250001144b875a4e4f8b8"
+    },
+    {
+      "path": "test_mutation_clock.py",
+      "bytes": 9300,
+      "sha256": "d4dd85efe721d59617fddc666bca435bae8a1ac1fa2685d27b184fbc2659027c"
+    },
+    {
+      "path": "updated-at-note.patch",
+      "bytes": 726,
+      "sha256": "155e8a2a96c490779bffc0d02979baa356de7da15054e4bd868557b305dd2c1d"
+    },
+    {
+      "path": "verify_evidence.py",
+      "bytes": 1615,
+      "sha256": "01bc337d469c116595d020f7cdf6f30c653f1944d427d0463303c9ba324a7f55"
+    }
+  ]
+}

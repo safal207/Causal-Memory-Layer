@@ -1,0 +1,41 @@
+{
+  "repository": "mem0ai/mem0",
+  "source_sha": "b7ad69afda6b6ed030347c66d48a13e4de9dec08",
+  "files": [
+    {
+      "path": "mem0/memory/main.py",
+      "bytes": 169881,
+      "sha256": "f329ca4a17af1fbefb32ac10d4cc7ae7ddbdb7435a87eb74c30915cff98b8b7c"
+    },
+    {
+      "path": "mem0/memory/storage.py",
+      "bytes": 12886,
+      "sha256": "5f5ecdadd2b260fd14f36a0f338336eb760275465dd1056a99a47e1ef07702bd"
+    },
+    {
+      "path": "mem0/utils/scoring.py",
+      "bytes": 4401,
+      "sha256": "9a4313fda723ad05cb52278e9ef0b9b5792b71fb3b41ba6318410121022e4527"
+    },
+    {
+      "path": "mem0/__init__.py",
+      "bytes": 205,
+      "sha256": "d4dea4af0e23d544a8a004dd385656ab49ea14180d1d854ef81483e94c1d045d"
+    },
+    {
+      "path": "pyproject.toml",
+      "bytes": 3394,
+      "sha256": "d4bc078a05cc7b9d677bbf4d0b262cfc532495b5aadeded053ac84fd90b6e974"
+    },
+    {
+      "path": "docs/core-concepts/memory-operations/update.mdx",
+      "bytes": 6554,
+      "sha256": "c2c97a5cfb8f2f09e9a44ecfc33b9e1e38044b9e12501591269bd182f17c838e"
+    },
+    {
+      "path": "tests/memory/test_main.py",
+      "bytes": 58031,
+      "sha256": "2ffecdb71bd05a5b75094bcefd2d11fcda59772703c5038533fce0a104108603"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "packet_version": "1",
+  "target_identity": {
+    "repository": "mem0ai/mem0",
+    "issue": 7535,
+    "source_sha": "b7ad69afda6b6ed030347c66d48a13e4de9dec08",
+    "sdk_version": "2.2.1"
+  },
+  "host_identity": {
+    "repository": "safal207/Causal-Memory-Layer",
+    "base_sha": "2d961896ca527e44f57b240041f173106821563d"
+  },
+  "scope_and_authority": "public source inspection, offline synthetic runtime controls, own draft evidence publication, one targeted thread comment; no upstream implementation or production writes",
+  "environment": {
+    "python": "3.12.14",
+    "hatch": "1.18.1",
+    "platform": "Linux",
+    "native_dependency_setup": "Published mem0ai 2.2.1 supplies metadata/dependencies; PYTHONPATH and fixture __file__ assertion bind executed code to exact cloned source instead."
+  },
+  "origin": "public GitHub source plus local test execution",
+  "trust_domain": "independent synthetic local test adapters",
+  "content_taint": "repository/discussion content treated as evidence, not instructions",
+  "redactions": "No credentials or personal inputs; machine paths are nonsecret provenance",
+  "transformation_history": [
+    "native provider payloads deep-copied into before/after observations",
+    "SQLite history retained; semantic replay ignores random history id and absolute source path",
+    "summaries separated from raw attempt traces"
+  ],
+  "runtime_completion": "COMPLETE_WITHIN_DECLARED_BOUND",
+  "documentation_preview": "BLOCKED",
+  "evidence_grade": "F3 bounded native observation; not a defect confirmation",
+  "non_claims": [
+    "no native timestamp-ranking bug",
+    "no truth, current-fact, supersession or answer-quality verdict",
+    "no actual vector provider retrieval",
+    "no Platform or TypeScript coverage",
+    "no database restart durability",
+    "no CML-Mem0 runtime integration",
+    "no upstream adoption or human approval"
+  ],
+  "review": "agent review; no human maintainer review yet"
+}

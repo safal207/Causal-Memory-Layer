@@ -1,0 +1,71 @@
+{
+  "collected_at": "2026-10-11T06:03:06.548572+00:00",
+  "checks": [
+    {
+      "name": "native update baseline",
+      "status": "PASS",
+      "count": 15,
+      "deselected": 62,
+      "command": "PYTHONPATH=SOURCE hatch run python -m pytest SOURCE/tests/memory/test_main.py -k update SOURCE/tests/utils/test_scoring.py -p no:cacheprovider",
+      "note": "-k update also deselected scoring tests; scoring executed separately below"
+    },
+    {
+      "name": "native scoring baseline",
+      "status": "PASS",
+      "count": 21,
+      "command": "PYTHONPATH=SOURCE hatch run python -m pytest SOURCE/tests/utils/test_scoring.py -p no:cacheprovider"
+    },
+    {
+      "name": "CML host applicability/lineage baseline",
+      "status": "PASS",
+      "count": 17,
+      "command": "PYTHONPATH=OWNED hatch run host-checks:python -m pytest ../../tests/test_memory_applicability.py ../../tests/test_memory_lineage.py -p no:cacheprovider",
+      "initial_attempt": "Collection blocked by missing PyYAML in native fixture environment; corrected by separate Hatch host-checks environment."
+    },
+    {
+      "name": "Ruff check and format",
+      "status": "PASS",
+      "version": "0.16.0",
+      "files": [
+        "test_mutation_clock.py",
+        "replay.py",
+        "verify_evidence.py"
+      ]
+    },
+    {
+      "name": "documentation patch applies",
+      "status": "PASS",
+      "command": "git apply --check updated-at-note.patch"
+    },
+    {
+      "name": "llms.txt coverage",
+      "status": "PASS",
+      "command": "python scripts/check-llms-txt-coverage.py",
+      "output": "docs/llms.txt is in sync with docs/**/*.mdx."
+    },
+    {
+      "name": "Mintlify render/strict build",
+      "status": "BLOCKED",
+      "command": [
+        "make -B docs (no-open, no-telemetry CLI adapter)",
+        "pnpm --package=mintlify dlx mintlify validate --no-telemetry"
+      ],
+      "exit_codes": [
+        2,
+        1
+      ],
+      "reason": "Node os.networkInterfaces: uv_interface_addresses ERR_SYSTEM_ERROR before documentation build",
+      "versions": {
+        "node": "24.19.0",
+        "mintlify_cli": "4.0.1602",
+        "mintlify_previewing": "4.0.1453"
+      },
+      "note": "plain make docs did not execute: docs directory is not marked PHONY; forced target used. No rendered-preview success claimed."
+    },
+    {
+      "name": "dedicated native CI",
+      "status": "NOT_RUN",
+      "note": "No workflow changes; retained local controls are separate from the host CI."
+    }
+  ]
+}
