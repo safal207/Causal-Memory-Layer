@@ -467,7 +467,11 @@ def _refresh_contract_violations(path: Path) -> list[str]:
         (
             "for attempt in range(3):",
             "exc.code not in {429, 502, 503, 504}",
-            "time.sleep(2**attempt)",
+            "ConnectionResetError",
+            'retry_after = exc.headers.get("Retry-After")',
+            "int(retry_after) > 10",
+            "retry_delay = max(retry_delay, int(retry_after))",
+            "time.sleep(retry_delay)",
             "observed == expected",
             'output.write("fresh="',
         ),
@@ -529,11 +533,22 @@ def test_refresh_workflow_retry_contract_detects_removed_retries(tmp_path: Path)
     original = REFRESH_WORKFLOW.read_text(encoding="utf-8")
     assert "for attempt in range(3):" in original
     assert "exc.code not in {429, 502, 503, 504}" in original
-    assert "time.sleep(2**attempt)" in original
+    for guard in (
+        "ConnectionResetError",
+        'retry_after = exc.headers.get("Retry-After")',
+        "int(retry_after) > 10",
+        "retry_delay = max(retry_delay, int(retry_after))",
+        "time.sleep(retry_delay)",
+    ):
+        assert guard in original
     for removed in (
         "for attempt in range(3):",
         "exc.code not in {429, 502, 503, 504}",
-        "time.sleep(2**attempt)",
+        "ConnectionResetError",
+        'retry_after = exc.headers.get("Retry-After")',
+        "int(retry_after) > 10",
+        "retry_delay = max(retry_delay, int(retry_after))",
+        "time.sleep(retry_delay)",
     ):
         candidate = tmp_path / "refresh-mutated.yml"
         candidate.write_text(
