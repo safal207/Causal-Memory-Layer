@@ -50,14 +50,20 @@ def _pull(*, changed_base: bool = False) -> dict:
     }
 
 
-def _http_error(code: int) -> urllib.error.HTTPError:
+def _http_error(code: int, retry_after: str | None = None) -> urllib.error.HTTPError:
+    headers = {"Retry-After": retry_after} if retry_after is not None else {}
     return urllib.error.HTTPError(
         "https://api.github.com/repos/" + REPOSITORY + "/pulls/" + PR_NUMBER,
         code,
         "synthetic failure",
-        None,
+        headers,
         None,
     )
+
+
+class ResettingBody(io.BytesIO):
+    def read(self, *args, **kwargs) -> bytes:
+        raise ConnectionResetError("connection reset during response read")
 
 
 def _execute(monkeypatch, tmp_path: Path, responses: list, calls: list, delays: list) -> None:
@@ -83,6 +89,10 @@ def _execute(monkeypatch, tmp_path: Path, responses: list, calls: list, delays: 
             pytest.fail("more API requests than bounded retry budget")
         if isinstance(result, Exception):
             raise result
+        if isinstance(result, io.BytesIO):
+            return result
+        if isinstance(result, bytes):
+            return io.BytesIO(result)
         return io.BytesIO(json.dumps(result).encode("utf-8"))
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
@@ -149,6 +159,73 @@ def test_transport_failure_retries(monkeypatch, tmp_path: Path) -> None:
     assert len(calls) == 2
     assert delays == [1]
     assert (tmp_path / "github-output.txt").read_text() == "fresh=true\n"
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [TimeoutError("read timed out"), urllib.error.URLError("connection reset")],
+)
+def test_transport_failure_variants_retry(monkeypatch, tmp_path: Path, failure) -> None:
+    calls, delays = [], []
+    _execute(monkeypatch, tmp_path, [failure, _pull()], calls, delays)
+    assert len(calls) == 2
+    assert delays == [1]
+    assert (tmp_path / "github-output.txt").read_text() == "fresh=true\\n"
+
+
+def test_response_body_connection_reset_retries(monkeypatch, tmp_path: Path) -> None:
+    calls, delays = [], []
+    _execute(monkeypatch, tmp_path, [ResettingBody(b""), _pull()], calls, delays)
+    assert len(calls) == 2
+    assert delays == [1]
+    assert (tmp_path / "github-output.txt").read_text() == "fresh=true\\n"
+
+
+def test_exhausted_transport_retries_remain_fail_closed(monkeypatch, tmp_path: Path) -> None:
+    calls, delays = [], []
+    with pytest.raises(urllib.error.URLError):
+        _execute(
+            monkeypatch,
+            tmp_path,
+            [urllib.error.URLError("reset")] * 3,
+            calls,
+            delays,
+        )
+    assert len(calls) == 3
+    assert delays == [1, 2]
+    assert not (tmp_path / "github-output.txt").exists()
+    assert not (tmp_path / "artifacts/trust-refresh/transition-freshness.json").exists()
+
+
+def test_malformed_response_is_not_retried(monkeypatch, tmp_path: Path) -> None:
+    calls, delays = [], []
+    with pytest.raises(json.JSONDecodeError):
+        _execute(monkeypatch, tmp_path, [b"{invalid json"], calls, delays)
+    assert len(calls) == 1
+    assert delays == []
+    assert not (tmp_path / "github-output.txt").exists()
+    assert not (tmp_path / "artifacts/trust-refresh/transition-freshness.json").exists()
+
+
+def test_429_honors_bounded_retry_after(monkeypatch, tmp_path: Path) -> None:
+    calls, delays = [], []
+    _execute(monkeypatch, tmp_path, [_http_error(429, retry_after="7"), _pull()], calls, delays)
+    assert len(calls) == 2
+    assert delays == [7]
+    assert (tmp_path / "github-output.txt").read_text() == "fresh=true\\n"
+
+
+@pytest.mark.parametrize("header", ["60", "unknown"])
+def test_429_unbounded_or_invalid_retry_after_fails_closed(
+    monkeypatch, tmp_path: Path, header: str
+) -> None:
+    calls, delays = [], []
+    with pytest.raises(SystemExit, match="Retry-After exceeds bounded retry policy"):
+        _execute(monkeypatch, tmp_path, [_http_error(429, retry_after=header)], calls, delays)
+    assert len(calls) == 1
+    assert delays == []
+    assert not (tmp_path / "github-output.txt").exists()
+    assert not (tmp_path / "artifacts/trust-refresh/transition-freshness.json").exists()
 
 
 def test_real_transition_drift_still_denies_freshness(
