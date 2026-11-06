@@ -464,7 +464,13 @@ def _refresh_contract_violations(path: Path) -> list[str]:
         violations,
         freshness.get("run"),
         "refresh transition freshness",
-        ("observed == expected", 'output.write("fresh="'),
+        (
+            "for attempt in range(3):",
+            "exc.code not in {429, 502, 503, 504}",
+            "time.sleep(2**attempt)",
+            "observed == expected",
+            'output.write("fresh="',
+        ),
     )
     final_publish = named.get("Publish refreshed test merge status", {})
     final_run = _require_fragments(
@@ -517,6 +523,25 @@ def test_extended_trust_contracts_pass():
     assert _causal_contract_violations(CAUSAL_WORKFLOW) == []
     assert _trusted_contract_violations(TRUSTED_WORKFLOW) == []
     assert _refresh_contract_violations(REFRESH_WORKFLOW) == []
+
+
+def test_refresh_workflow_retry_contract_detects_removed_retries(tmp_path: Path):
+    original = REFRESH_WORKFLOW.read_text(encoding="utf-8")
+    assert "for attempt in range(3):" in original
+    assert "exc.code not in {429, 502, 503, 504}" in original
+    assert "time.sleep(2**attempt)" in original
+    for removed in (
+        "for attempt in range(3):",
+        "exc.code not in {429, 502, 503, 504}",
+        "time.sleep(2**attempt)",
+    ):
+        candidate = tmp_path / "refresh-mutated.yml"
+        candidate.write_text(
+            original.replace(removed, "# intentionally disabled retry guard"),
+            encoding="utf-8",
+        )
+        violations = _refresh_contract_violations(candidate)
+        assert any("refresh transition freshness" in item for item in violations)
 
 
 def test_refresh_final_requirement_distinguishes_denial_from_orchestrator_failure():
