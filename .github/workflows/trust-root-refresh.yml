@@ -322,6 +322,8 @@ jobs:
           python3 - <<'PY'
           import json
           import os
+          import time
+          import urllib.error
           import urllib.request
           from pathlib import Path
 
@@ -334,8 +336,39 @@ jobs:
                   "User-Agent": "cml-trust-root-refresh",
               },
           )
-          with urllib.request.urlopen(request, timeout=30) as response:
-              pull = json.load(response)
+          # Only retry transient read failures. Never infer freshness from an error.
+          for attempt in range(3):
+              retry_delay = 2**attempt
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      pull = json.load(response)
+                  break
+              except urllib.error.HTTPError as exc:
+                  if exc.code not in {429, 502, 503, 504} or attempt == 2:
+                      raise
+                  if exc.code == 429 and exc.headers is not None:
+                      retry_after = exc.headers.get("Retry-After")
+                      if retry_after is not None:
+                          # Avoid retrying early or sleeping unbounded time.
+                          if not retry_after.isdecimal() or int(retry_after) > 10:
+                              raise SystemExit(
+                                  "GitHub API Retry-After exceeds bounded retry policy"
+                              ) from exc
+                          retry_delay = max(retry_delay, int(retry_after))
+                  print(
+                      f"GitHub API HTTP {exc.code}; retrying PR lookup "
+                      f"({attempt + 1}/3)",
+                      flush=True,
+                  )
+              except (urllib.error.URLError, TimeoutError, ConnectionResetError) as exc:
+                  if attempt == 2:
+                      raise
+                  print(
+                      f"GitHub API transport error; retrying PR lookup "
+                      f"({attempt + 1}/3): {exc}",
+                      flush=True,
+                  )
+              time.sleep(retry_delay)
           base = pull.get("base") or {}
           head = pull.get("head") or {}
           observed = {
