@@ -170,7 +170,7 @@ def test_transport_failure_variants_retry(monkeypatch, tmp_path: Path, failure) 
     _execute(monkeypatch, tmp_path, [failure, _pull()], calls, delays)
     assert len(calls) == 2
     assert delays == [1]
-    assert (tmp_path / "github-output.txt").read_text() == "fresh=true\\n"
+    assert (tmp_path / "github-output.txt").read_text() == "fresh=true\n"
 
 
 def test_response_body_connection_reset_retries(monkeypatch, tmp_path: Path) -> None:
@@ -178,7 +178,7 @@ def test_response_body_connection_reset_retries(monkeypatch, tmp_path: Path) -> 
     _execute(monkeypatch, tmp_path, [ResettingBody(b""), _pull()], calls, delays)
     assert len(calls) == 2
     assert delays == [1]
-    assert (tmp_path / "github-output.txt").read_text() == "fresh=true\\n"
+    assert (tmp_path / "github-output.txt").read_text() == "fresh=true\n"
 
 
 def test_exhausted_transport_retries_remain_fail_closed(monkeypatch, tmp_path: Path) -> None:
@@ -212,7 +212,7 @@ def test_429_honors_bounded_retry_after(monkeypatch, tmp_path: Path) -> None:
     _execute(monkeypatch, tmp_path, [_http_error(429, retry_after="7"), _pull()], calls, delays)
     assert len(calls) == 2
     assert delays == [7]
-    assert (tmp_path / "github-output.txt").read_text() == "fresh=true\\n"
+    assert (tmp_path / "github-output.txt").read_text() == "fresh=true\n"
 
 
 @pytest.mark.parametrize("header", ["60", "unknown"])
