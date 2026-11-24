@@ -145,8 +145,10 @@ def test_unrelated_approval_does_not_supply_ancestry():
     assert audit_span(span(), binding(), [root, approval, execution]).lineage == "LINEAGE_NOT_SUPPORTED"
 
 
-def test_actual_sdk_in_memory_export_if_installed():
-    pytest.importorskip("opentelemetry.sdk.trace")
+def test_actual_sdk_in_memory_export():
+    from importlib.metadata import version
+
+    assert version("opentelemetry-sdk") == "1.45.2"
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
     from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -168,5 +170,13 @@ def test_actual_sdk_in_memory_export_if_installed():
         bound = replace(binding(), trace_id=ctx.trace_id, span_id=ctx.span_id)
         assert audit_span(actual, bound, records()).lineage == "LINEAGE_SUPPORTED"
         assert audit_span(actual, None, records()).lineage == "INDETERMINATE"
+        root, _, execution = records()
+        missing_approval = replace(
+            execution, parent_cause="task",
+            ctag=compute_ctag(DOM.AGENT, CLASS.EXEC, 0, "task"),
+        )
+        assert audit_span(actual, bound, [root, missing_approval]).lineage == "LINEAGE_NOT_SUPPORTED"
+        assert audit_span(actual, replace(bound, call_id="different"), records()).lineage == "INDETERMINATE"
+
     finally:
         provider.shutdown()
