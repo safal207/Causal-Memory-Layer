@@ -76,17 +76,15 @@ python -m pytest -q tests/test_otel_genai_adapter.py
 ```
 
 The main test matrix uses small SDK-shaped fixtures, the actual CML audit
-engine and deterministic synthetic records. An optional SDK smoke test
+engine and deterministic synthetic records. A required development-suite SDK smoke test
 creates real spans in an in-memory exporter, without network access:
 
 ```bash
-python -m pip install opentelemetry-sdk
+python -m pip install -e ".[dev]"
 python -m pytest -q tests/test_otel_genai_adapter.py
 ```
 
-Record the exact installed SDK version when reporting the smoke test. The SDK
-is intentionally optional and not added to production dependencies; when
-absent, that one test is skipped, not counted as a pass.
+The development extra pins opentelemetry-sdk==1.45.2. The test checks that exact version and fails if the SDK is absent or mismatched. Production dependencies are unchanged. The real span test exercises supported ancestry, missing approval, missing binding and mismatched call identity.
 
 The core matrix checks equal observed status with/without approval, forged
 attributes, correlation mismatches, missing call ID, missing/duplicate record,
@@ -113,7 +111,7 @@ prevention. CML's existing rules check supplied evidence; they do not prove
 that a missing sampled span means an unauthorized action occurred. No claim
 of compliance with the entire OpenTelemetry GenAI specification.
 
-Next gate: verify exact-head CI and the optional real SDK smoke test, inspect
+Next gate: verify exact-head CI and the required real SDK smoke test, inspect
 false-positive/negative cases with an independent reviewer, pin the upstream
 semantic convention revision and SDK, then decide whether a richer adapter
 is justified. No external outreach or merge is authorized by this artifact.
